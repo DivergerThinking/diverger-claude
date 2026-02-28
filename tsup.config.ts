@@ -25,7 +25,6 @@ export default defineConfig({
     'fast-xml-parser',
     'deepmerge-ts',
     'diff',
-    'zod',
     '@anthropic-ai/sdk',
   ],
   banner: {

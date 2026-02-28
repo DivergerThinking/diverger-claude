@@ -73,6 +73,7 @@ describe('RustAnalyzer', () => {
     expect(actix!.category).toBe('framework');
     expect(actix!.confidence).toBe(85);
     expect(actix!.parentId).toBe('rust');
+    expect(actix!.profileIds).toContain('frameworks/actix-web');
   });
 
   it('should detect Serde from dependencies', async () => {
@@ -83,6 +84,7 @@ describe('RustAnalyzer', () => {
     const serde = result.technologies.find((t) => t.id === 'serde');
     expect(serde).toBeDefined();
     expect(serde!.name).toBe('Serde');
+    expect(serde!.profileIds).toEqual([]);
   });
 
   it('should detect multiple frameworks including dev-dependencies', async () => {
@@ -96,6 +98,11 @@ describe('RustAnalyzer', () => {
     expect(ids).toContain('tokio');
     expect(ids).toContain('serde');
     expect(ids).toContain('rocket');
+
+    const axum = result.technologies.find((t) => t.id === 'axum');
+    expect(axum!.profileIds).toContain('frameworks/axum');
+    const rocket = result.technologies.find((t) => t.id === 'rocket');
+    expect(rocket!.profileIds).toContain('frameworks/rocket');
   });
 
   it('should not detect frameworks from bare Cargo.toml', async () => {
