@@ -67,7 +67,7 @@ export class KnowledgeError extends DivergerError {
 export class ApiKeyError extends DivergerError {
   constructor() {
     super(
-      'API key no configurada. Usa ANTHROPIC_API_KEY o `diverger config set api-key`.',
+      'API key no configurada. Define la variable de entorno ANTHROPIC_API_KEY.',
       'API_KEY_ERROR',
     );
     this.name = 'ApiKeyError';

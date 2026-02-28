@@ -56,11 +56,13 @@ export class JavaAnalyzer extends BaseAnalyzer {
 
   private detectMavenDeps(pom: Record<string, unknown>, technologies: DetectedTechnology[]): void {
     // Check actual dependency structures instead of naive string matching
-    const project = (pom as any)?.project;
+    // XML parser returns deeply nested unknown structure; as any needed for traversal
+    const project = (pom as any)?.project; // eslint-disable-line @typescript-eslint/no-explicit-any
     const deps = project?.dependencies?.dependency;
     const depArray = Array.isArray(deps) ? deps : deps ? [deps] : [];
 
-    const hasSpringBoot = depArray.some((d: any) =>
+    // XML dependency objects are untyped; as any needed for property access
+    const hasSpringBoot = depArray.some((d: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
       d.groupId?.includes('org.springframework.boot') || d.artifactId?.includes('spring-boot')
     ) || project?.parent?.groupId?.includes('org.springframework.boot');
 
@@ -75,7 +77,7 @@ export class JavaAnalyzer extends BaseAnalyzer {
       });
     }
 
-    const hasJUnit = depArray.some((d: any) =>
+    const hasJUnit = depArray.some((d: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
       d.artifactId?.includes('junit-jupiter') || d.artifactId?.includes('junit-vintage')
     );
 
