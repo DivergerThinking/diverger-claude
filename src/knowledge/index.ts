@@ -20,6 +20,13 @@ export class KnowledgeEngine {
     this.cache = new KnowledgeCache(projectRoot);
   }
 
+  /** Check if a version string is a valid semver-like version (not a URL, path, or alias) */
+  private isUsableVersion(version?: string): boolean {
+    if (!version) return false;
+    // Reject non-version strings: URLs, paths, workspace protocols, aliases
+    return /^\d/.test(version) && !version.includes('://');
+  }
+
   /** Fetch best practices for a detected technology */
   async fetchBestPractices(tech: DetectedTechnology): Promise<KnowledgeResult> {
     // Check cache first
@@ -28,10 +35,13 @@ export class KnowledgeEngine {
       if (cached) return cached;
     }
 
+    // Only pass version to API if it's a valid semver-like string
+    const version = this.isUsableVersion(tech.version) ? tech.version : undefined;
+
     // Fetch from API
     const searchResult = await this.apiClient.searchBestPractices(
       tech.name,
-      tech.version,
+      version,
       'best-practices',
     );
 

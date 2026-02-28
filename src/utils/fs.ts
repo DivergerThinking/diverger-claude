@@ -12,10 +12,16 @@ export async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+/** Strip UTF-8 BOM (U+FEFF) if present at the start of a string */
+function stripBom(content: string): string {
+  return content.charCodeAt(0) === 0xFEFF ? content.slice(1) : content;
+}
+
 /** Read file as UTF-8 string, returns null if not found */
 export async function readFileOrNull(filePath: string): Promise<string | null> {
   try {
-    return await fs.readFile(filePath, 'utf-8');
+    const raw = await fs.readFile(filePath, 'utf-8');
+    return stripBom(raw);
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw err;
