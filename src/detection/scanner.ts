@@ -74,7 +74,18 @@ export class FileScanner {
       cwd: projectRoot,
       absolute: false,
       dot: true,
-      ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**', '**/vendor/**'],
+      ignore: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/build/**',
+        '**/.git/**',
+        '**/vendor/**',
+        '**/.next/**',
+        '**/.nuxt/**',
+        '**/target/**',
+        '**/out/**',
+        '**/.turbo/**',
+      ],
       onlyFiles: true,
     });
 
@@ -99,7 +110,18 @@ export class FileScanner {
       cwd: projectRoot,
       absolute: false,
       dot: true,
-      ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**'],
+      ignore: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/build/**',
+        '**/.git/**',
+        '**/vendor/**',
+        '**/.next/**',
+        '**/.nuxt/**',
+        '**/target/**',
+        '**/out/**',
+        '**/.turbo/**',
+      ],
       onlyFiles: true,
     });
 

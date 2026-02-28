@@ -70,7 +70,7 @@ export class JavaAnalyzer extends BaseAnalyzer {
         name: 'Spring Boot',
         category: 'framework',
         confidence: 90,
-        evidence: [{ source: 'pom.xml', type: 'manifest', description: 'Spring Boot dependency found in pom.xml', weight: 90 }],
+        evidence: [{ source: 'pom.xml', type: 'manifest', description: 'Found "spring-boot" in dependencies', weight: 90 }],
         profileIds: ['frameworks/spring-boot'],
       });
     }
@@ -85,7 +85,7 @@ export class JavaAnalyzer extends BaseAnalyzer {
         name: 'JUnit',
         category: 'testing',
         confidence: 90,
-        evidence: [{ source: 'pom.xml', type: 'manifest', description: 'JUnit dependency found', weight: 90 }],
+        evidence: [{ source: 'pom.xml', type: 'manifest', description: 'Found "junit" in dependencies', weight: 90 }],
         profileIds: ['testing/junit'],
       });
     }
@@ -106,7 +106,7 @@ export class JavaAnalyzer extends BaseAnalyzer {
         name: 'Spring Boot',
         category: 'framework',
         confidence: 90,
-        evidence: [{ source: file, type: 'manifest', description: 'Spring Boot found in Gradle build', weight: 90 }],
+        evidence: [{ source: file, type: 'manifest', description: 'Found "spring-boot" in dependencies', weight: 90 }],
         profileIds: ['frameworks/spring-boot'],
       });
     }
@@ -120,7 +120,7 @@ export class JavaAnalyzer extends BaseAnalyzer {
         name: 'JUnit',
         category: 'testing',
         confidence: 90,
-        evidence: [{ source: file, type: 'manifest', description: 'JUnit found in Gradle build', weight: 90 }],
+        evidence: [{ source: file, type: 'manifest', description: 'Found "junit" in dependencies', weight: 90 }],
         profileIds: ['testing/junit'],
       });
     }

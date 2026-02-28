@@ -51,29 +51,32 @@ export async function detectChanges(
     }
   }
 
-  // Compare current dependencies against meta.detectedStack
+  // C5: Compare current dependencies against meta.trackedDependencies (real npm names)
+  // Fallback: if trackedDependencies is missing (old meta), use empty array
+  const tracked = meta.trackedDependencies ?? [];
   const pkgContent = await readFileOrNull(path.join(projectRoot, 'package.json'));
-  if (pkgContent) {
+  if (pkgContent && tracked.length > 0) {
     try {
       const pkg = JSON.parse(pkgContent) as {
         dependencies?: Record<string, string>;
         devDependencies?: Record<string, string>;
       };
       const allDeps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
-      const stackLower = meta.detectedStack.map((s) => s.toLowerCase());
+      const trackedLower = tracked.map((s) => s.toLowerCase());
 
-      // Find new dependencies not in the detected stack
+      // Find new dependencies not in the tracked list
+      const trackedSet = new Set(trackedLower);
       for (const dep of allDeps) {
-        if (!stackLower.some((s) => s.includes(dep.toLowerCase()))) {
+        if (!trackedSet.has(dep.toLowerCase())) {
           newDependencies.push(dep);
         }
       }
 
-      // Find removed dependencies: items in detectedStack that are no longer in package.json deps
-      const allDepsLower = allDeps.map((d) => d.toLowerCase());
-      for (const stackItem of meta.detectedStack) {
-        if (!allDepsLower.some((d) => stackItem.toLowerCase().includes(d))) {
-          removedDependencies.push(stackItem);
+      // Find removed dependencies: tracked deps no longer in package.json
+      const allDepsLowerSet = new Set(allDeps.map((d) => d.toLowerCase()));
+      for (const trackedItem of tracked) {
+        if (!allDepsLowerSet.has(trackedItem.toLowerCase())) {
+          removedDependencies.push(trackedItem);
         }
       }
     } catch {

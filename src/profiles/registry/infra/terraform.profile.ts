@@ -34,8 +34,8 @@ export const terraformProfile: Profile = {
           'Bash(tflint:*)',
         ],
         deny: [
-          'Read(*.tfstate)',
-          'Read(*.tfstate.backup)',
+          'Read(**/*.tfstate)',
+          'Read(**/*.tfstate.backup)',
         ],
       },
     },

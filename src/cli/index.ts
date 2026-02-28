@@ -13,7 +13,7 @@ export function createCli(): Command {
   program
     .name('diverger')
     .description('Herramienta de configuración automática de Claude Code para proyectos')
-    .version('0.1.0')
+    .version(process.env.DIVERGER_VERSION ?? '0.1.0')
     .option('-q, --quiet', 'Modo silencioso (solo errores)')
     .option('--json', 'Salida en formato JSON')
     .hook('preAction', (thisCommand) => {

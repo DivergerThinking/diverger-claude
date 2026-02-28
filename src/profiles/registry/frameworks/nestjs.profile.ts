@@ -32,7 +32,7 @@ export const nestjsProfile: Profile = {
         allow: [
           'Bash(npx nest:*)',
           'Bash(npm run start:*)',
-          'Bash(npm run start\\:dev:*)',
+          'Bash(npm run start:dev:*)',
         ],
       },
     },

@@ -15,7 +15,10 @@ function makeFile(path: string, content: string): GeneratedFile {
   return { path, content };
 }
 
-function makeMeta(fileHashes: Record<string, string> = {}): DivergentMeta {
+function makeMeta(
+  fileHashes: Record<string, string> = {},
+  fileContents?: Record<string, string>,
+): DivergentMeta {
   return {
     version: '0.1.0',
     generatedAt: new Date().toISOString(),
@@ -23,6 +26,7 @@ function makeMeta(fileHashes: Record<string, string> = {}): DivergentMeta {
     appliedProfiles: [],
     fileHashes,
     ruleGovernance: {},
+    fileContents,
   };
 }
 
@@ -217,6 +221,67 @@ describe('ThreeWayMerge', () => {
     });
   });
 
+  // ── Case 6b: Mandatory governance when both changed (A4) ─────────────
+
+  describe('Case 6b: mandatory governance when both sides changed', () => {
+    it('should force library version when governance is mandatory and both changed', async () => {
+      const originalContent = '# Original mandatory rule';
+      const hash = hashForMeta(originalContent);
+      mockReadFileOrNull.mockResolvedValue('# Team AND library both changed');
+
+      const file = makeFile('/project/.claude/rules/security.md', '# Library updated mandatory rule');
+      const meta = makeMeta({ '/project/.claude/rules/security.md': hash });
+      const result = await merger.mergeFile(file, meta, originalContent, 'mandatory');
+
+      expect(result.outcome).toBe('auto-apply');
+      expect(result.content).toBe('# Library updated mandatory rule');
+      expect(result.conflictDetails).toContain('mandatory');
+    });
+
+    it('should attempt smart merge when governance is recommended and both changed', async () => {
+      const originalContent = '## Section A\nOriginal A';
+      const hash = hashForMeta(originalContent);
+      mockReadFileOrNull.mockResolvedValue('## Section A\nTeam modified A');
+
+      const file = makeFile('/project/.claude/rules/style.md', '## Section A\nLibrary modified A');
+      const meta = makeMeta({ '/project/.claude/rules/style.md': hash });
+      const result = await merger.mergeFile(file, meta, originalContent, 'recommended');
+
+      // Should attempt merge, not force auto-apply
+      expect(result.outcome).toBe('merged');
+    });
+  });
+
+  // ── Case 5b: Mandatory governance overrides team changes ─────────────
+
+  describe('Case 5b: mandatory governance enforcement', () => {
+    it('should force library version when governance is mandatory and only team changed', async () => {
+      const originalContent = '# Original mandatory rule';
+      const hash = hashForMeta(originalContent);
+      mockReadFileOrNull.mockResolvedValue('# Team modified mandatory rule');
+
+      const file = makeFile('/project/.claude/rules/security.md', originalContent);
+      const meta = makeMeta({ '/project/.claude/rules/security.md': hash });
+      const result = await merger.mergeFile(file, meta, null, 'mandatory');
+
+      expect(result.outcome).toBe('auto-apply');
+      expect(result.content).toBe(originalContent);
+      expect(result.conflictDetails).toContain('mandatory');
+    });
+
+    it('should keep team changes when governance is recommended', async () => {
+      const originalContent = '# Original recommended rule';
+      const hash = hashForMeta(originalContent);
+      mockReadFileOrNull.mockResolvedValue('# Team modified recommended rule');
+
+      const file = makeFile('/project/.claude/rules/style.md', originalContent);
+      const meta = makeMeta({ '/project/.claude/rules/style.md': hash });
+      const result = await merger.mergeFile(file, meta, null, 'recommended');
+
+      expect(result.outcome).toBe('keep');
+    });
+  });
+
   // ── mergeAll ──────────────────────────────────────────────────────────
 
   describe('mergeAll', () => {
@@ -242,6 +307,42 @@ describe('ThreeWayMerge', () => {
     it('should handle empty files array', async () => {
       const results = await merger.mergeAll([], null);
       expect(results).toHaveLength(0);
+    });
+
+    it('should handle errors in individual files without stopping others', async () => {
+      // First file: readFileOrNull throws
+      mockReadFileOrNull
+        .mockRejectedValueOnce(new Error('Permission denied'))
+        // Second file: does not exist → auto-apply
+        .mockResolvedValueOnce(null);
+
+      const files: GeneratedFile[] = [
+        makeFile('/project/broken.md', '# Content'),
+        makeFile('/project/good.md', '# Good content'),
+      ];
+
+      const results = await merger.mergeAll(files, null);
+
+      expect(results).toHaveLength(2);
+      expect(results[0]!.outcome).toBe('error');
+      expect(results[0]!.conflictDetails).toContain('Permission denied');
+      expect(results[1]!.outcome).toBe('auto-apply');
+    });
+
+    it('should pass governance from governanceMap to mergeFile', async () => {
+      const originalContent = '# Original';
+      const hash = hashForMeta(originalContent);
+      mockReadFileOrNull.mockResolvedValue('# Team changed');
+
+      const file = makeFile('/project/mandatory.md', originalContent);
+      file.governance = undefined; // No governance on file itself
+
+      const meta = makeMeta({ '/project/mandatory.md': hash });
+      const governanceMap = { '/project/mandatory.md': 'mandatory' as const };
+      const results = await merger.mergeAll([file], meta, governanceMap);
+
+      expect(results[0]!.outcome).toBe('auto-apply');
+      expect(results[0]!.conflictDetails).toContain('mandatory');
     });
 
     it('should return mixed outcomes for different file states', async () => {

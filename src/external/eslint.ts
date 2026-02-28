@@ -22,7 +22,13 @@ export function createEslintConfig(
   }
 
   if (options.react) {
+    if (!config.plugins) {
+      config.plugins = [];
+    }
     (config.plugins as string[]).push('react', 'react-hooks');
+    if (!config.rules) {
+      config.rules = {};
+    }
     const rules = config.rules as Record<string, unknown>;
     rules['react-hooks/rules-of-hooks'] = 'error';
     rules['react-hooks/exhaustive-deps'] = 'warn';

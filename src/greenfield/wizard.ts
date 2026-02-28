@@ -36,13 +36,13 @@ export async function runGreenfieldWizard(
 }
 
 function inferCategory(name: string): 'language' | 'framework' | 'testing' | 'infra' {
-  const languages = ['typescript', 'javascript', 'python', 'java', 'go', 'rust', 'csharp', 'ruby', 'php'];
-  const testing = ['jest', 'vitest', 'pytest', 'junit', 'cypress', 'playwright', 'mocha'];
-  const infra = ['docker', 'kubernetes', 'aws', 'gcp', 'azure', 'terraform', 'vercel', 'netlify'];
-  const lowerName = name.toLowerCase();
-  if (languages.some(l => lowerName.includes(l))) return 'language';
-  if (testing.some(t => lowerName.includes(t))) return 'testing';
-  if (infra.some(i => lowerName.includes(i))) return 'infra';
+  const languages = new Set(['typescript', 'javascript', 'python', 'java', 'go', 'rust', 'csharp', 'ruby', 'php']);
+  const testing = new Set(['jest', 'vitest', 'pytest', 'junit', 'cypress', 'playwright', 'mocha']);
+  const infra = new Set(['docker', 'kubernetes', 'aws', 'gcp', 'azure', 'terraform', 'vercel', 'netlify']);
+  const lowerName = name.toLowerCase().replace(/\s+/g, '-');
+  if (languages.has(lowerName)) return 'language';
+  if (testing.has(lowerName)) return 'testing';
+  if (infra.has(lowerName)) return 'infra';
   return 'framework';
 }
 
@@ -78,7 +78,7 @@ function templateToDetection(
   const technologies = template.technologies.map((id) => ({
     id,
     name: id,
-    category: 'framework' as const,
+    category: inferCategory(id),
     confidence: 100,
     evidence: [{
       source: 'greenfield-wizard',

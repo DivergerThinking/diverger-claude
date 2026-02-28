@@ -17,8 +17,7 @@ export function generateClaudeMd(
   ];
 
   for (const section of sections) {
-    parts.push(`## ${section.heading}`);
-    parts.push('');
+    // Section content already includes its own ## heading, so don't duplicate it
     parts.push(section.content);
     parts.push('');
   }

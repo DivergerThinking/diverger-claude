@@ -45,7 +45,7 @@ export class GoAnalyzer extends BaseAnalyzer {
           name: fw.name,
           category: 'framework',
           confidence: 90,
-          evidence: [{ source: 'go.mod', type: 'manifest', description: `Found ${fw.pattern} in go.mod`, weight: 90 }],
+          evidence: [{ source: 'go.mod', type: 'manifest', description: `Found "${fw.pattern}" in dependencies`, weight: 90 }],
           parentId: 'go',
           profileIds: fw.profiles,
         });

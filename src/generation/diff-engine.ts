@@ -39,17 +39,17 @@ export class DiffEngine {
       };
     }
 
-    if (existing === file.content) {
-      // No changes
+    if (existing.replace(/\r\n/g, '\n') === file.content.replace(/\r\n/g, '\n')) {
+      // No changes (normalize CRLF for cross-platform comparison)
       return null;
     }
 
-    // Modified file
+    // Modified file (normalize CRLF to avoid noisy diffs on Windows)
     const patch = createTwoFilesPatch(
       file.path,
       file.path,
-      existing,
-      file.content,
+      existing.replace(/\r\n/g, '\n'),
+      file.content.replace(/\r\n/g, '\n'),
       'actual',
       'propuesto',
     );

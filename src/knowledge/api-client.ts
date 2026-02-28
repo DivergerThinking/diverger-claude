@@ -111,12 +111,22 @@ export class ClaudeApiClient {
     } catch (err) {
       if (err instanceof ApiKeyError || err instanceof KnowledgeError) throw err;
 
-      // Handle rate limit errors (429)
+      // Handle specific Anthropic SDK errors
+      if (err instanceof Anthropic.AuthenticationError) {
+        throw new ApiKeyError();
+      }
+
       if (err instanceof Anthropic.RateLimitError) {
         const retryAfter = err.headers?.['retry-after'];
         const waitSecs = retryAfter ? parseInt(retryAfter, 10) : 60;
         throw new KnowledgeError(
           `Rate limit alcanzado. Reintentar despues de ${waitSecs} segundos.`,
+        );
+      }
+
+      if (err instanceof Anthropic.APIConnectionError) {
+        throw new KnowledgeError(
+          `Error de conexion a Claude API. Verificar red e intentar de nuevo.`,
         );
       }
 

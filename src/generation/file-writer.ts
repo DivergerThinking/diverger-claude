@@ -44,9 +44,9 @@ export class FileWriter {
     const exists = await fileExists(file.path);
 
     if (exists && !force) {
-      // Read existing content to check if it's the same
+      // Read existing content to check if it's the same (normalize CRLF for cross-platform)
       const existingContent = await fs.readFile(file.path, 'utf-8');
-      if (existingContent === file.content) {
+      if (existingContent.replace(/\r\n/g, '\n') === file.content.replace(/\r\n/g, '\n')) {
         return { path: file.path, action: 'skipped' };
       }
 

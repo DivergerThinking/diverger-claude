@@ -35,11 +35,16 @@ export class DetectionEngine {
     const allPatterns = [...new Set([...analyzers.flatMap((a) => a.filePatterns), ...extraPatterns])];
     const files = await this.scanner.scanPatterns(projectRoot, allPatterns);
 
-    // Step 2: Pass the combined scan result to each analyzer
+    // Step 2: Pass the combined scan result to each analyzer (isolated: one failure doesn't stop others)
     for (const analyzer of analyzers) {
-      if (analyzer.hasRelevantFiles(files)) {
-        const result = await analyzer.analyze(files, projectRoot);
-        allTechnologies.push(...result.technologies);
+      try {
+        if (analyzer.hasRelevantFiles(files)) {
+          const result = await analyzer.analyze(files, projectRoot);
+          allTechnologies.push(...result.technologies);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[diverger] Warning: ${analyzer.name} analyzer failed: ${msg}`);
       }
     }
 

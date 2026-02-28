@@ -511,7 +511,7 @@ describe('ProfileComposer', () => {
           layer: 0 as ProfileLayer,
           contributions: {
             hooks: [
-              { event: 'PreToolUse', matcher: 'Bash', commands: [{ command: 'echo pre' }] },
+              { event: 'PreToolUse', matcher: 'Bash', hooks: [{ type: 'command', command: 'echo pre' }] },
             ],
           },
         }),
@@ -522,6 +522,10 @@ describe('ProfileComposer', () => {
 
       expect(result.hooks).toHaveLength(1);
       expect(result.hooks[0]!.event).toBe('PreToolUse');
+      // C7: verify internal hooks structure matches HookDefinition
+      expect(result.hooks[0]!.hooks).toHaveLength(1);
+      expect(result.hooks[0]!.hooks[0]!.type).toBe('command');
+      expect(result.hooks[0]!.hooks[0]!.command).toBe('echo pre');
     });
 
     it('should aggregate mcp configs from multiple profiles', () => {

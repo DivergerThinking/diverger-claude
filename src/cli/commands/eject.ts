@@ -29,7 +29,7 @@ export function registerEjectCommand(program: Command): void {
         log.blank();
 
         // Skip prompt when --force or --json
-        if (!force && outputMode !== 'json') {
+        if (!force && outputMode === 'rich') {
           const confirmed = await confirmAction('¿Continuar con el eject?');
           if (!confirmed) {
             log.dim('Operación cancelada.');

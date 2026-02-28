@@ -36,7 +36,7 @@ export function registerCheckCommand(program: Command): void {
           log.warn('Se encontraron problemas:');
         }
 
-        for (const issue of result.issues as Array<{ severity: string; file: string; message: string }>) {
+        for (const issue of result.issues) {
           if (issue.severity === 'error') {
             log.error(`[${issue.file}] ${issue.message}`);
           } else {

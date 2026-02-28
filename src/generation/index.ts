@@ -24,12 +24,12 @@ export class GenerationEngine {
   }
 
   /** Generate all files from a composed config */
-  async generate(config: ComposedConfig, projectRoot: string, detection?: DetectionResult): Promise<GenerationResult> {
+  async generate(config: ComposedConfig, projectRoot: string, detection: DetectionResult): Promise<GenerationResult> {
     const files = await this.generateFiles(config, projectRoot);
 
     return {
       files,
-      detection: detection ?? (undefined as never),
+      detection,
       config,
     };
   }
@@ -38,27 +38,30 @@ export class GenerationEngine {
   async generateFiles(config: ComposedConfig, projectRoot: string): Promise<GeneratedFile[]> {
     const files: GeneratedFile[] = [];
 
+    // Clone settings to avoid mutating the caller's config object
+    const settings = { ...config.settings, permissions: { ...config.settings.permissions } };
+
     // 1. Security (generate first so its overlay can be merged into settings)
     const security = generateSecurityConfig(config, projectRoot);
     files.push(...security.rules);
 
-    // Merge security settings overlay into config.settings
+    // Merge security settings overlay into the cloned settings
     if (security.settingsOverlay.permissions?.deny) {
-      const existing = config.settings.permissions?.deny ?? [];
-      config.settings.permissions = {
-        ...config.settings.permissions,
+      const existing = settings.permissions?.deny ?? [];
+      settings.permissions = {
+        ...settings.permissions,
         deny: [...new Set([...existing, ...security.settingsOverlay.permissions.deny])],
       };
     }
     if (security.settingsOverlay.sandbox) {
-      config.settings.sandbox = {
-        ...config.settings.sandbox,
+      settings.sandbox = {
+        ...settings.sandbox,
         filesystem: {
-          ...config.settings.sandbox?.filesystem,
+          ...settings.sandbox?.filesystem,
           ...security.settingsOverlay.sandbox.filesystem,
           denyRead: [
             ...new Set([
-              ...(config.settings.sandbox?.filesystem?.denyRead ?? []),
+              ...(settings.sandbox?.filesystem?.denyRead ?? []),
               ...(security.settingsOverlay.sandbox.filesystem?.denyRead ?? []),
             ]),
           ],
@@ -66,27 +69,30 @@ export class GenerationEngine {
       };
     }
 
+    // Use a config copy with the merged settings for downstream generators
+    const mergedConfig = { ...config, settings };
+
     // 2. CLAUDE.md
-    files.push(generateClaudeMd(config, projectRoot));
+    files.push(generateClaudeMd(mergedConfig, projectRoot));
 
     // 3. settings.json (now includes hooks and security overlay)
-    files.push(generateSettings(config, projectRoot));
+    files.push(generateSettings(mergedConfig, projectRoot));
 
     // 4. Rules
-    files.push(...generateRules(config, projectRoot));
+    files.push(...generateRules(mergedConfig, projectRoot));
 
     // 5. Agents
-    files.push(...generateAgents(config, projectRoot));
+    files.push(...generateAgents(mergedConfig, projectRoot));
 
     // 6. Skills
-    files.push(...generateSkills(config, projectRoot));
+    files.push(...generateSkills(mergedConfig, projectRoot));
 
     // 7. MCP
-    const mcpFile = generateMcp(config, projectRoot);
+    const mcpFile = generateMcp(mergedConfig, projectRoot);
     if (mcpFile) files.push(mcpFile);
 
     // 8. External tools
-    const externalToolFiles = await generateExternalTools(config, projectRoot);
+    const externalToolFiles = await generateExternalTools(mergedConfig, projectRoot);
     files.push(...externalToolFiles);
 
     return files;

@@ -1,7 +1,20 @@
-import type { GenerationResult, GovernanceLevel, MergeResult } from '../core/types.js';
+import type { GenerationResult, GovernanceLevel, MergeAllResult } from '../core/types.js';
 import { ThreeWayMerge } from './merge.js';
-import { loadMeta, saveMeta, createMeta } from './history.js';
+import { loadMeta, createMeta } from './history.js';
 import { validateConfig, type ValidationResult } from './validator.js';
+
+/** Extract real package names from detection evidence descriptions (C5).
+ *  Exported so init.ts can reuse the same logic instead of duplicating the regex. */
+export function extractTrackedDeps(technologies: Array<{ evidence: Array<{ description: string }> }>): string[] {
+  const deps = new Set<string>();
+  for (const tech of technologies) {
+    for (const ev of tech.evidence) {
+      const match = ev.description.match(/Found "(.+?)" in dependencies/);
+      if (match) deps.add(match[1]!);
+    }
+  }
+  return [...deps];
+}
 
 /**
  * Governance engine facade.
@@ -14,8 +27,12 @@ export class GovernanceEngine {
     this.merger = new ThreeWayMerge();
   }
 
-  /** Perform three-way merge for all generated files */
-  async mergeAll(result: GenerationResult, projectRoot: string): Promise<MergeResult[]> {
+  /**
+   * Perform three-way merge for all generated files.
+   * C3: Returns MergeAllResult with pendingMeta. The caller must write files
+   * to disk FIRST, then call finalizeMetaAfterWrite + saveMeta.
+   */
+  async mergeAll(result: GenerationResult, projectRoot: string): Promise<MergeAllResult> {
     const meta = await loadMeta(projectRoot);
 
     // Build rule governance map from generated files
@@ -29,16 +46,19 @@ export class GovernanceEngine {
     // Pass governance map to the merger so it can enforce mandatory rules
     const mergeResults = await this.merger.mergeAll(result.files, meta, ruleGovernance);
 
-    // Save updated metadata
-    const newMeta = createMeta(
+    // C5: extract real npm dependency names from detection evidence
+    const trackedDependencies = extractTrackedDeps(result.detection?.technologies ?? []);
+
+    // C3: Build pending meta but do NOT save it yet — caller saves after writing files
+    const pendingMeta = createMeta(
       result.files,
       result.detection?.technologies?.map((t) => t.id) ?? [],
       result.config.appliedProfiles,
       ruleGovernance,
+      trackedDependencies,
     );
-    await saveMeta(projectRoot, newMeta);
 
-    return mergeResults;
+    return { results: mergeResults, pendingMeta, oldMeta: meta };
   }
 
   /** Validate existing configuration */

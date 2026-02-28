@@ -255,7 +255,7 @@ export interface HookCommandEntry {
   type: 'command';
   /** Shell command */
   command: string;
-  /** Timeout in ms */
+  /** Timeout in seconds */
   timeout?: number;
 }
 
@@ -308,6 +308,8 @@ export interface ComposedConfig {
   externalTools: ExternalToolConfig[];
   /** Profiles that contributed */
   appliedProfiles: string[];
+  /** Knowledge results fetched from Claude API (C4) */
+  knowledge?: KnowledgeResult[];
 }
 
 // --- Generation Types ---
@@ -354,6 +356,19 @@ export interface DivergentMeta {
   fileHashes: Record<string, string>;
   /** Governance level per rule path */
   ruleGovernance: Record<string, GovernanceLevel>;
+  /** Original generated file contents for three-way merge base (C1) */
+  fileContents?: Record<string, string>;
+  /** Real npm package names tracked for dependency change detection (C5) */
+  trackedDependencies?: string[];
+}
+
+export interface MergeAllResult {
+  /** Individual merge results per file */
+  results: MergeResult[];
+  /** Pending meta to save AFTER files are written to disk (C3) */
+  pendingMeta: DivergentMeta;
+  /** Previous meta from before this sync (for preserving non-written file entries) */
+  oldMeta: DivergentMeta | null;
 }
 
 export type MergeOutcome =

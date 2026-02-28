@@ -57,7 +57,7 @@ export class RustAnalyzer extends BaseAnalyzer {
           name: p.name,
           category: 'framework',
           confidence: 85,
-          evidence: [{ source: 'Cargo.toml', type: 'manifest', description: `Found ${p.dep} in dependencies`, weight: 85 }],
+          evidence: [{ source: 'Cargo.toml', type: 'manifest', description: `Found "${p.dep}" in dependencies`, weight: 85 }],
           parentId: 'rust',
           profileIds: [],
         });

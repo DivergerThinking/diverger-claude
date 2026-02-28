@@ -70,11 +70,11 @@ interface BoostingRule {
 /** Cross-technology boosting rules */
 const BOOSTING_RULES: Record<string, BoostingRule[]> = {
   typescript: [
-    { ifPresent: 'tsconfig', minConfidence: 50, boost: 9 },
+    { ifPresent: 'nodejs', minConfidence: 50, boost: 5 },
   ],
   nextjs: [
     { ifPresent: 'react', minConfidence: 70, boost: 5 },
-    { ifPresent: 'nextconfig', minConfidence: 50, boost: 9 },
+    { ifPresent: 'typescript', minConfidence: 50, boost: 5 },
   ],
   react: [
     { ifPresent: 'typescript', minConfidence: 70, boost: 3 },

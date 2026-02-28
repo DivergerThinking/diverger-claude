@@ -42,7 +42,7 @@ export async function ensureDir(dirPath: string): Promise<void> {
 export async function writeFileAtomic(filePath: string, content: string): Promise<void> {
   const dir = path.dirname(filePath);
   await ensureDir(dir);
-  const tempPath = `${filePath}.tmp.${Date.now()}`;
+  const tempPath = `${filePath}.tmp.${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {
     await fs.writeFile(tempPath, content, 'utf-8');
     await fs.rename(tempPath, filePath);
@@ -70,7 +70,8 @@ export async function listFiles(dirPath: string): Promise<string[]> {
     return entries
       .filter((e) => e.isFile())
       .map((e) => path.join(dirPath, e.name));
-  } catch {
-    return [];
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw err;
   }
 }

@@ -35,7 +35,7 @@ export class ThreeWayMerge {
 
     // Case 2: No previous hash (first run or meta lost) -> treat as conflict
     if (!storedHash) {
-      if (currentContent === file.content) {
+      if (currentContent.replace(/\r\n/g, '\n') === file.content.replace(/\r\n/g, '\n')) {
         return { path: file.path, outcome: 'skip' };
       }
       return {
@@ -77,7 +77,17 @@ export class ThreeWayMerge {
       return { path: file.path, outcome: 'keep' };
     }
 
-    // Case 6: Both changed -> attempt smart merge
+    // Case 6: Both changed
+    // A4: if governance is mandatory, force library version (no merge attempt)
+    if (governance === 'mandatory') {
+      return {
+        path: file.path,
+        outcome: 'auto-apply',
+        content: file.content,
+        conflictDetails: 'Regla mandatory: se fuerza la version de la libreria (ambos cambiaron).',
+      };
+    }
+    // -> attempt smart merge
     return this.attemptSmartMerge(file, currentContent, base ?? null);
   }
 
@@ -96,9 +106,8 @@ export class ThreeWayMerge {
     for (const file of files) {
       try {
         const governance = governanceMap?.[file.path] ?? file.governance;
-        // base content is not available from meta (meta only stores hashes, not content),
-        // so we pass null. The caller could provide it if they have it.
-        const base: string | null = null;
+        // C1: retrieve original base content from meta for true three-way merge
+        const base = meta?.fileContents?.[file.path] ?? null;
         results.push(await this.mergeFile(file, meta, base, governance));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -145,10 +154,11 @@ export class ThreeWayMerge {
 
     const mergedSections = new Map<string, string>();
 
-    // Gather all headings from all three versions
+    // Gather all headings preserving order: team's file first (their edits matter),
+    // then library additions, then base-only (for deletion detection)
     const allHeadings = new Set<string>([
-      ...ourSections.keys(),
       ...theirSections.keys(),
+      ...ourSections.keys(),
       ...(baseSections ? baseSections.keys() : []),
     ]);
 
@@ -208,23 +218,19 @@ export class ThreeWayMerge {
     };
   }
 
-  /** Merge JSON files using deep merge with three-way base support */
+  /** Merge JSON files using three-way key-by-key comparison with base support */
   private mergeJson(file: GeneratedFile, currentContent: string, base: string | null): MergeResult {
     try {
+      const normalizedCurrent = currentContent.replace(/\r\n/g, '\n');
       const ours = JSON.parse(file.content) as Record<string, unknown>;
-      const theirs = JSON.parse(currentContent) as Record<string, unknown>;
+      const theirs = JSON.parse(normalizedCurrent) as Record<string, unknown>;
 
       let merged: Record<string, unknown>;
 
       if (base) {
         try {
           const baseObj = JSON.parse(base) as Record<string, unknown>;
-          // True three-way deep merge:
-          // 1. Start with base
-          // 2. Apply library changes (ours) on top of base
-          // 3. Apply team changes (theirs) on top — team wins conflicts
-          const withOurs = deepmerge(baseObj, ours) as Record<string, unknown>;
-          merged = deepmerge(withOurs, theirs) as Record<string, unknown>;
+          merged = this.threeWayJsonMerge(baseObj, ours, theirs);
         } catch {
           // If base parse fails, fall back to two-way
           merged = deepmerge(ours, theirs) as Record<string, unknown>;
@@ -233,6 +239,9 @@ export class ThreeWayMerge {
         // No base: deep merge ours + theirs (team wins for shared keys)
         merged = deepmerge(ours, theirs) as Record<string, unknown>;
       }
+
+      // Deduplicate arrays in the merged result (deepmerge concatenates arrays)
+      this.deduplicateArrays(merged);
 
       return {
         path: file.path,
@@ -249,10 +258,96 @@ export class ThreeWayMerge {
     }
   }
 
+  /** True 3-way JSON merge: compare each key against base to determine who changed */
+  private threeWayJsonMerge(
+    base: Record<string, unknown>,
+    ours: Record<string, unknown>,
+    theirs: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    const allKeys = new Set([...Object.keys(base), ...Object.keys(ours), ...Object.keys(theirs)]);
+
+    for (const key of allKeys) {
+      const baseVal = base[key];
+      const ourVal = ours[key];
+      const theirVal = theirs[key];
+
+      const baseJson = JSON.stringify(baseVal);
+      const ourJson = JSON.stringify(ourVal);
+      const theirJson = JSON.stringify(theirVal);
+
+      const weChanged = ourJson !== baseJson;
+      const theyChanged = theirJson !== baseJson;
+
+      if (!weChanged && !theyChanged) {
+        // Nobody changed - use base (or ours, they're the same)
+        if (baseVal !== undefined) result[key] = baseVal;
+      } else if (weChanged && !theyChanged) {
+        // Only library changed - use ours
+        if (ourVal !== undefined) result[key] = ourVal;
+        // If ourVal is undefined, library deleted the key
+      } else if (!weChanged && theyChanged) {
+        // Only team changed - use theirs
+        if (theirVal !== undefined) result[key] = theirVal;
+        // If theirVal is undefined, team deleted the key
+      } else {
+        // Both changed - for nested objects, recurse; otherwise team wins
+        if (
+          baseVal && ourVal && theirVal &&
+          typeof baseVal === 'object' && !Array.isArray(baseVal) &&
+          typeof ourVal === 'object' && !Array.isArray(ourVal) &&
+          typeof theirVal === 'object' && !Array.isArray(theirVal)
+        ) {
+          result[key] = this.threeWayJsonMerge(
+            baseVal as Record<string, unknown>,
+            ourVal as Record<string, unknown>,
+            theirVal as Record<string, unknown>,
+          );
+        } else if (Array.isArray(ourVal) && Array.isArray(theirVal)) {
+          // For arrays: union and deduplicate
+          // Use JSON.stringify for value-based deduplication (works for both primitives and objects)
+          const seen = new Set<string>();
+          const combined: unknown[] = [];
+          for (const item of [...ourVal, ...theirVal]) {
+            const key2 = typeof item === 'object' && item !== null
+              ? JSON.stringify(item, typeof item === 'object' && !Array.isArray(item) ? Object.keys(item as Record<string, unknown>).sort() : undefined)
+              : String(item);
+            if (!seen.has(key2)) {
+              seen.add(key2);
+              combined.push(item);
+            }
+          }
+          result[key] = combined;
+        } else {
+          // Scalar conflict: team wins (even if their value is null)
+          result[key] = theirVal;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /** Recursively deduplicate arrays in a JSON object */
+  private deduplicateArrays(obj: Record<string, unknown>): void {
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (Array.isArray(val)) {
+        // Only deduplicate arrays of primitives
+        if (val.every(item => typeof item !== 'object' || item === null)) {
+          obj[key] = [...new Set(val)];
+        }
+      } else if (val && typeof val === 'object') {
+        this.deduplicateArrays(val as Record<string, unknown>);
+      }
+    }
+  }
+
   /** Parse markdown into sections by ## headings */
   private parseMdSections(content: string): Map<string, string> {
+    const normalized = content.replace(/\r\n/g, '\n');
     const sections = new Map<string, string>();
-    const lines = content.split('\n');
+    const lines = normalized.split('\n');
     let currentHeading = '__preamble__';
     let currentLines: string[] = [];
 

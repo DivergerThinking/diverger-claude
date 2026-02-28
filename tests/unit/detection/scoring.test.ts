@@ -204,13 +204,13 @@ describe('ConfidenceScorer', () => {
       const technologies: DetectedTechnology[] = [
         makeTech('nextjs', 'Next.js', 85, [makeEvidence(85)]),
         makeTech('react', 'React', 90, [makeEvidence(90)]),
-        makeTech('nextconfig', 'Next Config', 80, [makeEvidence(80)]),
+        makeTech('typescript', 'TypeScript', 80, [makeEvidence(80)]),
       ];
 
       const result = scorer.applyBoosting(technologies);
       const nextjs = result.find((t) => t.id === 'nextjs');
-      // nextjs boosts: ifPresent=react (+5) and ifPresent=nextconfig (+9)
-      expect(nextjs!.confidence).toBe(99); // 85 + 5 + 9
+      // nextjs boosts: ifPresent=react (+5) and ifPresent=typescript (+5)
+      expect(nextjs!.confidence).toBe(95); // 85 + 5 + 5
       expect(nextjs!.evidence.length).toBe(3); // original + 2 cross-reference
     });
 

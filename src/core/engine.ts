@@ -4,7 +4,8 @@ import type {
   DetectionResult,
   DiffEntry,
   GenerationResult,
-  MergeResult,
+  KnowledgeResult,
+  MergeAllResult,
 } from './types.js';
 import { DetectionEngine } from '../detection/index.js';
 import { ProfileEngine } from '../profiles/index.js';
@@ -54,8 +55,21 @@ export class DivergerEngine {
 
   /** Run pipeline with pre-confirmed detection (skips re-detection) */
   async initWithDetection(detection: DetectionResult, ctx: EngineContext): Promise<GenerationResult> {
-    await this.fetchKnowledge(detection, ctx);
+    // C4: fetchKnowledge now returns results to inject into composed config
+    const knowledgeResults = await this.fetchKnowledge(detection, ctx);
     const composed = this.compose(detection);
+    if (knowledgeResults.length > 0) {
+      composed.knowledge = knowledgeResults;
+      // Inject knowledge as CLAUDE.md sections
+      for (const kr of knowledgeResults) {
+        const heading = `Best Practices: ${kr.technology}`;
+        composed.claudeMdSections.push({
+          heading,
+          content: `## ${heading}\n\n${kr.content}`,
+          order: 50, // after all profile layers
+        });
+      }
+    }
     const result = await this.generation.generate(composed, ctx.projectRoot, detection);
     return result;
   }
@@ -71,8 +85,13 @@ export class DivergerEngine {
     return this.generation.computeDiff(result, ctx.projectRoot);
   }
 
-  /** Sync: detect changes and apply updates with three-way merge */
-  async sync(ctx: EngineContext): Promise<MergeResult[]> {
+  /** Compute diff from pre-generated result */
+  async computeDiff(result: GenerationResult, projectRoot: string): Promise<DiffEntry[]> {
+    return this.generation.computeDiff(result, projectRoot);
+  }
+
+  /** Sync: detect changes and apply updates with three-way merge (C3: returns MergeAllResult) */
+  async sync(ctx: EngineContext): Promise<MergeAllResult> {
     const result = await this.init(ctx);
     return this.governance.mergeAll(result, ctx.projectRoot);
   }
@@ -86,9 +105,9 @@ export class DivergerEngine {
     return this.generation.writeFiles(files, projectRoot, options);
   }
 
-  /** Check: validate existing config */
-  async check(_ctx: EngineContext): Promise<{ valid: boolean; issues: Array<{ severity: string; file: string; message: string }> }> {
-    return this.governance.validate(_ctx.projectRoot) as Promise<{ valid: boolean; issues: Array<{ severity: string; file: string; message: string }> }>;
+  /** Check: validate existing config (A8: returns ValidationResult directly) */
+  async check(_ctx: EngineContext): Promise<import('../governance/validator.js').ValidationResult> {
+    return this.governance.validate(_ctx.projectRoot);
   }
 
   private async confirmDetection(
@@ -125,20 +144,31 @@ export class DivergerEngine {
   private async fetchKnowledge(
     detection: DetectionResult,
     ctx: EngineContext,
-  ): Promise<void> {
-    if (!ctx.onKnowledgePermission) return;
+  ): Promise<KnowledgeResult[]> {
+    // A2: skip knowledge fetch entirely in dry-run mode
+    if (ctx.options.dryRun) return [];
+    if (!ctx.onKnowledgePermission) return [];
 
     // Initialize the knowledge cache for this project
     this.knowledge.initCache(ctx.projectRoot);
 
+    const results: KnowledgeResult[] = [];
     for (const tech of detection.technologies) {
       if (tech.category === 'framework' || tech.category === 'language') {
         const allowed = await ctx.onKnowledgePermission(tech.name);
         if (allowed) {
-          await this.knowledge.fetchBestPractices(tech);
+          // A3: wrap in try/catch so API failures don't abort the pipeline
+          try {
+            const result = await this.knowledge.fetchBestPractices(tech);
+            results.push(result);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`[diverger] Warning: knowledge fetch failed for ${tech.name}: ${msg}`);
+          }
         }
       }
     }
+    return results;
   }
 
   private compose(detection: DetectionResult): ComposedConfig {

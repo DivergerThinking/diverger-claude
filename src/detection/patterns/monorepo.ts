@@ -59,10 +59,12 @@ export async function detectMonorepo(
     }
   }
 
-  // Check nx
+  // Check nx (only report monorepo if actual workspace packages are found)
   if (files.has('nx.json')) {
     const packages = await resolveWorkspacePackages(projectRoot, ['packages/*', 'apps/*', 'libs/*']);
-    return { type: 'nx', rootDir: projectRoot, packages };
+    if (packages.length > 0) {
+      return { type: 'nx', rootDir: projectRoot, packages };
+    }
   }
 
   // Check Lerna

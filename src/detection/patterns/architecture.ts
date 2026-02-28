@@ -9,10 +9,21 @@ export function detectArchitecture(
   const techIds = new Set(technologies.map((t) => t.id));
 
   // Serverless indicators (use exact file matching to avoid false positives)
-  const serverlessFileNames = ['serverless.yml', 'serverless.yaml', 'serverless.ts', 'template.yaml', 'template.yml', 'cdk.json', 'sam.json'];
-  const serverlessFiles = files
+  const serverlessFileNames = ['serverless.yml', 'serverless.yaml', 'serverless.ts', 'cdk.json'];
+  let serverlessFiles = files
     ? serverlessFileNames.some((f) => files.has(f))
     : false;
+
+  // template.yaml/yml are generic; only treat as serverless if they contain SAM markers
+  if (!serverlessFiles && files) {
+    for (const name of ['template.yaml', 'template.yml']) {
+      const content = files.get(name);
+      if (content && (content.includes('AWS::Serverless') || content.includes('AWSTemplateFormatVersion'))) {
+        serverlessFiles = true;
+        break;
+      }
+    }
+  }
 
   if (serverlessFiles) return 'serverless';
 

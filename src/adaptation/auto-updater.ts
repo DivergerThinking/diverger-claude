@@ -32,7 +32,7 @@ export async function applyAutoUpdates(
   if (changes.changedFiles.length > 0) {
     results.push({
       applied: false,
-      description: `Archivos de manifiesto modificados: ${changes.changedFiles.join(', ')}. Ejecuta \`diverger sync\` para re-analizar.`,
+      description: `Archivos de configuración modificados: ${changes.changedFiles.join(', ')}. Ejecuta \`diverger sync\` para re-analizar.`,
     });
   }
 

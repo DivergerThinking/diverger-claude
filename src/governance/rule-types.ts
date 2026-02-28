@@ -12,6 +12,10 @@ export function governanceLabel(level: GovernanceLevel): string {
       return '🔒 Obligatoria (no modificable)';
     case 'recommended':
       return '💡 Recomendada (personalizable)';
+    default: {
+      const _exhaustive: never = level;
+      return String(_exhaustive);
+    }
   }
 }
 
