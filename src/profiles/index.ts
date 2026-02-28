@@ -23,6 +23,12 @@ import { vueProfile } from './registry/frameworks/vue.profile.js';
 import { flaskProfile } from './registry/frameworks/flask.profile.js';
 import { nuxtProfile } from './registry/frameworks/nuxt.profile.js';
 import { svelteProfile } from './registry/frameworks/svelte.profile.js';
+import { ginProfile } from './registry/frameworks/gin.profile.js';
+import { echoProfile } from './registry/frameworks/echo.profile.js';
+import { fiberProfile } from './registry/frameworks/fiber.profile.js';
+import { actixWebProfile } from './registry/frameworks/actix-web.profile.js';
+import { axumProfile } from './registry/frameworks/axum.profile.js';
+import { rocketProfile } from './registry/frameworks/rocket.profile.js';
 // Testing profiles
 import { jestProfile } from './registry/testing/jest.profile.js';
 import { vitestProfile } from './registry/testing/vitest.profile.js';
@@ -62,6 +68,12 @@ const ALL_PROFILES: Profile[] = [
   flaskProfile,
   nuxtProfile,
   svelteProfile,
+  ginProfile,
+  echoProfile,
+  fiberProfile,
+  actixWebProfile,
+  axumProfile,
+  rocketProfile,
   // Testing (layer 30)
   jestProfile,
   vitestProfile,

@@ -51,6 +51,32 @@ export const universalProfile: Profile = {
         deny: SENSITIVE_PATTERNS.map((p) => `Read(${p})`),
       },
     },
+    hooks: [
+      {
+        event: 'PostToolUse',
+        matcher: 'Write',
+        hooks: [
+          {
+            type: 'command',
+            command:
+              'grep -riEn "(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk-[0-9a-zA-Z]{48}|ghp_[0-9a-zA-Z]{36}|-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----|password\\s*[:=]\\s*[\"\\x27][^\"\\x27]{4,}|secret\\s*[:=]\\s*[\"\\x27][^\"\\x27]{4,}|api[_-]?key\\s*[:=]\\s*[\"\\x27][^\"\\x27]{4,})" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:1:Potential secret or API key detected in written file" || true',
+            timeout: 10,
+          },
+        ],
+      },
+      {
+        event: 'PostToolUse',
+        matcher: 'Bash',
+        hooks: [
+          {
+            type: 'command',
+            command:
+              'echo "$CLAUDE_TOOL_INPUT" | grep -qE "(git\\s+push\\s+--force|git\\s+push\\s+-f\\b|git\\s+reset\\s+--hard|rm\\s+-rf\\s+/|git\\s+clean\\s+-fd|git\\s+checkout\\s+--\\s+\\.)" && echo "HOOK_EXIT:1:Destructive command detected — review carefully" || true',
+            timeout: 10,
+          },
+        ],
+      },
+    ],
     rules: [
       {
         path: 'code-style.md',

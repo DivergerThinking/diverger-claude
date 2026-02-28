@@ -32,9 +32,9 @@ export class GoAnalyzer extends BaseAnalyzer {
 
     // Detect common Go frameworks
     const frameworkPatterns: Array<{ pattern: string; id: string; name: string; profiles: string[] }> = [
-      { pattern: 'github.com/gin-gonic/gin', id: 'gin', name: 'Gin', profiles: [] },
-      { pattern: 'github.com/labstack/echo', id: 'echo', name: 'Echo', profiles: [] },
-      { pattern: 'github.com/gofiber/fiber', id: 'fiber', name: 'Fiber', profiles: [] },
+      { pattern: 'github.com/gin-gonic/gin', id: 'gin', name: 'Gin', profiles: ['frameworks/gin'] },
+      { pattern: 'github.com/labstack/echo', id: 'echo', name: 'Echo', profiles: ['frameworks/echo'] },
+      { pattern: 'github.com/gofiber/fiber', id: 'fiber', name: 'Fiber', profiles: ['frameworks/fiber'] },
       { pattern: 'github.com/gorilla/mux', id: 'gorilla-mux', name: 'Gorilla Mux', profiles: [] },
     ];
 

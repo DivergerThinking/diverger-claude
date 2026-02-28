@@ -42,12 +42,12 @@ export class RustAnalyzer extends BaseAnalyzer {
     const allDeps = { ...cargo.dependencies, ...cargo['dev-dependencies'] };
     const depNames = Object.keys(allDeps);
 
-    const patterns: Array<{ dep: string; id: string; name: string }> = [
-      { dep: 'actix-web', id: 'actix-web', name: 'Actix Web' },
-      { dep: 'axum', id: 'axum', name: 'Axum' },
-      { dep: 'rocket', id: 'rocket', name: 'Rocket' },
-      { dep: 'tokio', id: 'tokio', name: 'Tokio' },
-      { dep: 'serde', id: 'serde', name: 'Serde' },
+    const patterns: Array<{ dep: string; id: string; name: string; profileIds: string[] }> = [
+      { dep: 'actix-web', id: 'actix-web', name: 'Actix Web', profileIds: ['frameworks/actix-web'] },
+      { dep: 'axum', id: 'axum', name: 'Axum', profileIds: ['frameworks/axum'] },
+      { dep: 'rocket', id: 'rocket', name: 'Rocket', profileIds: ['frameworks/rocket'] },
+      { dep: 'tokio', id: 'tokio', name: 'Tokio', profileIds: [] },
+      { dep: 'serde', id: 'serde', name: 'Serde', profileIds: [] },
     ];
 
     for (const p of patterns) {
@@ -59,7 +59,7 @@ export class RustAnalyzer extends BaseAnalyzer {
           confidence: 85,
           evidence: [{ source: 'Cargo.toml', type: 'manifest', description: `Found "${p.dep}" in dependencies`, weight: 85 }],
           parentId: 'rust',
-          profileIds: [],
+          profileIds: p.profileIds,
         });
       }
     }
