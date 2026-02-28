@@ -1,0 +1,223 @@
+import type {
+  AgentDefinition,
+  ClaudeSettings,
+  ComposedConfig,
+  DetectionResult,
+  Profile,
+} from '../core/types.js';
+import { CompositionError } from '../core/errors.js';
+import { deepmerge } from 'deepmerge-ts';
+
+/**
+ * Composes multiple profiles into a single unified configuration.
+ * Profiles are processed in layer order (0 → 10 → 20 → 30 → 40).
+ */
+export class ProfileComposer {
+  /** Compose profiles matching the detection result */
+  compose(profiles: Profile[], detection: DetectionResult): ComposedConfig {
+    // Resolve which profiles apply based on detected technologies
+    const applicable = this.resolveApplicable(profiles, detection);
+
+    // Sort by layer priority
+    applicable.sort((a, b) => a.layer - b.layer);
+
+    // Build the composed config
+    const config: ComposedConfig = {
+      claudeMdSections: [],
+      settings: { permissions: {} },
+      rules: [],
+      agents: [],
+      skills: [],
+      hooks: [],
+      mcp: [],
+      externalTools: [],
+      appliedProfiles: [],
+    };
+
+    for (const profile of applicable) {
+      this.applyProfile(config, profile);
+      config.appliedProfiles.push(profile.id);
+    }
+
+    // Compose agents from contributions
+    config.agents = this.composeAgents(applicable);
+
+    // Validate no conflicts
+    this.validate(config);
+
+    return config;
+  }
+
+  /** Resolve which profiles should be applied */
+  private resolveApplicable(
+    profiles: Profile[],
+    detection: DetectionResult,
+  ): Profile[] {
+    const detectedIds = new Set(
+      detection.technologies.flatMap((t) => t.profileIds),
+    );
+
+    // Always include base profiles (layer 0)
+    const applicable = profiles.filter((p) => {
+      if (p.layer === 0) return true; // Base always applies
+      return p.technologyIds.some((_tid) => detectedIds.has(p.id));
+    });
+
+    // Also match by technology ID directly
+    const byTechId = profiles.filter((p) => {
+      if (applicable.includes(p)) return false;
+      return p.technologyIds.some((tid) =>
+        detection.technologies.some((t) => t.id === tid),
+      );
+    });
+
+    const all = [...applicable, ...byTechId];
+
+    // Check version constraints
+    return all.filter((p) => {
+      if (!p.versionConstraints) return true;
+      const tech = detection.technologies.find((t) =>
+        p.technologyIds.includes(t.id),
+      );
+      if (!tech?.majorVersion) return true;
+      const { min, max } = p.versionConstraints;
+      if (min !== undefined && tech.majorVersion < min) return false;
+      if (max !== undefined && tech.majorVersion > max) return false;
+      return true;
+    });
+  }
+
+  /** Apply a single profile's contributions to the composed config */
+  private applyProfile(config: ComposedConfig, profile: Profile): void {
+    const c = profile.contributions;
+
+    if (c.claudeMd) {
+      config.claudeMdSections.push(...c.claudeMd);
+    }
+
+    if (c.settings) {
+      config.settings = this.mergeSettings(config.settings, c.settings);
+    }
+
+    if (c.rules) {
+      config.rules.push(...c.rules);
+    }
+
+    if (c.skills) {
+      config.skills.push(...c.skills);
+    }
+
+    if (c.hooks) {
+      config.hooks.push(...c.hooks);
+    }
+
+    if (c.mcp) {
+      config.mcp.push(...c.mcp);
+    }
+
+    if (c.externalTools) {
+      config.externalTools.push(...c.externalTools);
+    }
+  }
+
+  /** Deep merge settings, concatenating permission arrays */
+  private mergeSettings(
+    base: ClaudeSettings,
+    overlay: Partial<ClaudeSettings>,
+  ): ClaudeSettings {
+    const merged = deepmerge(base, overlay) as ClaudeSettings;
+
+    // Ensure arrays are concatenated, not replaced
+    if (base.permissions?.allow && overlay.permissions?.allow) {
+      merged.permissions.allow = [
+        ...new Set([...base.permissions.allow, ...overlay.permissions.allow]),
+      ];
+    }
+    if (base.permissions?.deny && overlay.permissions?.deny) {
+      merged.permissions.deny = [
+        ...new Set([...base.permissions.deny, ...overlay.permissions.deny]),
+      ];
+    }
+
+    return merged;
+  }
+
+  /** Compose agent definitions from all profile contributions */
+  private composeAgents(profiles: Profile[]): AgentDefinition[] {
+    const agentMap = new Map<string, {
+      prompt: string[];
+      skills: Set<string>;
+      model?: string;
+      description: string;
+    }>();
+
+    for (const profile of profiles) {
+      const agents = profile.contributions.agents ?? [];
+      for (const agent of agents) {
+        const existing = agentMap.get(agent.name);
+
+        if (agent.type === 'define' && !existing) {
+          agentMap.set(agent.name, {
+            prompt: agent.prompt ? [agent.prompt] : [],
+            skills: new Set(agent.skills ?? []),
+            model: agent.model,
+            description: agent.description ?? '',
+          });
+        } else if (agent.type === 'enrich' && existing) {
+          if (agent.prompt) existing.prompt.push(agent.prompt);
+          if (agent.skills) {
+            for (const s of agent.skills) existing.skills.add(s);
+          }
+          if (agent.model) existing.model = agent.model; // Later layer wins
+        } else if (agent.type === 'define' && existing) {
+          // Multiple definitions: merge them
+          if (agent.prompt) existing.prompt.push(agent.prompt);
+          if (agent.skills) {
+            for (const s of agent.skills) existing.skills.add(s);
+          }
+          if (agent.model) existing.model = agent.model;
+          if (agent.description) existing.description = agent.description;
+        } else if (agent.type === 'enrich' && !existing) {
+          // Enriching non-existent agent: create it
+          agentMap.set(agent.name, {
+            prompt: agent.prompt ? [agent.prompt] : [],
+            skills: new Set(agent.skills ?? []),
+            model: agent.model,
+            description: agent.description ?? '',
+          });
+        }
+      }
+    }
+
+    return [...agentMap.entries()].map(([name, data]) => ({
+      name,
+      prompt: data.prompt.join('\n\n'),
+      skills: [...data.skills],
+      model: data.model,
+      description: data.description,
+    }));
+  }
+
+  /** Validate the composed config for conflicts */
+  private validate(config: ComposedConfig): void {
+    // Check for permission conflicts (same pattern in both allow and deny)
+    const allow = new Set(config.settings.permissions?.allow ?? []);
+    const deny = new Set(config.settings.permissions?.deny ?? []);
+    for (const pattern of allow) {
+      if (deny.has(pattern)) {
+        throw new CompositionError(
+          `Conflicto de permisos: "${pattern}" está tanto en allow como en deny`,
+        );
+      }
+    }
+
+    // Check for duplicate rule paths
+    const rulePaths = config.rules.map((r) => r.path);
+    const dups = rulePaths.filter((p, i) => rulePaths.indexOf(p) !== i);
+    if (dups.length > 0) {
+      throw new CompositionError(
+        `Rutas de reglas duplicadas: ${dups.join(', ')}`,
+      );
+    }
+  }
+}

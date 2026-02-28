@@ -1,0 +1,73 @@
+{
+  "name": "@anthropic-internal/diverger-claude",
+  "version": "0.1.0",
+  "description": "Herramienta para detectar stack tecnológico y generar configuración .claude/ adaptada",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "diverger": "dist/index.js",
+    "diverger-claude": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "commands",
+    "agents",
+    "skills",
+    "hooks",
+    ".claude-plugin"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "deep-diff": "^1.0.2",
+    "deepmerge-ts": "^7.1.3",
+    "diff": "^7.0.0",
+    "fast-glob": "^3.3.3",
+    "fast-xml-parser": "^4.5.1",
+    "handlebars": "^4.7.8",
+    "inquirer": "^12.4.0",
+    "js-yaml": "^4.1.0",
+    "ora": "^8.2.0",
+    "smol-toml": "^1.3.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/deep-diff": "^1.0.5",
+    "@types/diff": "^6.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.13.0",
+    "tsup": "^8.3.6",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthropic-internal/diverger-claude.git"
+  },
+  "keywords": [
+    "claude-code",
+    "claude",
+    "developer-tools",
+    "configuration",
+    "best-practices"
+  ],
+  "license": "UNLICENSED"
+}

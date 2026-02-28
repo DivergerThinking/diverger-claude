@@ -1,0 +1,8 @@
+{
+  "name": "test-monorepo",
+  "workspaces": ["packages/*"],
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.7.0"
+  }
+}

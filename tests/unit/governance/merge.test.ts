@@ -1,0 +1,275 @@
+import { describe, it, expect, vi } from 'vitest';
+import { ThreeWayMerge } from '../../../src/governance/merge.js';
+import { hashForMeta } from '../../../src/utils/hash.js';
+import type { DivergentMeta, GeneratedFile } from '../../../src/core/types.js';
+
+// Mock the fs utility to control what "exists on disk"
+vi.mock('../../../src/utils/fs.js', () => ({
+  readFileOrNull: vi.fn(),
+}));
+
+import { readFileOrNull } from '../../../src/utils/fs.js';
+const mockReadFileOrNull = vi.mocked(readFileOrNull);
+
+function makeFile(path: string, content: string): GeneratedFile {
+  return { path, content };
+}
+
+function makeMeta(fileHashes: Record<string, string> = {}): DivergentMeta {
+  return {
+    version: '0.1.0',
+    generatedAt: new Date().toISOString(),
+    detectedStack: [],
+    appliedProfiles: [],
+    fileHashes,
+    ruleGovernance: {},
+  };
+}
+
+describe('ThreeWayMerge', () => {
+  const merger = new ThreeWayMerge();
+
+  // ── Case 1: File does not exist on disk → auto-apply (new file) ───────
+
+  describe('Case 1: new file (does not exist on disk)', () => {
+    it('should auto-apply when file does not exist on disk', async () => {
+      mockReadFileOrNull.mockResolvedValue(null);
+
+      const file = makeFile('/project/.claude/CLAUDE.md', '# New content');
+      const result = await merger.mergeFile(file, null);
+
+      expect(result.outcome).toBe('auto-apply');
+      expect(result.content).toBe('# New content');
+      expect(result.path).toBe('/project/.claude/CLAUDE.md');
+    });
+
+    it('should auto-apply new file even with meta present', async () => {
+      mockReadFileOrNull.mockResolvedValue(null);
+
+      const file = makeFile('/project/.claude/rules/new.md', 'New rule');
+      const meta = makeMeta({});
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('auto-apply');
+      expect(result.content).toBe('New rule');
+    });
+  });
+
+  // ── Case 2: No stored hash (first run / meta lost) ───────────────────
+
+  describe('Case 2: no stored hash', () => {
+    it('should skip when file exists with identical content and no hash', async () => {
+      const content = '# Same content';
+      mockReadFileOrNull.mockResolvedValue(content);
+
+      const file = makeFile('/project/.claude/CLAUDE.md', content);
+      const result = await merger.mergeFile(file, null);
+
+      expect(result.outcome).toBe('skip');
+    });
+
+    it('should conflict when file exists with different content and no meta', async () => {
+      mockReadFileOrNull.mockResolvedValue('# Existing different content');
+
+      const file = makeFile('/project/.claude/CLAUDE.md', '# New content');
+      const result = await merger.mergeFile(file, null);
+
+      expect(result.outcome).toBe('conflict');
+      expect(result.content).toBe('# New content');
+      expect(result.conflictDetails).toBeDefined();
+    });
+
+    it('should conflict when meta exists but file hash is missing', async () => {
+      mockReadFileOrNull.mockResolvedValue('# Existing content');
+
+      const file = makeFile('/project/.claude/CLAUDE.md', '# New content');
+      const meta = makeMeta({}); // no hash for this file
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('conflict');
+    });
+  });
+
+  // ── Case 3: Nobody changed anything → skip ───────────────────────────
+
+  describe('Case 3: no changes from either side', () => {
+    it('should skip when base, current, and new are all identical', async () => {
+      const content = '# Unchanged content';
+      const hash = hashForMeta(content);
+      mockReadFileOrNull.mockResolvedValue(content);
+
+      const file = makeFile('/project/.claude/CLAUDE.md', content);
+      const meta = makeMeta({ '/project/.claude/CLAUDE.md': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('skip');
+    });
+  });
+
+  // ── Case 4: Only library changed → auto-apply ────────────────────────
+
+  describe('Case 4: only library changed (team did not touch)', () => {
+    it('should auto-apply when only the new generated content differs', async () => {
+      const originalContent = '# Original';
+      const hash = hashForMeta(originalContent);
+      mockReadFileOrNull.mockResolvedValue(originalContent); // disk matches base
+
+      const file = makeFile('/project/.claude/CLAUDE.md', '# Updated by library');
+      const meta = makeMeta({ '/project/.claude/CLAUDE.md': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('auto-apply');
+      expect(result.content).toBe('# Updated by library');
+    });
+  });
+
+  // ── Case 5: Only team changed → keep ─────────────────────────────────
+
+  describe('Case 5: only team changed (library did not change)', () => {
+    it('should keep when only the team modified the file', async () => {
+      const originalContent = '# Original';
+      const hash = hashForMeta(originalContent);
+      mockReadFileOrNull.mockResolvedValue('# Modified by team'); // disk differs from base
+
+      const file = makeFile('/project/.claude/CLAUDE.md', originalContent); // new == base
+      const meta = makeMeta({ '/project/.claude/CLAUDE.md': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('keep');
+      expect(result.content).toBeUndefined();
+    });
+  });
+
+  // ── Case 6: Both changed → smart merge or conflict ────────────────────
+
+  describe('Case 6: both changed', () => {
+    it('should merge markdown files by sections (team sections preserved)', async () => {
+      const originalContent = '## Section A\nOriginal A\n\n## Section B\nOriginal B';
+      const hash = hashForMeta(originalContent);
+
+      // Team changed section A and kept section B
+      const teamContent = '## Section A\nTeam modified A\n\n## Section B\nOriginal B';
+      mockReadFileOrNull.mockResolvedValue(teamContent);
+
+      // Library changed section B and added section C
+      const libraryContent = '## Section A\nOriginal A\n\n## Section B\nLibrary updated B\n\n## Section C\nNew section C';
+      const file = makeFile('/project/.claude/CLAUDE.md', libraryContent);
+      const meta = makeMeta({ '/project/.claude/CLAUDE.md': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('merged');
+      // Team's sections should be preserved
+      expect(result.content).toContain('Team modified A');
+      // New library section should be added
+      expect(result.content).toContain('New section C');
+    });
+
+    it('should merge JSON files by top-level keys (team wins for shared keys)', async () => {
+      const originalContent = JSON.stringify({ a: 1, b: 2 }, null, 2);
+      const hash = hashForMeta(originalContent);
+
+      // Team changed key "b"
+      const teamContent = JSON.stringify({ a: 1, b: 99 }, null, 2);
+      mockReadFileOrNull.mockResolvedValue(teamContent);
+
+      // Library added key "c" and changed key "b"
+      const libraryContent = JSON.stringify({ a: 1, b: 3, c: 'new' }, null, 2);
+      const file = makeFile('/project/.claude/settings.json', libraryContent);
+      const meta = makeMeta({ '/project/.claude/settings.json': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('merged');
+      const parsed = JSON.parse(result.content!);
+      // Team wins for shared keys
+      expect(parsed.b).toBe(99);
+      // Library's new key is included (via { ...ours, ...theirs })
+      expect(parsed.a).toBe(1);
+      // Library-only key is preserved
+      expect(parsed.c).toBe('new');
+    });
+
+    it('should conflict for non-md/non-json files when both changed', async () => {
+      const originalContent = 'original yaml content';
+      const hash = hashForMeta(originalContent);
+
+      mockReadFileOrNull.mockResolvedValue('team changed yaml');
+
+      const file = makeFile('/project/.claude/config.yaml', 'library changed yaml');
+      const meta = makeMeta({ '/project/.claude/config.yaml': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('conflict');
+      expect(result.conflictDetails).toBeDefined();
+    });
+
+    it('should conflict for invalid JSON when both changed', async () => {
+      const originalContent = '{"valid": true}';
+      const hash = hashForMeta(originalContent);
+
+      mockReadFileOrNull.mockResolvedValue('not valid json {{{');
+
+      const file = makeFile('/project/.claude/settings.json', '{"new": true}');
+      const meta = makeMeta({ '/project/.claude/settings.json': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('conflict');
+      expect(result.conflictDetails).toContain('JSON');
+    });
+  });
+
+  // ── mergeAll ──────────────────────────────────────────────────────────
+
+  describe('mergeAll', () => {
+    it('should process multiple files and return results for each', async () => {
+      // File 1: does not exist → auto-apply
+      mockReadFileOrNull
+        .mockResolvedValueOnce(null)
+        // File 2: identical → skip
+        .mockResolvedValueOnce('# Same');
+
+      const files: GeneratedFile[] = [
+        makeFile('/project/.claude/CLAUDE.md', '# New file'),
+        makeFile('/project/.claude/rules/rule.md', '# Same'),
+      ];
+
+      const results = await merger.mergeAll(files, null);
+
+      expect(results).toHaveLength(2);
+      expect(results[0]!.outcome).toBe('auto-apply');
+      expect(results[1]!.outcome).toBe('skip');
+    });
+
+    it('should handle empty files array', async () => {
+      const results = await merger.mergeAll([], null);
+      expect(results).toHaveLength(0);
+    });
+
+    it('should return mixed outcomes for different file states', async () => {
+      const originalA = '# Original A';
+      const hashA = hashForMeta(originalA);
+      const originalB = '# Original B';
+      const hashB = hashForMeta(originalB);
+
+      mockReadFileOrNull
+        // File A: team changed, library same → keep
+        .mockResolvedValueOnce('# Team changed A')
+        // File B: library changed, team same → auto-apply
+        .mockResolvedValueOnce(originalB);
+
+      const files: GeneratedFile[] = [
+        makeFile('/project/a.md', originalA),
+        makeFile('/project/b.md', '# Library changed B'),
+      ];
+
+      const meta = makeMeta({
+        '/project/a.md': hashA,
+        '/project/b.md': hashB,
+      });
+
+      const results = await merger.mergeAll(files, meta);
+
+      expect(results[0]!.outcome).toBe('keep');
+      expect(results[1]!.outcome).toBe('auto-apply');
+    });
+  });
+});

@@ -1,0 +1,24 @@
+{
+  "name": "diverger-claude",
+  "version": "0.1.0",
+  "description": "Configuración automática de Claude Code adaptada al stack tecnológico del proyecto",
+  "commands": [
+    "../commands/diverger-init.md",
+    "../commands/diverger-sync.md",
+    "../commands/diverger-check.md",
+    "../commands/diverger-status.md"
+  ],
+  "agents": [
+    "../agents/code-reviewer.md",
+    "../agents/test-writer.md",
+    "../agents/security-checker.md",
+    "../agents/doc-writer.md",
+    "../agents/refactor-assistant.md",
+    "../agents/migration-helper.md"
+  ],
+  "skills": [
+    "../skills/diverger-sync/SKILL.md",
+    "../skills/diverger-check/SKILL.md"
+  ],
+  "hooks": "../hooks/hooks.json"
+}
