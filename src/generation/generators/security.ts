@@ -1,10 +1,10 @@
-import type { ClaudeSettings, GeneratedFile } from '../../core/types.js';
+import type { ClaudeSettings, ComposedConfig, GeneratedFile } from '../../core/types.js';
 import { CLAUDE_DIR, RULES_DIR, SENSITIVE_PATTERNS } from '../../core/constants.js';
 import path from 'path';
 
 /** Generate security-specific configurations */
 export function generateSecurityConfig(
-  _config: unknown,
+  _config: ComposedConfig,
   projectRoot: string,
 ): { rules: GeneratedFile[]; settingsOverlay: Partial<ClaudeSettings> } {
   const rules: GeneratedFile[] = [];
@@ -12,9 +12,15 @@ export function generateSecurityConfig(
   // Security deny rules are already in universal profile settings
   // This generates additional security hooks and sandbox config
 
+  const denyPatterns = SENSITIVE_PATTERNS.flatMap((p) => [
+    `Read(${p})`,
+    `Edit(${p})`,
+    `Write(${p})`,
+  ]);
+
   const settingsOverlay: Partial<ClaudeSettings> = {
     permissions: {
-      deny: SENSITIVE_PATTERNS.map((p) => `Read(${p})`),
+      deny: denyPatterns,
     },
     sandbox: {
       filesystem: {

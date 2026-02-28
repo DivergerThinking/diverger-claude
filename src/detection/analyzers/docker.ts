@@ -20,6 +20,10 @@ export class DockerAnalyzer extends BaseAnalyzer {
     let hasDockerfile = false;
     let hasCompose = false;
 
+    // Track multi-stage build evidence separately
+    let multiStageFile: string | undefined;
+    let multiStageCount = 0;
+
     for (const [filePath, content] of files) {
       analyzedFiles.push(filePath);
 
@@ -29,22 +33,20 @@ export class DockerAnalyzer extends BaseAnalyzer {
         // Detect multi-stage builds
         const stageCount = (content.match(/^FROM\s+/gm) ?? []).length;
         if (stageCount > 1) {
-          const existing = technologies.find((t) => t.id === 'docker');
-          if (existing) {
-            existing.evidence.push({
-              source: filePath,
-              type: 'content',
-              description: `Multi-stage build detected (${stageCount} stages)`,
-              weight: 5,
-            });
-          }
+          multiStageFile = filePath;
+          multiStageCount = stageCount;
         }
       }
 
       if (filePath.includes('compose')) {
         hasCompose = true;
-        // Count services to hint at microservices
-        const serviceCount = (content.match(/^\s{2}\w+:/gm) ?? []).length;
+        // Count services under the "services:" key
+        const servicesMatch = content.match(/^services:\s*\n((?:\s{2}\w[^\n]*\n?)*)/m);
+        let serviceCount = 0;
+        if (servicesMatch?.[1]) {
+          // Count top-level keys under services (exactly 2-space indented, not deeper)
+          serviceCount = (servicesMatch[1].match(/^\s{2}[a-zA-Z_][\w-]*:/gm) ?? []).length;
+        }
         if (serviceCount > 3) {
           technologies.push({
             id: 'microservices-hint',
@@ -64,7 +66,7 @@ export class DockerAnalyzer extends BaseAnalyzer {
     }
 
     if (hasDockerfile || hasCompose) {
-      technologies.unshift({
+      const dockerTech: DetectedTechnology = {
         id: 'docker',
         name: 'Docker',
         category: 'infra',
@@ -76,7 +78,19 @@ export class DockerAnalyzer extends BaseAnalyzer {
           weight: 95,
         }],
         profileIds: ['infra/docker'],
-      });
+      };
+
+      // Attach multi-stage build evidence after creating the docker technology
+      if (multiStageFile && multiStageCount > 1) {
+        dockerTech.evidence.push({
+          source: multiStageFile,
+          type: 'content',
+          description: `Multi-stage build detected (${multiStageCount} stages)`,
+          weight: 5,
+        });
+      }
+
+      technologies.unshift(dockerTech);
     }
 
     return { technologies, analyzedFiles };

@@ -10,9 +10,12 @@ export function registerEjectCommand(program: Command): void {
   program
     .command('eject')
     .description('Desconectar diverger-claude manteniendo la configuración generada')
+    .option('-f, --force', 'Omitir confirmación', false)
     .option('--dir <path>', 'Directorio objetivo')
     .action(async (opts) => {
       const targetDir = opts.dir ?? process.cwd();
+      const force = opts.force ?? false;
+      const outputMode = log.getOutputMode();
 
       try {
         log.header('diverger-claude eject');
@@ -25,10 +28,13 @@ export function registerEjectCommand(program: Command): void {
         log.listItem(KNOWLEDGE_CACHE_DIR);
         log.blank();
 
-        const confirmed = await confirmAction('¿Continuar con el eject?');
-        if (!confirmed) {
-          log.dim('Operación cancelada.');
-          return;
+        // Skip prompt when --force or --json
+        if (!force && outputMode !== 'json') {
+          const confirmed = await confirmAction('¿Continuar con el eject?');
+          if (!confirmed) {
+            log.dim('Operación cancelada.');
+            return;
+          }
         }
 
         // Remove diverger-specific files
@@ -41,17 +47,23 @@ export function registerEjectCommand(program: Command): void {
           path.join(targetDir, KNOWLEDGE_CACHE_DIR),
         ];
 
+        const removed: string[] = [];
+
         for (const file of filesToRemove) {
           if (await fileExists(file)) {
             await fs.unlink(file);
-            log.success(`Eliminado: ${path.relative(targetDir, file)}`);
+            const rel = path.relative(targetDir, file);
+            log.success(`Eliminado: ${rel}`);
+            removed.push(rel);
           }
         }
 
         for (const dir of dirsToRemove) {
           if (await fileExists(dir)) {
             await fs.rm(dir, { recursive: true });
-            log.success(`Eliminado: ${path.relative(targetDir, dir)}/`);
+            const rel = path.relative(targetDir, dir) + '/';
+            log.success(`Eliminado: ${rel}`);
+            removed.push(rel);
           }
         }
 
@@ -59,6 +71,10 @@ export function registerEjectCommand(program: Command): void {
         log.success('Eject completado. La configuración .claude/ se mantiene intacta.');
         log.dim('Puedes seguir usando Claude Code con la configuración existente.');
         log.dim('Para reconectar, ejecuta `diverger init --force`.');
+
+        if (outputMode === 'json') {
+          log.jsonOutput({ ejected: true, removed });
+        }
       } catch (err) {
         log.error(err instanceof Error ? err.message : String(err));
         process.exit(1);

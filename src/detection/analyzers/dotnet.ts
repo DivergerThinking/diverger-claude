@@ -51,7 +51,7 @@ export class DotnetAnalyzer extends BaseAnalyzer {
           if (tfMatch) {
             const dotnetTech = technologies.find((t) => t.id === lang);
             if (dotnetTech) {
-              dotnetTech.version = `net${tfMatch[0]}`;
+              dotnetTech.version = tfMatch[0];
               dotnetTech.majorVersion = parseInt(tfMatch[1]!, 10);
             }
           }

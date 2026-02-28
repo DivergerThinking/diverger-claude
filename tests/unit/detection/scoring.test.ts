@@ -66,13 +66,13 @@ describe('ConfidenceScorer', () => {
     });
 
     it('should handle all evidence with the same weight', () => {
-      // When all weights are equal, the first one is max and remaining are additional
+      // When all weights are equal, only the first max is excluded; the rest are additional
       const evidence = [makeEvidence(50), makeEvidence(50), makeEvidence(50)];
       const result = scorer.calculateConfidence(evidence);
-      // max=50, additional = two 50s (those not equal to maxWeight are filtered)
-      // But filter is e.weight !== maxWeight → all are 50 so none pass → boost=0
-      // Result = 50
-      expect(result).toBe(50);
+      // max=50, additional = [50, 50] (only first max excluded)
+      // boost = 50*0.3/1 + 50*0.3/2 = 15 + 7.5 = 22.5
+      // total = 50 + 22.5 = 72.5 → round → 73
+      expect(result).toBe(73);
     });
 
     it('should round the result', () => {

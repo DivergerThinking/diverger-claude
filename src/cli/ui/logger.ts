@@ -21,25 +21,28 @@ function isJson(): boolean {
 
 /** Print info message (blue) */
 export function info(message: string): void {
-  if (isJson()) return;
+  if (isQuiet() || isJson()) return;
   console.log(chalk.blue('ℹ'), message);
 }
 
 /** Print success message (green) */
 export function success(message: string): void {
-  if (isJson()) return;
+  if (isQuiet() || isJson()) return;
   console.log(chalk.green('✔'), message);
 }
 
 /** Print warning message (yellow) */
 export function warn(message: string): void {
-  if (isJson()) return;
+  if (isQuiet() || isJson()) return;
   console.log(chalk.yellow('⚠'), message);
 }
 
-/** Print error message (red) */
+/** Print error message (red) — always prints to stderr */
 export function error(message: string): void {
-  if (isJson()) return;
+  if (isJson()) {
+    console.error(JSON.stringify({ error: message }));
+    return;
+  }
   console.error(chalk.red('✖'), message);
 }
 
@@ -59,20 +62,20 @@ export function dim(message: string): void {
 
 /** Print a table row */
 export function tableRow(label: string, value: string, indent = 0): void {
-  if (isJson()) return;
+  if (isQuiet() || isJson()) return;
   const prefix = ' '.repeat(indent);
   console.log(`${prefix}${chalk.dim(label + ':')} ${value}`);
 }
 
 /** Print a key-value pair with color */
 export function keyValue(key: string, value: string): void {
-  if (isJson()) return;
+  if (isQuiet() || isJson()) return;
   console.log(`  ${chalk.bold(key)}: ${value}`);
 }
 
 /** Print a list item */
 export function listItem(text: string, indent = 0): void {
-  if (isJson()) return;
+  if (isQuiet() || isJson()) return;
   const prefix = ' '.repeat(indent);
   console.log(`${prefix}${chalk.dim('•')} ${text}`);
 }

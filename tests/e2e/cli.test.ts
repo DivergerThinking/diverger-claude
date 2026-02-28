@@ -82,7 +82,8 @@ describe('CLI E2E', () => {
 
       // Verify files were created
       const claudeDir = path.join(tempDir, '.claude');
-      const claudeMd = await fs.readFile(path.join(claudeDir, 'CLAUDE.md'), 'utf-8');
+      // CLAUDE.md is generated at the project root, not inside .claude/
+      const claudeMd = await fs.readFile(path.join(tempDir, 'CLAUDE.md'), 'utf-8');
       expect(claudeMd).toContain('TypeScript');
 
       const settings = JSON.parse(

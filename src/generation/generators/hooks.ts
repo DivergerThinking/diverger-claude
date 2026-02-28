@@ -1,35 +1,29 @@
-import type { ComposedConfig, GeneratedFile } from '../../core/types.js';
-import { CLAUDE_DIR } from '../../core/constants.js';
-import path from 'path';
-
-interface HooksJson {
-  hooks: Record<string, HookEntry[]>;
-}
+import type { ComposedConfig } from '../../core/types.js';
 
 interface HookEntry {
   matcher?: string;
-  commands: Array<{ command: string; timeout?: number }>;
+  hooks: Array<{ type: 'command'; command: string; timeout?: number }>;
 }
 
-/** Generate .claude/settings.json hooks section from composed config */
+/** Generate hooks data structure to be merged into settings.json */
 export function generateHooks(
   config: ComposedConfig,
-  projectRoot: string,
-): GeneratedFile | null {
+): Record<string, HookEntry[]> | null {
   if (config.hooks.length === 0) return null;
 
-  const hooksJson: HooksJson = { hooks: {} };
+  const hooksMap: Record<string, HookEntry[]> = {};
 
   for (const hook of config.hooks) {
     const event = hook.event;
-    if (!hooksJson.hooks[event]) {
-      hooksJson.hooks[event] = [];
+    if (!hooksMap[event]) {
+      hooksMap[event] = [];
     }
 
     const entry: HookEntry = {
-      commands: hook.commands.map((c) => ({
-        command: c.command,
-        ...(c.timeout ? { timeout: c.timeout } : {}),
+      hooks: hook.hooks.map((h) => ({
+        type: 'command' as const,
+        command: h.command,
+        ...(h.timeout ? { timeout: h.timeout } : {}),
       })),
     };
 
@@ -37,11 +31,8 @@ export function generateHooks(
       entry.matcher = hook.matcher;
     }
 
-    hooksJson.hooks[event]!.push(entry);
+    hooksMap[event]!.push(entry);
   }
 
-  return {
-    path: path.join(projectRoot, CLAUDE_DIR, 'hooks.json'),
-    content: JSON.stringify(hooksJson, null, 2) + '\n',
-  };
+  return hooksMap;
 }

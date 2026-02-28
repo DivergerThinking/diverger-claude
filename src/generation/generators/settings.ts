@@ -1,5 +1,6 @@
-import type { ClaudeSettings, ComposedConfig, GeneratedFile } from '../../core/types.js';
+import type { ComposedConfig, GeneratedFile } from '../../core/types.js';
 import { CLAUDE_DIR, SETTINGS_FILE } from '../../core/constants.js';
+import { generateHooks } from './hooks.js';
 import path from 'path';
 
 /** Generate the .claude/settings.json file from composed config */
@@ -7,7 +8,7 @@ export function generateSettings(
   config: ComposedConfig,
   projectRoot: string,
 ): GeneratedFile {
-  const settings: ClaudeSettings = {
+  const settings: Record<string, unknown> = {
     permissions: {
       allow: [...new Set(config.settings.permissions?.allow ?? [])].sort(),
       deny: [...new Set(config.settings.permissions?.deny ?? [])].sort(),
@@ -20,6 +21,12 @@ export function generateSettings(
 
   if (config.settings.env) {
     settings.env = config.settings.env;
+  }
+
+  // Integrate hooks into settings.json
+  const hooksData = generateHooks(config);
+  if (hooksData) {
+    settings.hooks = hooksData;
   }
 
   return {

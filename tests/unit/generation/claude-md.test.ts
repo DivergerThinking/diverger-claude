@@ -26,9 +26,9 @@ describe('generateClaudeMd', () => {
     const config = makeConfig();
     const result = generateClaudeMd(config, projectRoot);
 
-    // Path should be <projectRoot>/.claude/CLAUDE.md
-    expect(result.path).toContain('.claude');
+    // Path should be <projectRoot>/CLAUDE.md (at project root, not inside .claude/)
     expect(result.path).toContain('CLAUDE.md');
+    expect(result.path).not.toContain('.claude');
   });
 
   it('should include the header with project configuration title', () => {

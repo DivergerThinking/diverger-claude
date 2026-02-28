@@ -1,3 +1,4 @@
+import path from 'path';
 import type { ComposedConfig, DetectionResult, WorkspacePackage } from '../core/types.js';
 import { ProfileEngine } from '../profiles/index.js';
 
@@ -25,7 +26,7 @@ export function planMonorepoConfig(
   const packageConfigs = packages.map((pkg) => {
     const pkgDetection: DetectionResult = {
       technologies: pkg.technologies,
-      rootDir: pkg.path,
+      rootDir: path.join(rootDetection.rootDir, pkg.path),
       detectedAt: new Date().toISOString(),
     };
 

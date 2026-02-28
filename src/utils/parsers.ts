@@ -15,7 +15,7 @@ export function parseJson<T = unknown>(content: string, source?: string): T {
 /** Parse YAML content */
 export function parseYaml<T = unknown>(content: string, source?: string): T {
   try {
-    return yaml.load(content) as T;
+    return yaml.load(content, { schema: yaml.JSON_SCHEMA }) as T;
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     throw new Error(`Error parsing YAML${source ? ` from ${source}` : ''}: ${msg}`);

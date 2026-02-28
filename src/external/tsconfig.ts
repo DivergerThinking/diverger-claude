@@ -5,6 +5,7 @@ export function createTsconfigConfig(
   options: { nextjs?: boolean; react?: boolean },
 ): ExternalToolConfig {
   const compilerOptions: Record<string, unknown> = {
+    target: 'es2022',
     strict: true,
     noUncheckedIndexedAccess: true,
     noUnusedLocals: true,
@@ -20,6 +21,9 @@ export function createTsconfigConfig(
 
   if (options.react || options.nextjs) {
     compilerOptions.jsx = 'react-jsx';
+    compilerOptions.lib = ['dom', 'dom.iterable', 'esnext'];
+  } else {
+    compilerOptions.lib = ['esnext'];
   }
 
   if (options.nextjs) {

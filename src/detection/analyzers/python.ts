@@ -58,14 +58,7 @@ const PY_DEP_PATTERNS: DepPattern[] = [
     weight: 90,
     profileIds: ['testing/pytest'],
   },
-  {
-    packages: ['unittest'],
-    techId: 'unittest',
-    techName: 'unittest',
-    category: 'testing',
-    weight: 70,
-    profileIds: [],
-  },
+  // unittest is a stdlib module - it never appears in dependency files
   {
     packages: ['pydantic'],
     techId: 'pydantic',

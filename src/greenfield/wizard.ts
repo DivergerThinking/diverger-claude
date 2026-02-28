@@ -35,6 +35,17 @@ export async function runGreenfieldWizard(
   return templateToDetection(template, projectRoot);
 }
 
+function inferCategory(name: string): 'language' | 'framework' | 'testing' | 'infra' {
+  const languages = ['typescript', 'javascript', 'python', 'java', 'go', 'rust', 'csharp', 'ruby', 'php'];
+  const testing = ['jest', 'vitest', 'pytest', 'junit', 'cypress', 'playwright', 'mocha'];
+  const infra = ['docker', 'kubernetes', 'aws', 'gcp', 'azure', 'terraform', 'vercel', 'netlify'];
+  const lowerName = name.toLowerCase();
+  if (languages.some(l => lowerName.includes(l))) return 'language';
+  if (testing.some(t => lowerName.includes(t))) return 'testing';
+  if (infra.some(i => lowerName.includes(i))) return 'infra';
+  return 'framework';
+}
+
 function inferFromArchitecture(
   archDoc: Awaited<ReturnType<typeof parseArchitectureDoc>> & object,
   projectRoot: string,
@@ -42,7 +53,7 @@ function inferFromArchitecture(
   const technologies = archDoc.technologies.map((name) => ({
     id: name.toLowerCase().replace(/\s+/g, '-'),
     name,
-    category: 'framework' as const,
+    category: inferCategory(name),
     confidence: 70,
     evidence: [{
       source: 'ARCHITECTURE.md',

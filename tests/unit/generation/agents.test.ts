@@ -49,14 +49,14 @@ describe('generateAgents', () => {
     expect(result[0]!.path).toContain('code-reviewer.md');
   });
 
-  it('should include the description as the h1 heading', () => {
+  it('should include the description in YAML frontmatter', () => {
     const agents: AgentDefinition[] = [
       { name: 'code-reviewer', prompt: 'Review code.', skills: [], description: 'Code Reviewer Agent' },
     ];
     const config = makeConfig(agents);
     const result = generateAgents(config, projectRoot);
 
-    expect(result[0]!.content).toContain('# Code Reviewer Agent');
+    expect(result[0]!.content).toContain('description: Code Reviewer Agent');
   });
 
   it('should fall back to agent name when description is empty', () => {
@@ -66,10 +66,10 @@ describe('generateAgents', () => {
     const config = makeConfig(agents);
     const result = generateAgents(config, projectRoot);
 
-    expect(result[0]!.content).toContain('# code-reviewer');
+    expect(result[0]!.content).toContain('description: code-reviewer');
   });
 
-  it('should include model when specified', () => {
+  it('should include model in frontmatter when specified', () => {
     const agents: AgentDefinition[] = [
       {
         name: 'reviewer',
@@ -82,20 +82,20 @@ describe('generateAgents', () => {
     const config = makeConfig(agents);
     const result = generateAgents(config, projectRoot);
 
-    expect(result[0]!.content).toContain('Model: claude-sonnet');
+    expect(result[0]!.content).toContain('model: claude-sonnet');
   });
 
-  it('should not include model section when model is undefined', () => {
+  it('should not include model in frontmatter when model is undefined', () => {
     const agents: AgentDefinition[] = [
       { name: 'reviewer', prompt: 'Review.', skills: [], description: 'Reviewer' },
     ];
     const config = makeConfig(agents);
     const result = generateAgents(config, projectRoot);
 
-    expect(result[0]!.content).not.toContain('Model:');
+    expect(result[0]!.content).not.toContain('model:');
   });
 
-  it('should include skills section with each skill listed', () => {
+  it('should include default tools in frontmatter', () => {
     const agents: AgentDefinition[] = [
       {
         name: 'reviewer',
@@ -107,23 +107,25 @@ describe('generateAgents', () => {
     const config = makeConfig(agents);
     const result = generateAgents(config, projectRoot);
 
-    expect(result[0]!.content).toContain('## Skills');
-    expect(result[0]!.content).toContain('- commit');
-    expect(result[0]!.content).toContain('- review');
-    expect(result[0]!.content).toContain('- test-gen');
+    expect(result[0]!.content).toContain('tools:');
+    expect(result[0]!.content).toContain('  - Read');
+    expect(result[0]!.content).toContain('  - Grep');
+    expect(result[0]!.content).toContain('  - Glob');
+    expect(result[0]!.content).toContain('  - Bash');
   });
 
-  it('should not include skills section when skills array is empty', () => {
+  it('should always include default tools even when skills array is empty', () => {
     const agents: AgentDefinition[] = [
       { name: 'reviewer', prompt: 'Review.', skills: [], description: 'Reviewer' },
     ];
     const config = makeConfig(agents);
     const result = generateAgents(config, projectRoot);
 
-    expect(result[0]!.content).not.toContain('## Skills');
+    expect(result[0]!.content).toContain('tools:');
+    expect(result[0]!.content).toContain('  - Read');
   });
 
-  it('should include instructions section with the prompt', () => {
+  it('should include prompt after the closing frontmatter', () => {
     const agents: AgentDefinition[] = [
       {
         name: 'reviewer',
@@ -135,12 +137,15 @@ describe('generateAgents', () => {
     const config = makeConfig(agents);
     const result = generateAgents(config, projectRoot);
 
-    expect(result[0]!.content).toContain('## Instructions');
+    // Prompt should come after the closing ---
+    const closingIdx = result[0]!.content.lastIndexOf('---');
+    const promptIdx = result[0]!.content.indexOf('Review code carefully.');
+    expect(closingIdx).toBeLessThan(promptIdx);
     expect(result[0]!.content).toContain('Review code carefully.');
     expect(result[0]!.content).toContain('Check for bugs.');
   });
 
-  it('should produce correct full format with all fields', () => {
+  it('should produce correct YAML frontmatter format with all fields', () => {
     const agents: AgentDefinition[] = [
       {
         name: 'code-reviewer',
@@ -154,17 +159,24 @@ describe('generateAgents', () => {
     const result = generateAgents(config, projectRoot);
     const content = result[0]!.content;
 
-    // Verify section ordering: heading → model → skills → instructions → prompt
-    const headingIdx = content.indexOf('# Expert Code Reviewer');
-    const modelIdx = content.indexOf('Model: claude-opus');
-    const skillsIdx = content.indexOf('## Skills');
-    const instructionsIdx = content.indexOf('## Instructions');
+    // Verify YAML frontmatter structure
+    expect(content).toMatch(/^---\n/);
+    expect(content).toContain('name: code-reviewer');
+    expect(content).toContain('description: Expert Code Reviewer');
+    expect(content).toContain('model: claude-opus');
+    expect(content).toContain('tools:');
+
+    // Verify ordering: frontmatter fields → closing --- → prompt
+    const nameIdx = content.indexOf('name: code-reviewer');
+    const modelIdx = content.indexOf('model: claude-opus');
+    const toolsIdx = content.indexOf('tools:');
+    const closingIdx = content.lastIndexOf('---');
     const promptIdx = content.indexOf('Review all code changes.');
 
-    expect(headingIdx).toBeLessThan(modelIdx);
-    expect(modelIdx).toBeLessThan(skillsIdx);
-    expect(skillsIdx).toBeLessThan(instructionsIdx);
-    expect(instructionsIdx).toBeLessThan(promptIdx);
+    expect(nameIdx).toBeLessThan(modelIdx);
+    expect(modelIdx).toBeLessThan(toolsIdx);
+    expect(toolsIdx).toBeLessThan(closingIdx);
+    expect(closingIdx).toBeLessThan(promptIdx);
   });
 
   it('should generate multiple agent files with correct content', () => {
@@ -191,6 +203,6 @@ describe('generateAgents', () => {
 
     expect(result[1]!.path).toContain('test-writer.md');
     expect(result[1]!.content).toContain('Write tests.');
-    expect(result[1]!.content).toContain('Model: claude-sonnet');
+    expect(result[1]!.content).toContain('model: claude-sonnet');
   });
 });

@@ -228,18 +228,31 @@ export type HookEvent =
   | 'Notification'
   | 'Stop'
   | 'SubagentStop'
-  | 'SessionStart';
+  | 'SessionStart'
+  | 'UserPromptSubmit'
+  | 'PermissionRequest'
+  | 'PostToolUseFailure'
+  | 'SubagentStart'
+  | 'TeammateIdle'
+  | 'TaskCompleted'
+  | 'ConfigChange'
+  | 'WorktreeCreate'
+  | 'WorktreeRemove'
+  | 'PreCompact'
+  | 'SessionEnd';
 
 export interface HookDefinition {
   /** When to trigger */
   event: HookEvent;
   /** Matcher pattern (tool name or glob) */
   matcher?: string;
-  /** Commands to run */
-  commands: HookCommand[];
+  /** Hook command entries to run */
+  hooks: HookCommandEntry[];
 }
 
-export interface HookCommand {
+export interface HookCommandEntry {
+  /** Entry type — always 'command' */
+  type: 'command';
   /** Shell command */
   command: string;
   /** Timeout in ms */
@@ -348,7 +361,8 @@ export type MergeOutcome =
   | 'auto-apply'    // Only library changed, safe to apply
   | 'keep'          // Only team changed, respect their changes
   | 'merged'        // Both changed, successfully merged
-  | 'conflict';     // Both changed, needs manual resolution
+  | 'conflict'      // Both changed, needs manual resolution
+  | 'error';        // Merge process encountered an error
 
 export interface MergeResult {
   /** File path */

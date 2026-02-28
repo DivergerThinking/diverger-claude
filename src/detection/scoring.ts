@@ -13,8 +13,16 @@ export class ConfidenceScorer {
     const maxWeight = Math.max(...evidence.map((e) => e.weight));
 
     // Boost: each additional evidence adds diminishing returns
+    // Only exclude the first max-weight entry (not all entries sharing the max)
+    let maxExcluded = false;
     const additionalEvidence = evidence
-      .filter((e) => e.weight !== maxWeight)
+      .filter((e) => {
+        if (!maxExcluded && e.weight === maxWeight) {
+          maxExcluded = true;
+          return false; // exclude only the first max
+        }
+        return true;
+      })
       .sort((a, b) => b.weight - a.weight);
 
     let boost = 0;

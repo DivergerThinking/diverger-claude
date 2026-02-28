@@ -28,11 +28,14 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Build
+        run: npm run build
+
       - name: Run tests
         run: npm test
 
-      - name: Build
-        run: npm run build
+      - name: Run E2E tests
+        run: npm run test:e2e
 
   lint:
     runs-on: ubuntu-latest
@@ -49,4 +52,4 @@ jobs:
         run: npm ci
 
       - name: Lint
-        run: npm run lint || true
+        run: npm run lint

@@ -35,7 +35,7 @@ export async function parseArchitectureDoc(
 
 function parseMarkdownDoc(content: string): ParsedArchitecture {
   const sections = new Map<string, string>();
-  const lines = content.split('\n');
+  const lines = content.replace(/\r\n/g, '\n').split('\n');
 
   let currentHeading = '';
   let currentLines: string[] = [];
@@ -50,6 +50,9 @@ function parseMarkdownDoc(content: string): ParsedArchitecture {
 
     if (h1Match && !projectName) {
       projectName = h1Match[1]!.trim();
+      // Capture preamble content between H1 and first H2
+      currentHeading = '__intro__';
+      currentLines = [];
       continue;
     }
 

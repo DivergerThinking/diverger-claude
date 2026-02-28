@@ -6,8 +6,9 @@ export async function fileExists(filePath: string): Promise<boolean> {
   try {
     await fs.access(filePath);
     return true;
-  } catch {
-    return false;
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw err;
   }
 }
 
@@ -15,8 +16,9 @@ export async function fileExists(filePath: string): Promise<boolean> {
 export async function readFileOrNull(filePath: string): Promise<string | null> {
   try {
     return await fs.readFile(filePath, 'utf-8');
-  } catch {
-    return null;
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw err;
   }
 }
 

@@ -48,14 +48,16 @@ export class DivergerEngine {
     // Step 2: Filter by confidence (ask user for low-confidence)
     const confirmed = await this.confirmDetection(detection, ctx);
 
-    // Step 3: Optionally fetch knowledge
-    await this.fetchKnowledge(confirmed, ctx);
+    // Step 3: Run pipeline with confirmed detection
+    return this.initWithDetection(confirmed, ctx);
+  }
 
-    // Step 4: Compose profiles
-    const composed = this.compose(confirmed);
-
-    // Step 5: Generate files
-    return this.generation.generate(composed, ctx.projectRoot);
+  /** Run pipeline with pre-confirmed detection (skips re-detection) */
+  async initWithDetection(detection: DetectionResult, ctx: EngineContext): Promise<GenerationResult> {
+    await this.fetchKnowledge(detection, ctx);
+    const composed = this.compose(detection);
+    const result = await this.generation.generate(composed, ctx.projectRoot, detection);
+    return result;
   }
 
   /** Detect technologies in the project */
@@ -73,6 +75,15 @@ export class DivergerEngine {
   async sync(ctx: EngineContext): Promise<MergeResult[]> {
     const result = await this.init(ctx);
     return this.governance.mergeAll(result, ctx.projectRoot);
+  }
+
+  /** Write generated files to disk */
+  async writeFiles(
+    files: import('./types.js').GeneratedFile[],
+    projectRoot: string,
+    options: { force?: boolean; dryRun?: boolean } = {},
+  ) {
+    return this.generation.writeFiles(files, projectRoot, options);
   }
 
   /** Check: validate existing config */
@@ -116,6 +127,9 @@ export class DivergerEngine {
     ctx: EngineContext,
   ): Promise<void> {
     if (!ctx.onKnowledgePermission) return;
+
+    // Initialize the knowledge cache for this project
+    this.knowledge.initCache(ctx.projectRoot);
 
     for (const tech of detection.technologies) {
       if (tech.category === 'framework' || tech.category === 'language') {

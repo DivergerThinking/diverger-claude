@@ -28,7 +28,7 @@ export function detectConflicts(profiles: Profile[]): ConflictInfo[] {
               profileA: a.id,
               profileB: b.id,
               description: `Both define rule at path "${ar.path}"`,
-              resolution: 'Higher layer profile takes precedence',
+              resolution: 'Later profile in composition order takes precedence; validator will reject duplicates',
             });
           }
         }
@@ -48,6 +48,35 @@ export function detectConflicts(profiles: Profile[]): ConflictInfo[] {
               resolution: 'Higher layer profile wins',
             });
           }
+        }
+      }
+
+      // Check permission conflicts (same pattern in both allow and deny across profiles)
+      const aAllow = new Set(a.contributions.settings?.permissions?.allow ?? []);
+      const aDeny = new Set(a.contributions.settings?.permissions?.deny ?? []);
+      const bAllow = new Set(b.contributions.settings?.permissions?.allow ?? []);
+      const bDeny = new Set(b.contributions.settings?.permissions?.deny ?? []);
+
+      for (const pattern of aAllow) {
+        if (bDeny.has(pattern)) {
+          conflicts.push({
+            type: 'permission',
+            profileA: a.id,
+            profileB: b.id,
+            description: `"${pattern}" is in allow (${a.id}) and deny (${b.id})`,
+            resolution: 'Deny takes precedence',
+          });
+        }
+      }
+      for (const pattern of bAllow) {
+        if (aDeny.has(pattern)) {
+          conflicts.push({
+            type: 'permission',
+            profileA: a.id,
+            profileB: b.id,
+            description: `"${pattern}" is in allow (${b.id}) and deny (${a.id})`,
+            resolution: 'Deny takes precedence',
+          });
         }
       }
     }

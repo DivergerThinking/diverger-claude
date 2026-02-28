@@ -8,14 +8,10 @@ export function detectArchitecture(
 ): ArchitecturePattern | undefined {
   const techIds = new Set(technologies.map((t) => t.id));
 
-  // Serverless indicators
+  // Serverless indicators (use exact file matching to avoid false positives)
+  const serverlessFileNames = ['serverless.yml', 'serverless.yaml', 'serverless.ts', 'template.yaml', 'template.yml', 'cdk.json', 'sam.json'];
   const serverlessFiles = files
-    ? [...files.keys()].some((f) =>
-        f.includes('serverless.yml') ||
-        f.includes('serverless.yaml') ||
-        f.includes('template.yaml') || // SAM
-        f.includes('cdk.json'),
-      )
+    ? serverlessFileNames.some((f) => files.has(f))
     : false;
 
   if (serverlessFiles) return 'serverless';

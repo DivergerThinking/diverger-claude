@@ -2,7 +2,7 @@ import type { Command } from 'commander';
 import { DivergerEngine } from '../../core/engine.js';
 import type { CliOptions } from '../../core/types.js';
 import { withSpinner } from '../ui/spinner.js';
-import { confirmTechnologies, askKnowledgePermission, confirmAction } from '../ui/prompts.js';
+import { confirmTechnologies, askKnowledgePermission } from '../ui/prompts.js';
 import * as log from '../ui/logger.js';
 import { displayDiffs, displayDiffSummary } from '../ui/diff-display.js';
 
@@ -70,28 +70,30 @@ export function registerInitCommand(program: Command): void {
           displayDiffs(diffs);
           log.blank();
           displayDiffSummary(diffs);
+          if (options.output === 'json') {
+            log.jsonOutput({ diffs });
+          }
           return;
         }
 
-        // Generate
+        // Generate using confirmed detection (no re-detection)
+        const ctx = {
+          projectRoot: options.targetDir,
+          options,
+          // In --force mode, skip knowledge prompts entirely; in non-interactive modes, also skip
+          onKnowledgePermission: (options.force || options.output !== 'rich')
+            ? undefined
+            : async (tech: string) => askKnowledgePermission(tech),
+        };
         const result = await withSpinner(
           'Generando configuración...',
-          () => engine.init({
-            projectRoot: options.targetDir,
-            options,
-            onConfirm: async (msg, techs) => confirmAction(`${msg}\n  ${techs.join(', ')}`),
-            onKnowledgePermission: async (tech) => askKnowledgePermission(tech),
-          }),
+          () => engine.initWithDetection(confirmedDetection, ctx),
         );
 
         // Write files
         const writeResults = await withSpinner(
           'Escribiendo archivos...',
-          async () => {
-            const { GenerationEngine } = await import('../../generation/index.js');
-            const gen = new GenerationEngine();
-            return gen.writeFiles(result.files, options.targetDir, { force: options.force });
-          },
+          () => engine.writeFiles(result.files, options.targetDir, { force: options.force }),
         );
 
         // Summary

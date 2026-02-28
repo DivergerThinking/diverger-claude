@@ -37,9 +37,8 @@ export async function detectMonorepo(
       if (files.has('lerna.json')) {
         return { type: 'lerna', rootDir: projectRoot, packages };
       }
-      // Check .npmrc for pnpm
-      const npmrc = files.get('.npmrc');
-      if (npmrc || files.has('pnpm-workspace.yaml')) {
+      // Check for pnpm workspaces (only pnpm-workspace.yaml, not just any .npmrc)
+      if (files.has('pnpm-workspace.yaml')) {
         return { type: 'pnpm-workspaces', rootDir: projectRoot, packages };
       }
       return { type: 'npm-workspaces', rootDir: projectRoot, packages };

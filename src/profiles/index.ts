@@ -20,6 +20,9 @@ import { springBootProfile } from './registry/frameworks/spring-boot.profile.js'
 import { djangoProfile } from './registry/frameworks/django.profile.js';
 import { angularProfile } from './registry/frameworks/angular.profile.js';
 import { vueProfile } from './registry/frameworks/vue.profile.js';
+import { flaskProfile } from './registry/frameworks/flask.profile.js';
+import { nuxtProfile } from './registry/frameworks/nuxt.profile.js';
+import { svelteProfile } from './registry/frameworks/svelte.profile.js';
 // Testing profiles
 import { jestProfile } from './registry/testing/jest.profile.js';
 import { vitestProfile } from './registry/testing/vitest.profile.js';
@@ -56,6 +59,9 @@ const ALL_PROFILES: Profile[] = [
   djangoProfile,
   angularProfile,
   vueProfile,
+  flaskProfile,
+  nuxtProfile,
+  svelteProfile,
   // Testing (layer 30)
   jestProfile,
   vitestProfile,

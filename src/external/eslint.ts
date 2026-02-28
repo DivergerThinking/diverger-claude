@@ -1,13 +1,12 @@
 import type { ExternalToolConfig } from '../core/types.js';
 
-/** Generate ESLint configuration aligned with Claude rules */
+/** Generate ESLint configuration aligned with Claude rules (.eslintrc.json legacy format) */
 export function createEslintConfig(
   options: { typescript?: boolean; react?: boolean; nextjs?: boolean },
 ): ExternalToolConfig {
   const config: Record<string, unknown> = {};
 
   if (options.typescript) {
-    // ESLint flat config format
     config.extends = ['eslint:recommended'];
     config.parser = '@typescript-eslint/parser';
     config.plugins = ['@typescript-eslint'];
@@ -32,7 +31,7 @@ export function createEslintConfig(
 
   return {
     type: 'eslint',
-    filePath: 'eslint.config.js',
+    filePath: '.eslintrc.json',
     config,
     mergeStrategy: 'align',
   };

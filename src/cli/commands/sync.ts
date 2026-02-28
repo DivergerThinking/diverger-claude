@@ -66,6 +66,15 @@ export function registerSyncCommand(program: Command): void {
           for (const conflict of conflicts) {
             const resolution = await resolveConflict(conflict.path);
             log.info(`  → ${conflict.path}: ${resolution}`);
+            // Apply the resolution
+            if (resolution === 'ours' && conflict.content) {
+              // Write the new library version
+              const fsPromises = await import('fs/promises');
+              await fsPromises.writeFile(conflict.path, conflict.content, 'utf-8');
+            } else if (resolution === 'theirs') {
+              // Keep current file as-is (no action needed)
+            }
+            // 'manual' — leave for user to handle
           }
         }
 

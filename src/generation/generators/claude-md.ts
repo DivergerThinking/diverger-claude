@@ -1,8 +1,8 @@
 import type { ComposedConfig, GeneratedFile } from '../../core/types.js';
-import { CLAUDE_DIR, CLAUDE_MD } from '../../core/constants.js';
+import { CLAUDE_MD } from '../../core/constants.js';
 import path from 'path';
 
-/** Generate the .claude/CLAUDE.md file from composed config */
+/** Generate the CLAUDE.md file at the project root */
 export function generateClaudeMd(
   config: ComposedConfig,
   projectRoot: string,
@@ -17,12 +17,14 @@ export function generateClaudeMd(
   ];
 
   for (const section of sections) {
+    parts.push(`## ${section.heading}`);
+    parts.push('');
     parts.push(section.content);
     parts.push('');
   }
 
   return {
-    path: path.join(projectRoot, CLAUDE_DIR, CLAUDE_MD),
+    path: path.join(projectRoot, CLAUDE_MD),
     content: parts.join('\n'),
   };
 }

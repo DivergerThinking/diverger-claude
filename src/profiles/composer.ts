@@ -53,28 +53,32 @@ export class ProfileComposer {
     profiles: Profile[],
     detection: DetectionResult,
   ): Profile[] {
-    const detectedIds = new Set(
+    const detectedProfileIds = new Set(
       detection.technologies.flatMap((t) => t.profileIds),
     );
+    const detectedTechIds = new Set(
+      detection.technologies.map((t) => t.id),
+    );
 
-    // Always include base profiles (layer 0)
     const applicable = profiles.filter((p) => {
-      if (p.layer === 0) return true; // Base always applies
-      return p.technologyIds.some((_tid) => detectedIds.has(p.id));
+      // Base profiles always apply
+      if (p.layer === 0) return true;
+      // Match by profile ID being referenced by a detected technology
+      if (detectedProfileIds.has(p.id)) return true;
+      // Match by profile's technology IDs matching detected technology IDs
+      if (p.technologyIds.some((tid) => detectedTechIds.has(tid))) return true;
+      return false;
     });
 
-    // Also match by technology ID directly
-    const byTechId = profiles.filter((p) => {
-      if (applicable.includes(p)) return false;
-      return p.technologyIds.some((tid) =>
-        detection.technologies.some((t) => t.id === tid),
-      );
+    // Check dependencies
+    const applicableIds = new Set(applicable.map((p) => p.id));
+    const withDeps = applicable.filter((p) => {
+      if (!p.dependsOn || p.dependsOn.length === 0) return true;
+      return p.dependsOn.every((dep) => applicableIds.has(dep));
     });
-
-    const all = [...applicable, ...byTechId];
 
     // Check version constraints
-    return all.filter((p) => {
+    return withDeps.filter((p) => {
       if (!p.versionConstraints) return true;
       const tech = detection.technologies.find((t) =>
         p.technologyIds.includes(t.id),

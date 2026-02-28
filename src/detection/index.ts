@@ -20,22 +20,25 @@ export class DetectionEngine {
 
   /** Run full detection on a project directory */
   async detect(projectRoot: string): Promise<DetectionResult> {
-    // Step 1: Scan filesystem for relevant files
-    const files = await this.scanner.scan(projectRoot);
-
-    // Step 2: Run all analyzers
+    // Step 1: Run all analyzers
     const analyzers = getAllAnalyzers();
     const allTechnologies: DetectedTechnology[] = [];
 
-    for (const analyzer of analyzers) {
-      // Filter files relevant to this analyzer
-      const relevantFiles = await this.scanner.scanPatterns(
-        projectRoot,
-        analyzer.filePatterns,
-      );
+    // Collect all file patterns from all analyzers plus patterns needed by
+    // monorepo/architecture pattern detectors, and scan once
+    const extraPatterns = [
+      'turbo.json', 'lerna.json', 'nx.json', 'pnpm-workspace.yaml', '.npmrc',
+      'vercel.json', 'netlify.toml',
+      'serverless.yml', 'serverless.yaml', 'serverless.ts',
+      'template.yaml', 'template.yml', 'cdk.json', 'sam.json',
+    ];
+    const allPatterns = [...new Set([...analyzers.flatMap((a) => a.filePatterns), ...extraPatterns])];
+    const files = await this.scanner.scanPatterns(projectRoot, allPatterns);
 
-      if (analyzer.hasRelevantFiles(relevantFiles)) {
-        const result = await analyzer.analyze(relevantFiles, projectRoot);
+    // Step 2: Pass the combined scan result to each analyzer
+    for (const analyzer of analyzers) {
+      if (analyzer.hasRelevantFiles(files)) {
+        const result = await analyzer.analyze(files, projectRoot);
         allTechnologies.push(...result.technologies);
       }
     }

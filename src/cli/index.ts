@@ -17,7 +17,7 @@ export function createCli(): Command {
     .option('-q, --quiet', 'Modo silencioso (solo errores)')
     .option('--json', 'Salida en formato JSON')
     .hook('preAction', (thisCommand) => {
-      const opts = thisCommand.opts();
+      const opts = thisCommand.optsWithGlobals();
       if (opts.json) {
         setOutputMode('json');
       } else if (opts.quiet) {

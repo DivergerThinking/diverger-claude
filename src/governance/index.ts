@@ -1,4 +1,4 @@
-import type { GenerationResult, MergeResult } from '../core/types.js';
+import type { GenerationResult, GovernanceLevel, MergeResult } from '../core/types.js';
 import { ThreeWayMerge } from './merge.js';
 import { loadMeta, saveMeta, createMeta } from './history.js';
 import { validateConfig, type ValidationResult } from './validator.js';
@@ -17,22 +17,24 @@ export class GovernanceEngine {
   /** Perform three-way merge for all generated files */
   async mergeAll(result: GenerationResult, projectRoot: string): Promise<MergeResult[]> {
     const meta = await loadMeta(projectRoot);
-    const mergeResults = await this.merger.mergeAll(result.files, meta);
 
-    // Build rule governance map
-    const ruleGovernance: Record<string, string> = {};
+    // Build rule governance map from generated files
+    const ruleGovernance: Record<string, GovernanceLevel> = {};
     for (const file of result.files) {
       if (file.governance) {
         ruleGovernance[file.path] = file.governance;
       }
     }
 
+    // Pass governance map to the merger so it can enforce mandatory rules
+    const mergeResults = await this.merger.mergeAll(result.files, meta, ruleGovernance);
+
     // Save updated metadata
     const newMeta = createMeta(
       result.files,
       result.detection?.technologies?.map((t) => t.id) ?? [],
       result.config.appliedProfiles,
-      ruleGovernance as Record<string, 'mandatory' | 'recommended'>,
+      ruleGovernance,
     );
     await saveMeta(projectRoot, newMeta);
 

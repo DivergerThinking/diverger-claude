@@ -13,26 +13,23 @@ export function generateAgents(
   }));
 }
 
+const DEFAULT_TOOLS = ['Read', 'Grep', 'Glob', 'Bash'];
+
 function formatAgentFile(agent: AgentDefinition): string {
   const parts: string[] = [];
 
-  parts.push(`# ${agent.description || agent.name}`);
-  parts.push('');
-
+  // YAML frontmatter
+  parts.push('---');
+  parts.push(`name: ${agent.name}`);
+  parts.push(`description: ${agent.description || agent.name}`);
   if (agent.model) {
-    parts.push(`Model: ${agent.model}`);
-    parts.push('');
+    parts.push(`model: ${agent.model}`);
   }
-
-  if (agent.skills.length > 0) {
-    parts.push('## Skills');
-    for (const skill of agent.skills) {
-      parts.push(`- ${skill}`);
-    }
-    parts.push('');
+  parts.push('tools:');
+  for (const tool of DEFAULT_TOOLS) {
+    parts.push(`  - ${tool}`);
   }
-
-  parts.push('## Instructions');
+  parts.push('---');
   parts.push('');
   parts.push(agent.prompt);
   parts.push('');

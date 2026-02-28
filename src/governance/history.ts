@@ -3,8 +3,24 @@ import { META_FILE } from '../core/constants.js';
 import { readJsonOrNull, writeFileAtomic } from '../utils/fs.js';
 import { hashForMeta } from '../utils/hash.js';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
 
-const PACKAGE_VERSION = '0.1.0'; // TODO: read from package.json
+/** Read the package version dynamically from package.json */
+function getPackageVersion(): string {
+  try {
+    const thisFile = fileURLToPath(import.meta.url);
+    const thisDir = path.dirname(thisFile);
+    const pkgPath = path.join(thisDir, '..', '..', 'package.json');
+    const content = readFileSync(pkgPath, 'utf-8');
+    const pkg = JSON.parse(content) as { version: string };
+    return pkg.version;
+  } catch {
+    return '0.0.0';
+  }
+}
+
+const PACKAGE_VERSION = getPackageVersion();
 
 /** Load the .diverger-meta.json from a project */
 export async function loadMeta(projectRoot: string): Promise<DivergentMeta | null> {

@@ -55,9 +55,16 @@ export class JavaAnalyzer extends BaseAnalyzer {
   }
 
   private detectMavenDeps(pom: Record<string, unknown>, technologies: DetectedTechnology[]): void {
-    const pomStr = JSON.stringify(pom);
+    // Check actual dependency structures instead of naive string matching
+    const project = (pom as any)?.project;
+    const deps = project?.dependencies?.dependency;
+    const depArray = Array.isArray(deps) ? deps : deps ? [deps] : [];
 
-    if (pomStr.includes('spring-boot')) {
+    const hasSpringBoot = depArray.some((d: any) =>
+      d.groupId?.includes('org.springframework.boot') || d.artifactId?.includes('spring-boot')
+    ) || project?.parent?.groupId?.includes('org.springframework.boot');
+
+    if (hasSpringBoot && !technologies.some((t) => t.id === 'spring-boot')) {
       technologies.push({
         id: 'spring-boot',
         name: 'Spring Boot',
@@ -68,7 +75,11 @@ export class JavaAnalyzer extends BaseAnalyzer {
       });
     }
 
-    if (pomStr.includes('junit-jupiter') || pomStr.includes('junit-vintage')) {
+    const hasJUnit = depArray.some((d: any) =>
+      d.artifactId?.includes('junit-jupiter') || d.artifactId?.includes('junit-vintage')
+    );
+
+    if (hasJUnit && !technologies.some((t) => t.id === 'junit')) {
       technologies.push({
         id: 'junit',
         name: 'JUnit',
@@ -85,7 +96,11 @@ export class JavaAnalyzer extends BaseAnalyzer {
     file: string,
     technologies: DetectedTechnology[],
   ): void {
-    if (content.includes('spring-boot') || content.includes('org.springframework.boot')) {
+    // Use regex for proper dependency declarations to avoid matching comments
+    const springBootRegex = /(['"])org\.springframework\.boot[:']/;
+    const hasSpringBoot = springBootRegex.test(content);
+
+    if (hasSpringBoot && !technologies.some((t) => t.id === 'spring-boot')) {
       technologies.push({
         id: 'spring-boot',
         name: 'Spring Boot',
@@ -96,7 +111,10 @@ export class JavaAnalyzer extends BaseAnalyzer {
       });
     }
 
-    if (content.includes('junit') || content.includes('org.junit')) {
+    const junitRegex = /(['"])org\.junit\.|testImplementation.*junit/;
+    const hasJUnit = junitRegex.test(content);
+
+    if (hasJUnit && !technologies.some((t) => t.id === 'junit')) {
       technologies.push({
         id: 'junit',
         name: 'JUnit',

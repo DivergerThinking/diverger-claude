@@ -1,8 +1,9 @@
 import { createHash } from 'crypto';
 
-/** Compute SHA256 hash of a string */
+/** Compute SHA256 hash of a string (normalizes CRLF to LF for cross-platform consistency) */
 export function sha256(content: string): string {
-  return createHash('sha256').update(content, 'utf-8').digest('hex');
+  const normalized = content.replace(/\r\n/g, '\n');
+  return createHash('sha256').update(normalized, 'utf-8').digest('hex');
 }
 
 /** Create a hash prefixed with "sha256:" for storage */
