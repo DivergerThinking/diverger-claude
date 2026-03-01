@@ -12,6 +12,7 @@ function makeTech(
   id: string,
   profileIds: string[] = [],
   majorVersion?: number,
+  version?: string,
 ): DetectedTechnology {
   return {
     id,
@@ -21,6 +22,7 @@ function makeTech(
     evidence: [],
     profileIds,
     majorVersion,
+    version,
   };
 }
 
@@ -124,6 +126,85 @@ describe('ProfileComposer', () => {
       ]);
       const result = composer.compose(profiles, detection);
 
+      expect(result.appliedProfiles).toContain('frameworks/react-18');
+    });
+
+    it('should exclude profiles when version is "workspace:*" (B43 fix)', () => {
+      const profiles: Profile[] = [
+        makeProfile({
+          id: 'frameworks/react-18',
+          layer: 20 as ProfileLayer,
+          technologyIds: ['react'],
+          versionConstraints: { min: 18, max: 19 },
+          contributions: {},
+        }),
+      ];
+
+      // workspace:* has version string but no parseable majorVersion
+      const detection = makeDetection([
+        makeTech('react', ['frameworks/react-18'], undefined, 'workspace:*'),
+      ]);
+      const result = composer.compose(profiles, detection);
+
+      expect(result.appliedProfiles).not.toContain('frameworks/react-18');
+    });
+
+    it('should exclude profiles when version is "latest" (B43 fix)', () => {
+      const profiles: Profile[] = [
+        makeProfile({
+          id: 'frameworks/react-18',
+          layer: 20 as ProfileLayer,
+          technologyIds: ['react'],
+          versionConstraints: { min: 18, max: 19 },
+          contributions: {},
+        }),
+      ];
+
+      const detection = makeDetection([
+        makeTech('react', ['frameworks/react-18'], undefined, 'latest'),
+      ]);
+      const result = composer.compose(profiles, detection);
+
+      expect(result.appliedProfiles).not.toContain('frameworks/react-18');
+    });
+
+    it('should exclude profiles when version is a git URL (B43 fix)', () => {
+      const profiles: Profile[] = [
+        makeProfile({
+          id: 'frameworks/react-18',
+          layer: 20 as ProfileLayer,
+          technologyIds: ['react'],
+          versionConstraints: { min: 18, max: 19 },
+          contributions: {},
+        }),
+      ];
+
+      const detection = makeDetection([
+        makeTech('react', ['frameworks/react-18'], undefined, 'github:user/react#main'),
+      ]);
+      const result = composer.compose(profiles, detection);
+
+      expect(result.appliedProfiles).not.toContain('frameworks/react-18');
+    });
+
+    it('should include profiles when tech has no version at all and has constraints', () => {
+      const profiles: Profile[] = [
+        makeProfile({
+          id: 'frameworks/react-18',
+          layer: 20 as ProfileLayer,
+          technologyIds: ['react'],
+          versionConstraints: { min: 18, max: 19 },
+          contributions: {},
+        }),
+      ];
+
+      // No version at all (neither version nor majorVersion)
+      const detection = makeDetection([
+        makeTech('react', ['frameworks/react-18']),
+      ]);
+      const result = composer.compose(profiles, detection);
+
+      // When no version info at all, include the profile (can't verify constraint)
       expect(result.appliedProfiles).toContain('frameworks/react-18');
     });
   });

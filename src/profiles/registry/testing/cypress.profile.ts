@@ -81,6 +81,17 @@ export const cypressProfile: Profile = {
     ],
     agents: [
       {
+        name: 'code-reviewer',
+        type: 'enrich',
+        prompt: `## Cypress-Specific Review
+- Verify data-cy attributes are used for selectors, not CSS classes or IDs
+- Check that cy.wait() is not used with arbitrary timeouts - should use intercept aliases
+- Verify tests don't depend on state from previous tests (no test coupling)
+- Check that custom commands are typed with proper TypeScript declarations
+- Verify network stubs use cy.intercept() with aliases for deterministic waits
+- Check that test data is seeded via API, not through UI interactions`,
+      },
+      {
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Cypress-Specific Testing

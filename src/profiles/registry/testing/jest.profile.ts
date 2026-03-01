@@ -79,6 +79,17 @@ export const jestProfile: Profile = {
     ],
     agents: [
       {
+        name: 'code-reviewer',
+        type: 'enrich',
+        prompt: `## Jest-Specific Review
+- Verify mocks are properly reset in afterEach (restoreAllMocks/clearAllMocks)
+- Check that test.each is used for parameterized cases instead of duplicated tests
+- Verify snapshot updates are intentional and reviewed, not blindly accepted
+- Check for proper async test handling (return promise or use async/await)
+- Verify no test interdependencies - each test should run independently
+- Check coverage thresholds are enforced in jest config`,
+      },
+      {
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Jest-Specific Testing

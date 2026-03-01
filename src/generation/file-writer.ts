@@ -1,5 +1,5 @@
 import type { GeneratedFile } from '../core/types.js';
-import { ensureDir, fileExists, writeFileAtomic } from '../utils/fs.js';
+import { ensureDir, fileExists, readFileOrNull, writeFileAtomic } from '../utils/fs.js';
 import { BACKUP_DIR } from '../core/constants.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -44,9 +44,9 @@ export class FileWriter {
     const exists = await fileExists(file.path);
 
     if (exists && !force) {
-      // Read existing content to check if it's the same (normalize CRLF for cross-platform)
-      const existingContent = await fs.readFile(file.path, 'utf-8');
-      if (existingContent.replace(/\r\n/g, '\n') === file.content.replace(/\r\n/g, '\n')) {
+      // Read existing content to check if it's the same (BOM-stripped + CRLF normalized)
+      const existingContent = await readFileOrNull(file.path);
+      if (existingContent !== null && existingContent.replace(/\r\n/g, '\n') === file.content.replace(/\r\n/g, '\n')) {
         return { path: file.path, action: 'skipped' };
       }
 

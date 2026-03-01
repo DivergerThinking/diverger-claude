@@ -77,6 +77,17 @@ export const vitestProfile: Profile = {
     ],
     agents: [
       {
+        name: 'code-reviewer',
+        type: 'enrich',
+        prompt: `## Vitest-Specific Review
+- Verify mocks are properly reset (vi.restoreAllMocks in afterEach)
+- Check that vi.mock() calls are at module level, not inside tests
+- Verify vi.hoisted() is used for mock factories that need hoisting
+- Check for proper test isolation - no shared mutable state between tests
+- Verify in-source tests are stripped in production builds via define config
+- Check that type tests use expectTypeOf correctly`,
+      },
+      {
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Vitest-Specific Testing

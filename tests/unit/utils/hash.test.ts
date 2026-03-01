@@ -43,6 +43,13 @@ describe('sha256', () => {
     const result = sha256('line 1\nline 2\nline 3');
     expect(result).toHaveLength(64);
   });
+
+  it('should normalize CRLF to LF before hashing', () => {
+    const lf = sha256('line 1\nline 2');
+    const crlf = sha256('line 1\r\nline 2');
+    // sha256 normalizes CRLF to LF, so hashes should match
+    expect(lf).toBe(crlf);
+  });
 });
 
 describe('hashForMeta', () => {

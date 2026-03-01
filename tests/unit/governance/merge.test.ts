@@ -282,6 +282,42 @@ describe('ThreeWayMerge', () => {
     });
   });
 
+  // ── Edge cases: empty content ────────────────────────────────────────
+
+  describe('Edge case: empty file content', () => {
+    it('should auto-apply when generated content is empty and file does not exist', async () => {
+      mockReadFileOrNull.mockResolvedValue(null);
+
+      const file = makeFile('/project/.claude/empty.md', '');
+      const result = await merger.mergeFile(file, null);
+
+      expect(result.outcome).toBe('auto-apply');
+      expect(result.content).toBe('');
+    });
+
+    it('should skip when both existing and generated content are empty', async () => {
+      mockReadFileOrNull.mockResolvedValue('');
+
+      const file = makeFile('/project/.claude/empty.md', '');
+      const result = await merger.mergeFile(file, null);
+
+      expect(result.outcome).toBe('skip');
+    });
+
+    it('should handle empty base content in three-way merge', async () => {
+      const originalContent = '';
+      const hash = hashForMeta(originalContent);
+      mockReadFileOrNull.mockResolvedValue('# Team added content');
+
+      const file = makeFile('/project/.claude/CLAUDE.md', '# Library added content');
+      const meta = makeMeta({ '/project/.claude/CLAUDE.md': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      // Both sides changed from empty base → conflict or merged
+      expect(['conflict', 'merged']).toContain(result.outcome);
+    });
+  });
+
   // ── mergeAll ──────────────────────────────────────────────────────────
 
   describe('mergeAll', () => {

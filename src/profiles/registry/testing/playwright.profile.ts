@@ -102,6 +102,17 @@ export const playwrightProfile: Profile = {
     ],
     agents: [
       {
+        name: 'code-reviewer',
+        type: 'enrich',
+        prompt: `## Playwright-Specific Review
+- Verify Page Object Model is used for page interactions, not inline locators
+- Check that no explicit timeouts (waitForTimeout) are used - rely on auto-waiting
+- Verify web-first assertions are used instead of manual checks
+- Check selector priority: getByRole > getByText > getByLabel > getByTestId > CSS
+- Verify tests are designed for parallel execution with no shared state
+- Check that fixtures use proper scoping (test vs worker)`,
+      },
+      {
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Playwright-Specific Testing
