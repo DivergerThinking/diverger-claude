@@ -2,8 +2,10 @@ import type {
   AgentDefinition,
   ClaudeSettings,
   ComposedConfig,
+  DetectedTechnology,
   DetectionResult,
   Profile,
+  VersionConstraint,
 } from '../core/types.js';
 import { CompositionError } from '../core/errors.js';
 import { deepmerge } from 'deepmerge-ts';
@@ -84,17 +86,25 @@ export class ProfileComposer {
         p.technologyIds.includes(t.id),
       );
       if (!tech) return true; // No matching tech, no constraint to check
-      if (!tech.majorVersion) {
-        // If tech has a version string but majorVersion couldn't be parsed
-        // (e.g. "workspace:*", "latest", git URLs), exclude the profile
-        // since we can't verify the constraint. If no version at all, include.
-        return !tech.version;
-      }
-      const { min, max } = p.versionConstraints;
-      if (min !== undefined && tech.majorVersion < min) return false;
-      if (max !== undefined && tech.majorVersion > max) return false;
-      return true;
+      return this.satisfiesVersionConstraint(tech, p.versionConstraints);
     });
+  }
+
+  /** Check if a technology satisfies a profile's version constraints */
+  private satisfiesVersionConstraint(
+    tech: DetectedTechnology,
+    constraint: VersionConstraint,
+  ): boolean {
+    // Version string exists but major version couldn't be parsed (e.g. "workspace:*", "latest")
+    // → exclude, since the constraint cannot be verified
+    if (tech.version && !tech.majorVersion) return false;
+    // No version detected at all → include (no constraint to check against)
+    if (!tech.majorVersion) return true;
+    // Standard range check
+    const { min, max } = constraint;
+    if (min !== undefined && tech.majorVersion < min) return false;
+    if (max !== undefined && tech.majorVersion > max) return false;
+    return true;
   }
 
   /** Apply a single profile's contributions to the composed config */

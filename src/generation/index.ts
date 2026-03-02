@@ -53,40 +53,10 @@ export class GenerationEngine {
   ): Promise<GeneratedFile[]> {
     const files: GeneratedFile[] = [];
 
-    // Clone settings to avoid mutating the caller's config object
-    const settings = { ...config.settings, permissions: { ...config.settings.permissions } };
-
-    // 1. Security (generate first so its overlay can be merged into settings)
+    // 1. Security (generate first, merge overlay into settings for downstream generators)
     onProgress?.('Generando reglas de seguridad...');
-    const security = generateSecurityConfig(config, projectRoot);
-    files.push(...security.rules);
-
-    // Merge security settings overlay into the cloned settings
-    if (security.settingsOverlay.permissions?.deny) {
-      const existing = settings.permissions?.deny ?? [];
-      settings.permissions = {
-        ...settings.permissions,
-        deny: [...new Set([...existing, ...security.settingsOverlay.permissions.deny])],
-      };
-    }
-    if (security.settingsOverlay.sandbox) {
-      settings.sandbox = {
-        ...settings.sandbox,
-        filesystem: {
-          ...settings.sandbox?.filesystem,
-          ...security.settingsOverlay.sandbox.filesystem,
-          denyRead: [
-            ...new Set([
-              ...(settings.sandbox?.filesystem?.denyRead ?? []),
-              ...(security.settingsOverlay.sandbox.filesystem?.denyRead ?? []),
-            ]),
-          ],
-        },
-      };
-    }
-
-    // Use a config copy with the merged settings for downstream generators
-    const mergedConfig = { ...config, settings };
+    const { mergedConfig, securityFiles } = this.mergeSecurityOverlay(config, projectRoot);
+    files.push(...securityFiles);
 
     // 2. CLAUDE.md
     onProgress?.('Generando CLAUDE.md...');
@@ -125,6 +95,45 @@ export class GenerationEngine {
     }
 
     return files;
+  }
+
+  /** Generate security rules and merge their settings overlay into a config copy */
+  private mergeSecurityOverlay(
+    config: ComposedConfig,
+    projectRoot: string,
+  ): { mergedConfig: ComposedConfig; securityFiles: GeneratedFile[] } {
+    const security = generateSecurityConfig(config, projectRoot);
+
+    // Clone settings to avoid mutating the caller's config object
+    const settings = { ...config.settings, permissions: { ...config.settings.permissions } };
+
+    if (security.settingsOverlay.permissions?.deny) {
+      const existing = settings.permissions?.deny ?? [];
+      settings.permissions = {
+        ...settings.permissions,
+        deny: [...new Set([...existing, ...security.settingsOverlay.permissions.deny])],
+      };
+    }
+    if (security.settingsOverlay.sandbox) {
+      settings.sandbox = {
+        ...settings.sandbox,
+        filesystem: {
+          ...settings.sandbox?.filesystem,
+          ...security.settingsOverlay.sandbox.filesystem,
+          denyRead: [
+            ...new Set([
+              ...(settings.sandbox?.filesystem?.denyRead ?? []),
+              ...(security.settingsOverlay.sandbox.filesystem?.denyRead ?? []),
+            ]),
+          ],
+        },
+      };
+    }
+
+    return {
+      mergedConfig: { ...config, settings },
+      securityFiles: security.rules,
+    };
   }
 
   /** Generate mobile-specific config files based on detected technologies */
