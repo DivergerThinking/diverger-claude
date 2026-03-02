@@ -14,6 +14,7 @@ import { GenerationEngine } from '../generation/index.js';
 import { GovernanceEngine } from '../governance/index.js';
 import { KnowledgeEngine } from '../knowledge/index.js';
 import { CONFIDENCE_THRESHOLD } from './constants.js';
+import { ApiKeyError, BillingError } from './errors.js';
 import { loadMeta } from '../governance/history.js';
 
 export interface EngineContext {
@@ -209,7 +210,12 @@ export class DivergerEngine {
           results.push(result);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          ctx.onWarning?.(`[diverger] Warning: knowledge fetch failed for ${tech.name}: ${msg}`);
+          ctx.onWarning?.(msg);
+          // Stop trying remaining techs if the error is account-level (not transient)
+          if (err instanceof ApiKeyError || err instanceof BillingError) {
+            ctx.onProgress?.('Omitiendo búsqueda de best practices (continuando sin ellas)...');
+            break;
+          }
         }
       }
     }

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ApiKeyError, KnowledgeError } from '../core/errors.js';
+import { ApiKeyError, BillingError, KnowledgeError } from '../core/errors.js';
 import { bestPracticesPrompt, securityPrompt, performancePrompt } from './prompts.js';
 
 /** Default model for knowledge queries; override via DIVERGER_MODEL env var */
@@ -137,6 +137,14 @@ export class ClaudeApiClient {
         throw new KnowledgeError(
           `Timeout al consultar Claude API (${API_TIMEOUT_MS / 1000}s). La búsqueda tardó demasiado.`,
         );
+      }
+
+      // Handle billing/credit errors (400 with "credit balance is too low")
+      if (err instanceof Anthropic.BadRequestError) {
+        const errMsg = err.message || '';
+        if (errMsg.includes('credit balance')) {
+          throw new BillingError();
+        }
       }
 
       const msg = err instanceof Error ? err.message : String(err);

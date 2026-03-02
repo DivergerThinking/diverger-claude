@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // vi.mock factories are hoisted, so we must define everything inline.
 // Use vi.hoisted to create shared references accessible inside the factory.
 
-const { mockCreate, MockAuthenticationError, MockRateLimitError, MockAPIConnectionError, MockAPIConnectionTimeoutError } =
+const { mockCreate, MockAuthenticationError, MockRateLimitError, MockAPIConnectionError, MockAPIConnectionTimeoutError, MockBadRequestError } =
   vi.hoisted(() => {
     const mockCreate = vi.fn();
 
@@ -38,7 +38,14 @@ const { mockCreate, MockAuthenticationError, MockRateLimitError, MockAPIConnecti
       }
     }
 
-    return { mockCreate, MockAuthenticationError, MockRateLimitError, MockAPIConnectionError, MockAPIConnectionTimeoutError };
+    class MockBadRequestError extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = 'BadRequestError';
+      }
+    }
+
+    return { mockCreate, MockAuthenticationError, MockRateLimitError, MockAPIConnectionError, MockAPIConnectionTimeoutError, MockBadRequestError };
   });
 
 vi.mock('@anthropic-ai/sdk', () => {
@@ -52,13 +59,14 @@ vi.mock('@anthropic-ai/sdk', () => {
     RateLimitError: MockRateLimitError,
     APIConnectionError: MockAPIConnectionError,
     APIConnectionTimeoutError: MockAPIConnectionTimeoutError,
+    BadRequestError: MockBadRequestError,
   });
 
   return { default: MockAnthropic };
 });
 
 import { ClaudeApiClient } from '../../../src/knowledge/api-client.js';
-import { ApiKeyError, KnowledgeError } from '../../../src/core/errors.js';
+import { ApiKeyError, BillingError, KnowledgeError } from '../../../src/core/errors.js';
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
@@ -238,6 +246,27 @@ describe('ClaudeApiClient', () => {
       await expect(client.searchBestPractices('React')).rejects.toThrow(
         'Error de conexión a Claude API. Verificar red e intentar de nuevo.',
       );
+    });
+
+    it('should throw BillingError when credit balance is too low', async () => {
+      mockCreate.mockRejectedValue(
+        new MockBadRequestError('400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}'),
+      );
+
+      const client = new ClaudeApiClient();
+      await expect(client.searchBestPractices('React')).rejects.toThrow(BillingError);
+      await expect(client.searchBestPractices('React')).rejects.toThrow(
+        'Sin créditos en la cuenta de Anthropic API',
+      );
+    });
+
+    it('should throw KnowledgeError for non-billing BadRequestError', async () => {
+      mockCreate.mockRejectedValue(
+        new MockBadRequestError('400 some other bad request error'),
+      );
+
+      const client = new ClaudeApiClient();
+      await expect(client.searchBestPractices('React')).rejects.toThrow(KnowledgeError);
     });
 
     it('should throw KnowledgeError on API timeout', async () => {

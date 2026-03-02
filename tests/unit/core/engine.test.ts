@@ -449,7 +449,7 @@ describe('DivergerEngine', () => {
 
       expect(onWarning).toHaveBeenCalledTimes(1);
       expect(onWarning).toHaveBeenCalledWith(
-        '[diverger] Warning: knowledge fetch failed for React: API rate limit exceeded',
+        'API rate limit exceeded',
       );
       // Pipeline should still complete
       expect(result).toBe(genResult);
@@ -471,9 +471,7 @@ describe('DivergerEngine', () => {
 
       await engine.initWithDetection(detection, ctx);
 
-      expect(onWarning).toHaveBeenCalledWith(
-        '[diverger] Warning: knowledge fetch failed for Vue: string error',
-      );
+      expect(onWarning).toHaveBeenCalledWith('string error');
     });
 
     it('should not call onWarning if onWarning is not provided', async () => {
@@ -515,11 +513,11 @@ describe('DivergerEngine', () => {
 
       await engine.initWithDetection(detection, ctx);
 
-      // Both should have been attempted
+      // Both should have been attempted (generic errors don't stop the loop)
       expect(mockFetchBestPractices).toHaveBeenCalledTimes(2);
       // Warning only for first
       expect(onWarning).toHaveBeenCalledTimes(1);
-      expect(onWarning).toHaveBeenCalledWith(expect.stringContaining('Python'));
+      expect(onWarning).toHaveBeenCalledWith('timeout');
     });
   });
 

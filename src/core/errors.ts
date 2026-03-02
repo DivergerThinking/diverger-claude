@@ -74,6 +74,18 @@ export class ApiKeyError extends DivergerError {
   }
 }
 
+/** Error when the API account has insufficient credits */
+export class BillingError extends DivergerError {
+  constructor() {
+    super(
+      'Sin créditos en la cuenta de Anthropic API. La suscripción a Claude (Max/Pro) no incluye créditos de API. ' +
+      'Compra créditos en https://console.anthropic.com/settings/plans o usa --force para omitir la búsqueda de best practices.',
+      'BILLING_ERROR',
+    );
+    this.name = 'BillingError';
+  }
+}
+
 /** @planned — pendiente de integración en CLI validation error paths */
 export class InvalidProjectError extends DivergerError {
   constructor(dir: string) {
