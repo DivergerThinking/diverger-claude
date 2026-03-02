@@ -1,9 +1,14 @@
 import chalk from 'chalk';
 import os from 'node:os';
 import { getOutputMode, blank } from './logger.js';
+import { loadMeta } from '../../governance/history.js';
 
-/** Diverger brand color — mint green matching the mesh-sphere logo */
-const mint = chalk.hex('#3dffa2');
+/** Turquoise brand palette — 3 intensities for 3D depth */
+const tBright = chalk.hex('#5eebd8'); // front surface
+const tMedium = chalk.hex('#2dd4bf'); // lateral surfaces
+const tDim    = chalk.hex('#167a6e'); // back (visible through mesh)
+/** Shorthand for accent color in UI elements */
+const teal = tMedium;
 
 // eslint-disable-next-line no-control-regex
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
@@ -33,26 +38,65 @@ function truncPath(p: string, max: number): string {
   return '...' + p.slice(p.length - max + 3);
 }
 
+/** Time-aware greeting in Spanish */
+export function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Buenos dias';
+  if (hour < 20) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+
+const P = '\u25CF'; // ● filled circle
+
 /**
- * Diverger mesh-sphere logo — ASCII dot art.
- * Evokes the 3D wireframe/particle sphere from the brand logo.
+ * Wireframe Globe logo — particles with 3D depth via color.
+ * 'b' = bright (front), 'm' = medium (sides), 'd' = dim (back through mesh)
  */
-const LOGO = [
-  '· · · · · · · · · · ·',
-  '· · · ·         · · · ·',
-  '· · ·   · · · · ·   · · ·',
-  '· · · · · · · · · · · · · · ·',
-  '· · ·   · · · · ·   · · ·',
-  '· · · ·         · · · ·',
-  '· · · · · · · · · · ·',
+const LOGO_MAP = [
+  '            d d d',
+  '        m  d d d d  m',
+  '      m  m    d    m  m',
+  '    m  b  m  d d  m  b  m',
+  '   b  b  b  b b b  b  b  b',
+  '    m  b  m  d d  m  b  m',
+  '      m  m    d    m  m',
+  '        m  d d d d  m',
+  '            d d d',
 ];
+
+/** Render logo map to colored strings */
+function renderLogo(): string[] {
+  return LOGO_MAP.map(line => {
+    let result = '';
+    for (const ch of line) {
+      if (ch === 'b') result += tBright(P);
+      else if (ch === 'm') result += tMedium(P);
+      else if (ch === 'd') result += tDim(P);
+      else result += ch;
+    }
+    return result;
+  });
+}
+
+/** Project state summary line */
+async function getProjectState(cwd: string): Promise<string | null> {
+  try {
+    const meta = await loadMeta(cwd);
+    if (!meta) return null;
+    const profiles = meta.appliedProfiles.length;
+    const stack = meta.detectedStack.join(', ');
+    return `${profiles} perfiles | ${stack}`;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Show the branded Diverger welcome banner.
- * Renders a two-column box with the mesh-sphere logo, commands, and tips.
+ * Renders a two-column box: wireframe globe logo + commands/tips.
  * Only visible in rich TTY mode.
  */
-export function showBanner(): void {
+export async function showBanner(): Promise<void> {
   if (getOutputMode() !== 'rich') return;
   if (!process.stdout.isTTY) return;
 
@@ -64,6 +108,10 @@ export function showBanner(): void {
     username = 'usuario';
   }
   const cwd = process.cwd();
+  const greeting = getGreeting();
+  const projectState = await getProjectState(cwd);
+
+  const logo = renderLogo();
 
   const LW = 48;
   const RW = 40;
@@ -74,11 +122,11 @@ export function showBanner(): void {
   const left: string[] = [
     '',
     centerIn(
-      `${chalk.bold('¡Bienvenido,')} ${chalk.bold(mint(username))}${chalk.bold('!')}`,
+      `${chalk.bold(greeting + ',')} ${chalk.bold(teal(username))}${chalk.bold('!')}`,
       LW,
     ),
     '',
-    ...LOGO.map(l => centerIn(mint(l), LW)),
+    ...logo.map(l => centerIn(l, LW)),
     '',
     centerIn(`${chalk.dim('Powered by')} ${chalk.cyan('Claude Code')}`, LW),
     `  ${chalk.dim(truncPath(cwd, LW - 4))}`,
@@ -87,18 +135,25 @@ export function showBanner(): void {
   // ── Right column ──
   const right: string[] = [
     chalk.bold('Comandos disponibles'),
-    chalk.dim('─'.repeat(22)),
-    `${mint('init')}    ${chalk.dim('Configurar Claude Code')}`,
-    `${mint('sync')}    ${chalk.dim('Sincronizar configuración')}`,
-    `${mint('status')}  ${chalk.dim('Ver estado del proyecto')}`,
-    `${mint('check')}   ${chalk.dim('Validar configuración')}`,
-    `${mint('diff')}    ${chalk.dim('Ver cambios pendientes')}`,
-    `${mint('eject')}   ${chalk.dim('Desconectar diverger')}`,
-    chalk.dim('─'.repeat(22)),
-    chalk.bold('Consejo'),
-    `Ejecuta ${mint('diverger init')} para`,
-    'configurar tu proyecto',
+    chalk.dim('\u2500'.repeat(22)),
+    `${teal('init')}    ${chalk.dim('Configurar Claude Code')}`,
+    `${teal('sync')}    ${chalk.dim('Sincronizar configuración')}`,
+    `${teal('status')}  ${chalk.dim('Ver estado del proyecto')}`,
+    `${teal('check')}   ${chalk.dim('Validar configuración')}`,
+    `${teal('diff')}    ${chalk.dim('Ver cambios pendientes')}`,
+    `${teal('eject')}   ${chalk.dim('Desconectar diverger')}`,
+    chalk.dim('\u2500'.repeat(22)),
   ];
+
+  // Project state or tip
+  if (projectState) {
+    right.push(chalk.bold('Proyecto configurado'));
+    right.push(teal(projectState));
+  } else {
+    right.push(chalk.bold('Consejo'));
+    right.push(`Ejecuta ${teal('diverger init')} para`);
+    right.push('configurar tu proyecto');
+  }
 
   // Equalize row count
   const rows = Math.max(left.length, right.length);
@@ -110,17 +165,17 @@ export function showBanner(): void {
   const dashBefore = SEP_POS - titlePlain.length - 6;
   const dashAfter = TOTAL - SEP_POS - 2;
   const topLine =
-    chalk.cyan('╭─── ') +
-    chalk.bold.cyan(titlePlain) +
+    teal('\u256D\u2500\u2500\u2500 ') +
+    chalk.bold.hex('#5eebd8')(titlePlain) +
     ' ' +
-    chalk.cyan('─'.repeat(dashBefore)) +
-    chalk.cyan('┬') +
-    chalk.cyan('─'.repeat(dashAfter)) +
-    chalk.cyan('╮');
+    teal('\u2500'.repeat(dashBefore)) +
+    teal('\u252C') +
+    teal('\u2500'.repeat(dashAfter)) +
+    teal('\u256E');
 
   // ── Content rows: │ left │ right │ ──
-  const bv = chalk.cyan('│');
-  const sep = chalk.dim('│');
+  const bv = teal('\u2502');
+  const sep = chalk.dim('\u2502');
   const contentLines = left.map((l, i) => {
     const r = right[i] ?? '';
     return `${bv} ${padR(l, LW)} ${sep} ${padR(r, RW)} ${bv}`;
@@ -128,11 +183,11 @@ export function showBanner(): void {
 
   // ── Bottom border: ╰──────┴──────╯ ──
   const botLine =
-    chalk.cyan('╰') +
-    chalk.cyan('─'.repeat(SEP_POS - 1)) +
-    chalk.cyan('┴') +
-    chalk.cyan('─'.repeat(TOTAL - SEP_POS - 2)) +
-    chalk.cyan('╯');
+    teal('\u2570') +
+    teal('\u2500'.repeat(SEP_POS - 1)) +
+    teal('\u2534') +
+    teal('\u2500'.repeat(TOTAL - SEP_POS - 2)) +
+    teal('\u256F');
 
   blank();
   console.log([topLine, ...contentLines, botLine].join('\n'));

@@ -6,6 +6,7 @@ import { registerStatusCommand } from './commands/status.js';
 import { registerSyncCommand } from './commands/sync.js';
 import { registerCheckCommand } from './commands/check.js';
 import { registerEjectCommand } from './commands/eject.js';
+import { registerWelcomeCommand } from './commands/welcome.js';
 
 export function createCli(): Command {
   const program = new Command();
@@ -31,6 +32,7 @@ export function createCli(): Command {
   registerSyncCommand(program);
   registerCheckCommand(program);
   registerEjectCommand(program);
+  registerWelcomeCommand(program);
 
   return program;
 }
