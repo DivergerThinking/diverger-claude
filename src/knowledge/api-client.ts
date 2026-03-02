@@ -13,11 +13,30 @@ interface SearchResult {
   sources: string[];
 }
 
+/** Web search tool API version identifier (update when SDK adds native types) */
+const WEB_SEARCH_TOOL_VERSION = 'web_search_20250305' as const;
+
 /** Web search tool definition for the Anthropic API (not yet typed in SDK v0.39) */
 interface WebSearchTool {
-  type: 'web_search_20250305';
+  type: typeof WEB_SEARCH_TOOL_VERSION;
   name: 'web_search';
   max_uses: number;
+}
+
+/** Shape of web_search_tool_result blocks returned by the API (not yet in SDK types) */
+interface WebSearchResultBlock {
+  type: 'web_search_tool_result';
+  content?: Array<{ type: string; url?: string }>;
+}
+
+/** Type guard for web search result blocks */
+function isWebSearchResultBlock(block: unknown): block is WebSearchResultBlock {
+  return (
+    typeof block === 'object' &&
+    block !== null &&
+    'type' in block &&
+    (block as Record<string, unknown>).type === 'web_search_tool_result'
+  );
 }
 
 /** Resolve the prompt template based on the aspect */
@@ -65,9 +84,9 @@ export class ClaudeApiClient {
 
     const prompt = resolvePrompt(technology, version, aspect);
 
-    // Web search tool is not yet typed in the SDK, so we cast
+    // Web search tool is not yet typed in the SDK; cast required until SDK update
     const webSearchTool: WebSearchTool = {
-      type: 'web_search_20250305',
+      type: WEB_SEARCH_TOOL_VERSION,
       name: 'web_search',
       max_uses: 5,
     };
@@ -88,10 +107,10 @@ export class ClaudeApiClient {
         if (block.type === 'text') {
           textParts.push(block.text);
         }
-        // Extract URLs from web_search_tool_result blocks (untyped in this SDK version)
-        const anyBlock = block as unknown as { type: string; content?: Array<{ type: string; url?: string }> };
-        if (anyBlock.type === 'web_search_tool_result' && Array.isArray(anyBlock.content)) {
-          for (const entry of anyBlock.content) {
+        // Extract URLs from web_search_tool_result blocks (untyped in SDK)
+        const rawBlock: unknown = block;
+        if (isWebSearchResultBlock(rawBlock) && Array.isArray(rawBlock.content)) {
+          for (const entry of rawBlock.content) {
             if (entry.url) {
               sources.push(entry.url);
             }
