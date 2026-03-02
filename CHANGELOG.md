@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.2.0] - 2026-03-02
+
+### Añadido
+- Detección de manifiestos en subdirectorios (`app/`, `frontend/`, `backend/`, `apps/web/`)
+- Nuevo módulo `file-utils` con funciones de búsqueda por basename (`findFile`, `findFileEntry`, `findAllFileEntries`, `hasFile`)
+- Soporte multi-manifiesto: Node y Python procesan TODOS los package.json / pyproject.toml encontrados
+- Propiedad `rootOnlyPatterns` en BaseAnalyzer para proteger configs que solo deben buscarse en raíz
+- Wildcard basename matching: `app/Dockerfile.dev` ahora matchea el patrón `Dockerfile.*`
+- Scanner expande patterns con `**/` para buscar en subdirectorios (hasta profundidad 4)
+- Nuevo banner wireframe globe 3D con paleta turquesa y saludo por hora del día
+- Comando `welcome` en CLI
+- Banner automático al ejecutar `diverger` sin argumentos
+- Instalación global disponible: `npm install -g @divergerthinking/diverger-claude`
+- 3 nuevos fixtures de integración (subdir-app, fullstack-multi, mixed-root-subdir)
+- 95 tests nuevos (628 total)
+
+### Mejorado
+- Guía de instalación ampliada con instrucciones detalladas paso a paso
+- Cada analyzer usa paths reales en evidence (ej: `frontend/package.json` en lugar de `package.json`)
+- Docker analyzer usa `path.basename()` para detectar Dockerfiles en subdirectorios
+- CI analyzer declara `rootOnlyPatterns` para Jenkinsfile, .gitlab-ci.yml, azure-pipelines.yml
+
 ## [0.1.0] - 2026-02-28
 
 ### Añadido

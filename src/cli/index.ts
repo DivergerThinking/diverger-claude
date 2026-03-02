@@ -7,6 +7,7 @@ import { registerSyncCommand } from './commands/sync.js';
 import { registerCheckCommand } from './commands/check.js';
 import { registerEjectCommand } from './commands/eject.js';
 import { registerWelcomeCommand } from './commands/welcome.js';
+import { registerUpdateCommand } from './commands/update.js';
 
 export function createCli(): Command {
   const program = new Command();
@@ -14,7 +15,7 @@ export function createCli(): Command {
   program
     .name('diverger')
     .description('Herramienta de configuración automática de Claude Code para proyectos')
-    .version(process.env.DIVERGER_VERSION ?? '0.1.0')
+    .version(process.env.DIVERGER_VERSION ?? '0.2.0')
     .option('-q, --quiet', 'Modo silencioso (solo errores)')
     .option('--json', 'Salida en formato JSON')
     .hook('preAction', (thisCommand) => {
@@ -33,6 +34,7 @@ export function createCli(): Command {
   registerCheckCommand(program);
   registerEjectCommand(program);
   registerWelcomeCommand(program);
+  registerUpdateCommand(program);
 
   return program;
 }

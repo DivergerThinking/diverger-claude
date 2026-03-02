@@ -10,7 +10,7 @@ npx diverger-claude init
 ```
 
 diverger-claude:
-1. Escanea archivos de manifiesto (package.json, pyproject.toml, etc.)
+1. Escanea archivos de manifiesto (package.json, pyproject.toml, etc.) **en la raíz y subdirectorios**
 2. Detecta tecnologías con nivel de confianza
 3. Si la confianza es < 90%, te pregunta
 4. Compone profiles por capas
@@ -59,10 +59,23 @@ Verifica:
 - Reglas obligatorias no modificadas
 - Integridad de hashes
 
-### 6. Eject
+### 6. Versión y actualización
 
 ```bash
-npx diverger-claude eject
+# Ver versión instalada
+diverger --version
+
+# Verificar si hay actualización disponible
+diverger update --check
+
+# Actualizar a la última versión
+diverger update
+```
+
+### 7. Eject
+
+```bash
+diverger eject
 ```
 
 Desconecta diverger-claude manteniendo la configuración generada. Útil si decides gestionar la configuración manualmente.
@@ -78,6 +91,22 @@ npx diverger-claude check --quiet
 ```
 
 El exit code es 1 si hay errores, 0 si todo está correcto.
+
+## Proyectos con manifiestos en subdirectorios
+
+diverger-claude detecta automáticamente manifiestos en subdirectorios hasta 3 niveles de profundidad. Esto cubre escenarios comunes:
+
+| Estructura | Qué detecta |
+|-----------|-------------|
+| `app/package.json` | Node.js + frameworks del subdirectorio |
+| `frontend/package.json` + `backend/requirements.txt` | React + FastAPI (full-stack multi-lang) |
+| `frontend/package.json` + `backend/package.json` | React + Express (full-stack mismo lenguaje) |
+| `apps/web/package.json` | Proyectos con anidación profunda |
+| `app/Dockerfile.dev` | Docker en subdirectorios |
+
+Cada tecnología detectada incluye el path real en su evidence (ej: `frontend/package.json`), lo que facilita identificar de dónde viene cada detección.
+
+> **Nota:** Algunos archivos de configuración como `Jenkinsfile`, `.gitlab-ci.yml`, `turbo.json`, `vercel.json`, etc. solo se buscan en la raíz del proyecto, ya que por convención solo existen ahí.
 
 ## Monorepos
 

@@ -68,7 +68,29 @@ npm config get @divergerthinking:registry
 
 ## Instalación
 
-### Opción A: Como dependencia de desarrollo (recomendado para equipos)
+### Opción A: Instalación global (recomendado para uso personal)
+
+Instala el paquete de forma global para tener `diverger` disponible como comando en cualquier terminal:
+
+```bash
+npm install -g @divergerthinking/diverger-claude
+```
+
+Tras la instalación, puedes usar `diverger` o `diverger-claude` desde cualquier directorio:
+
+```bash
+cd ~/cualquier-proyecto
+diverger init
+diverger status
+```
+
+Para actualizar a futuras versiones:
+
+```bash
+npm update -g @divergerthinking/diverger-claude
+```
+
+### Opción B: Como dependencia de desarrollo (recomendado para equipos)
 
 Instala el paquete en tu proyecto para que todo el equipo use la misma versión:
 
@@ -78,9 +100,9 @@ npm install @divergerthinking/diverger-claude --save-dev
 
 Tras la instalación, el CLI estará disponible como `npx diverger-claude` o `npx diverger` dentro del proyecto.
 
-### Opción B: Ejecución directa con npx (sin instalar)
+### Opción C: Ejecución directa con npx (sin instalar)
 
-Si prefieres no añadirlo como dependencia, puedes ejecutarlo directamente:
+Si prefieres no instalar nada, puedes ejecutarlo directamente:
 
 ```bash
 npx @divergerthinking/diverger-claude init
@@ -89,8 +111,9 @@ npx @divergerthinking/diverger-claude init
 npm descargará el paquete temporalmente, lo ejecutará y luego lo descartará.
 
 > **¿Cuándo usar cada opción?**
-> - **Opción A** si quieres que los scripts de CI/CD y otros miembros del equipo accedan al CLI.
-> - **Opción B** para probar la herramienta rápidamente o para uso individual.
+> - **Opción A** para uso personal: `diverger` queda disponible globalmente en tu máquina.
+> - **Opción B** para equipos: todos los miembros y CI/CD usan la misma versión fijada en `package.json`.
+> - **Opción C** para probar la herramienta rápidamente sin instalar nada.
 
 ---
 
@@ -161,14 +184,39 @@ diverger-claude también funciona como **plugin de Claude Code**. Al tenerlo ins
 
 ---
 
-## Actualización
+## Versión y actualización
+
+### Ver la versión instalada
 
 ```bash
-# Actualiza el paquete a la última versión
-npm update @divergerthinking/diverger-claude
+diverger --version
+```
 
-# Sincroniza tu configuración .claude/ con los nuevos profiles
-npx diverger-claude sync
+### Verificar si hay actualización disponible
+
+```bash
+diverger update --check
+```
+
+### Actualizar a la última versión
+
+```bash
+# Forma recomendada (detecta automáticamente si es global o local):
+diverger update
+
+# Alternativamente, con npm directamente:
+# Si instalaste globalmente (Opción A):
+npm update -g @divergerthinking/diverger-claude
+
+# Si instalaste como dependencia (Opción B):
+npm update @divergerthinking/diverger-claude
+```
+
+### Después de actualizar
+
+```bash
+# Sincroniza la configuración .claude/ de tus proyectos con los nuevos profiles
+diverger sync
 ```
 
 El comando `sync` aplica un **three-way merge** para actualizar tu configuración respetando los cambios que tu equipo haya hecho manualmente. Es decir:

@@ -17,11 +17,26 @@ diverger-claude detecta automáticamente las tecnologías de tu proyecto y gener
 > **Nota:** Este es un paquete privado en GitHub Packages. Necesitas autenticarte primero.
 > Consulta la [guía de instalación](docs/guia-instalacion.md) para configurar el acceso.
 
+### Global (recomendado para uso personal)
+
+```bash
+npm install -g @divergerthinking/diverger-claude
+```
+
+Tras instalar, `diverger` queda disponible como comando global en cualquier terminal:
+
+```bash
+cd cualquier-proyecto
+diverger init
+```
+
+### Como dependencia de desarrollo (para equipos)
+
 ```bash
 npm install @divergerthinking/diverger-claude --save-dev
 ```
 
-O directamente con npx:
+### Ejecución directa con npx (sin instalar)
 
 ```bash
 npx @divergerthinking/diverger-claude init
@@ -46,12 +61,17 @@ npx diverger-claude init --force
 
 | Comando | Descripción |
 |---------|-------------|
+| `diverger` | Mostrar banner con estado del proyecto |
 | `diverger init` | Detectar stack y generar configuración |
 | `diverger diff` | Mostrar cambios propuestos (dry-run) |
 | `diverger status` | Mostrar stack detectado y estado |
 | `diverger sync` | Actualizar con three-way merge |
 | `diverger check` | Validar configuración existente |
 | `diverger eject` | Desconectar manteniendo configs |
+| `diverger welcome` | Mostrar banner de bienvenida |
+| `diverger update` | Actualizar a la última versión |
+| `diverger update --check` | Verificar si hay actualización disponible |
+| `diverger --version` | Mostrar versión instalada |
 
 ### Opciones globales
 
