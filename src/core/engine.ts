@@ -68,7 +68,8 @@ export class DivergerEngine {
     // C4: fetchKnowledge now returns results to inject into composed config
     const knowledgeResults = await this.fetchKnowledge(detection, ctx);
 
-    ctx.onProgress?.('Componiendo profiles...');
+    const profileNames = detection.technologies.map((t) => t.name).join(', ');
+    ctx.onProgress?.(`Componiendo profiles (${profileNames})...`);
     const composed = this.compose(detection);
     if (knowledgeResults.length > 0) {
       composed.knowledge = knowledgeResults;
@@ -84,7 +85,7 @@ export class DivergerEngine {
     }
 
     ctx.onProgress?.('Generando archivos de configuración...');
-    const result = await this.generation.generate(composed, ctx.projectRoot, detection);
+    const result = await this.generation.generate(composed, ctx.projectRoot, detection, ctx.onProgress);
     return result;
   }
 
@@ -202,6 +203,9 @@ export class DivergerEngine {
         // A3: wrap in try/catch so API failures don't abort the pipeline
         try {
           const result = await this.knowledge.fetchBestPractices(tech);
+          if (result.fromCache) {
+            ctx.onProgress?.(`Best practices de ${tech.name} (caché)`);
+          }
           results.push(result);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);

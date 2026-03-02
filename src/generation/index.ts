@@ -24,8 +24,13 @@ export class GenerationEngine {
   }
 
   /** Generate all files from a composed config */
-  async generate(config: ComposedConfig, projectRoot: string, detection: DetectionResult): Promise<GenerationResult> {
-    const files = await this.generateFiles(config, projectRoot);
+  async generate(
+    config: ComposedConfig,
+    projectRoot: string,
+    detection: DetectionResult,
+    onProgress?: (message: string) => void,
+  ): Promise<GenerationResult> {
+    const files = await this.generateFiles(config, projectRoot, onProgress);
 
     return {
       files,
@@ -35,13 +40,18 @@ export class GenerationEngine {
   }
 
   /** Generate all file definitions without writing to disk */
-  async generateFiles(config: ComposedConfig, projectRoot: string): Promise<GeneratedFile[]> {
+  async generateFiles(
+    config: ComposedConfig,
+    projectRoot: string,
+    onProgress?: (message: string) => void,
+  ): Promise<GeneratedFile[]> {
     const files: GeneratedFile[] = [];
 
     // Clone settings to avoid mutating the caller's config object
     const settings = { ...config.settings, permissions: { ...config.settings.permissions } };
 
     // 1. Security (generate first so its overlay can be merged into settings)
+    onProgress?.('Generando reglas de seguridad...');
     const security = generateSecurityConfig(config, projectRoot);
     files.push(...security.rules);
 
@@ -73,25 +83,32 @@ export class GenerationEngine {
     const mergedConfig = { ...config, settings };
 
     // 2. CLAUDE.md
+    onProgress?.('Generando CLAUDE.md...');
     files.push(generateClaudeMd(mergedConfig, projectRoot));
 
     // 3. settings.json (now includes hooks and security overlay)
+    onProgress?.('Generando settings.json...');
     files.push(generateSettings(mergedConfig, projectRoot));
 
     // 4. Rules
+    onProgress?.('Generando reglas del stack...');
     files.push(...generateRules(mergedConfig, projectRoot));
 
     // 5. Agents
+    onProgress?.('Generando agentes...');
     files.push(...generateAgents(mergedConfig, projectRoot));
 
     // 6. Skills
+    onProgress?.('Generando skills...');
     files.push(...generateSkills(mergedConfig, projectRoot));
 
     // 7. MCP
+    onProgress?.('Generando configuración MCP...');
     const mcpFile = generateMcp(mergedConfig, projectRoot);
     if (mcpFile) files.push(mcpFile);
 
     // 8. External tools
+    onProgress?.('Generando configs externas (ESLint, Prettier, tsconfig)...');
     const externalToolFiles = await generateExternalTools(mergedConfig, projectRoot);
     files.push(...externalToolFiles);
 

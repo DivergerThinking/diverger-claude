@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.2.1] - 2026-03-02
+
+### Añadido
+- Comando `diverger update` para auto-actualizar (detecta global vs local)
+- Comando `diverger update --check` para verificar actualizaciones sin instalar
+- Flag `--version` para ver la versión instalada
+- Progreso granular durante `diverger init`: el spinner ahora muestra cada paso en tiempo real
+- Timeout de 90 segundos en llamadas a Claude API para evitar cuelgues indefinidos
+- Manejo de `APIConnectionTimeoutError` con mensaje claro al usuario
+- Indicador de caché en búsqueda de knowledge (muestra si usa caché o API)
+
+### Mejorado
+- Prompts de permisos de knowledge se preguntan ANTES del spinner (ya no compiten con ora)
+- El spinner muestra 12+ estados distintos durante la generación:
+  - Buscando best practices de [Tech]... (por cada tecnología)
+  - Best practices de [Tech] (caché)
+  - Componiendo profiles (TypeScript, Next.js, ...)...
+  - Generando reglas de seguridad...
+  - Generando CLAUDE.md...
+  - Generando settings.json...
+  - Generando reglas del stack...
+  - Generando agentes...
+  - Generando skills...
+  - Generando configuración MCP...
+  - Generando configs externas (ESLint, Prettier, tsconfig)...
+- Documentación actualizada con instrucciones de instalación global, versión y actualización
+- CHANGELOG ampliado
+
+### Corregido
+- El comando `init` ya no se "cuelga" en "Generando configuración..." sin feedback
+
 ## [0.2.0] - 2026-03-02
 
 ### Añadido

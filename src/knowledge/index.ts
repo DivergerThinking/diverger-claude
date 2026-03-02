@@ -27,12 +27,12 @@ export class KnowledgeEngine {
     return /^\d/.test(version) && !version.includes('://');
   }
 
-  /** Fetch best practices for a detected technology */
-  async fetchBestPractices(tech: DetectedTechnology): Promise<KnowledgeResult> {
+  /** Fetch best practices for a detected technology. Returns { result, fromCache }. */
+  async fetchBestPractices(tech: DetectedTechnology): Promise<KnowledgeResult & { fromCache?: boolean }> {
     // Check cache first
     if (this.cache) {
       const cached = await this.cache.get(tech.name, 'best-practices');
-      if (cached) return cached;
+      if (cached) return { ...cached, fromCache: true };
     }
 
     // Only pass version to API if it's a valid semver-like string
