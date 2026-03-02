@@ -4,6 +4,7 @@ import * as log from '../ui/logger.js';
 import { getVersion } from '../version.js';
 
 const PKG_NAME = '@divergerthinking/diverger-claude';
+const REGISTRY = 'https://npm.pkg.github.com';
 
 /** Check if the package is installed globally */
 function isGlobalInstall(): boolean {
@@ -20,14 +21,26 @@ function isGlobalInstall(): boolean {
 }
 
 /** Get the latest published version from the registry */
-function getLatestVersion(): string | null {
+function getLatestVersion(): { version: string | null; error?: string } {
   try {
-    return execSync(`npm view ${PKG_NAME} version`, {
+    const version = execSync(`npm view ${PKG_NAME} version --registry=${REGISTRY}`, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
-  } catch {
-    return null;
+    return { version };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Extract useful hint from npm error output
+    if (msg.includes('401') || msg.includes('ENEEDAUTH')) {
+      return { version: null, error: 'Token de autenticación no configurado o expirado. Verifica ~/.npmrc' };
+    }
+    if (msg.includes('404') || msg.includes('E404')) {
+      return { version: null, error: 'Paquete no encontrado en el registry. Verifica que se haya publicado.' };
+    }
+    if (msg.includes('ENOTFOUND') || msg.includes('EAI_AGAIN')) {
+      return { version: null, error: 'No se pudo conectar al registry. Verifica tu conexión a internet.' };
+    }
+    return { version: null, error: msg.split('\n')[0] };
   }
 }
 
@@ -42,11 +55,11 @@ export function registerUpdateCommand(program: Command): void {
       log.header('diverger-claude update');
       log.info(`Versión actual: v${currentVersion}`);
 
-      const latest = getLatestVersion();
+      const { version: latest, error: registryError } = getLatestVersion();
 
       if (!latest) {
         log.warn('No se pudo consultar la última versión del registry.');
-        log.info('Verifica tu conexión y que ~/.npmrc tenga el token configurado.');
+        if (registryError) log.dim(`  ${registryError}`);
         process.exit(1);
       }
 
@@ -66,7 +79,7 @@ export function registerUpdateCommand(program: Command): void {
       // Determine install type and run update
       const isGlobal = isGlobalInstall();
       const flag = isGlobal ? '-g' : '--save-dev';
-      const cmd = `npm install ${flag} ${PKG_NAME}@latest`;
+      const cmd = `npm install ${flag} ${PKG_NAME}@latest --registry=${REGISTRY}`;
 
       log.info(`Actualizando${isGlobal ? ' (global)' : ' (local)'}...`);
       log.dim(`  $ ${cmd}`);
