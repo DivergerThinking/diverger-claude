@@ -6,16 +6,37 @@
 - npm >= 9
 - Claude Code instalado (para usar la configuración generada)
 
+## Configuración de acceso al paquete privado
+
+Este paquete se distribuye via GitHub Packages. Para acceder, necesitas un Personal Access Token (PAT) de GitHub con el permiso `read:packages`.
+
+### 1. Crear el token
+
+1. Ve a [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens)
+2. Genera un nuevo token (classic) con el permiso `read:packages`
+3. Copia el token generado
+
+### 2. Configurar `.npmrc`
+
+Crea o edita el archivo `~/.npmrc` (global) con:
+
+```ini
+@divergerthinking:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=TU_TOKEN_AQUI
+```
+
+> **Importante:** Nunca subas tu token al repositorio. Usa `~/.npmrc` (HOME del usuario), no el `.npmrc` del proyecto.
+
 ## Instalación como dependencia de desarrollo
 
 ```bash
-npm install @anthropic-internal/diverger-claude --save-dev
+npm install @divergerthinking/diverger-claude --save-dev
 ```
 
 ## Uso con npx (sin instalar)
 
 ```bash
-npx @anthropic-internal/diverger-claude init
+npx @divergerthinking/diverger-claude init
 ```
 
 ## Configuración de API Key
@@ -44,7 +65,7 @@ diverger-claude también funciona como plugin de Claude Code. Al instalarlo como
 ## Actualización
 
 ```bash
-npm update @anthropic-internal/diverger-claude
+npm update @divergerthinking/diverger-claude
 npx diverger-claude sync
 ```
 

@@ -69,6 +69,15 @@ Ejemplo para `code-reviewer`:
 - `frameworks/django` - Models, views, ORM
 - `frameworks/angular` - Componentes, RxJS, signals
 - `frameworks/vue` - Composition API, Pinia, composables
+- `frameworks/svelte` - Reactivity, stores, SvelteKit
+- `frameworks/nuxt` - Auto-imports, Nitro, composables
+- `frameworks/flask` - Blueprints, extensiones, Jinja2
+- `frameworks/gin` - Middleware, binding, routing
+- `frameworks/echo` - Middleware, context, validación
+- `frameworks/fiber` - Performance, middleware, routing
+- `frameworks/actix-web` - Handlers, extractors, middleware
+- `frameworks/axum` - Tower layers, extractors, routing
+- `frameworks/rocket` - Guards, fairings, managed state
 
 ### Testing
 - `testing/jest` - Mocking, snapshots, coverage

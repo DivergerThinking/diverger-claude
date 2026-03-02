@@ -18,9 +18,8 @@ export class CIAnalyzer extends BaseAnalyzer {
     const analyzedFiles: string[] = [];
 
     for (const [filePath] of files) {
-      analyzedFiles.push(filePath);
-
       if (filePath.startsWith('.github/workflows/')) {
+        analyzedFiles.push(filePath);
         if (!technologies.some((t) => t.id === 'github-actions')) {
           technologies.push({
             id: 'github-actions',
@@ -36,9 +35,8 @@ export class CIAnalyzer extends BaseAnalyzer {
             profileIds: ['infra/github-actions'],
           });
         }
-      }
-
-      if (filePath === '.gitlab-ci.yml') {
+      } else if (filePath === '.gitlab-ci.yml') {
+        analyzedFiles.push(filePath);
         technologies.push({
           id: 'gitlab-ci',
           name: 'GitLab CI',
@@ -52,9 +50,8 @@ export class CIAnalyzer extends BaseAnalyzer {
           }],
           profileIds: [],
         });
-      }
-
-      if (filePath === 'Jenkinsfile') {
+      } else if (filePath === 'Jenkinsfile') {
+        analyzedFiles.push(filePath);
         technologies.push({
           id: 'jenkins',
           name: 'Jenkins',
@@ -64,6 +61,36 @@ export class CIAnalyzer extends BaseAnalyzer {
             source: filePath,
             type: 'config-file',
             description: 'Jenkinsfile found',
+            weight: 95,
+          }],
+          profileIds: [],
+        });
+      } else if (filePath === '.circleci/config.yml') {
+        analyzedFiles.push(filePath);
+        technologies.push({
+          id: 'circleci',
+          name: 'CircleCI',
+          category: 'infra',
+          confidence: 95,
+          evidence: [{
+            source: filePath,
+            type: 'config-file',
+            description: 'CircleCI config found',
+            weight: 95,
+          }],
+          profileIds: [],
+        });
+      } else if (filePath === 'azure-pipelines.yml') {
+        analyzedFiles.push(filePath);
+        technologies.push({
+          id: 'azure-pipelines',
+          name: 'Azure Pipelines',
+          category: 'infra',
+          confidence: 95,
+          evidence: [{
+            source: filePath,
+            type: 'config-file',
+            description: 'Azure Pipelines config found',
             weight: 95,
           }],
           profileIds: [],

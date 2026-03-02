@@ -22,26 +22,30 @@ export async function detectMonorepo(
   // Check npm/yarn workspaces
   const pkgContent = files.get('package.json');
   if (pkgContent) {
-    const pkg = parseJson<PackageJson>(pkgContent, 'package.json');
-    const workspaces = Array.isArray(pkg.workspaces)
-      ? pkg.workspaces
-      : pkg.workspaces?.packages;
+    try {
+      const pkg = parseJson<PackageJson>(pkgContent, 'package.json');
+      const workspaces = Array.isArray(pkg.workspaces)
+        ? pkg.workspaces
+        : pkg.workspaces?.packages;
 
-    if (workspaces && workspaces.length > 0) {
-      const packages = await resolveWorkspacePackages(projectRoot, workspaces);
+      if (workspaces && workspaces.length > 0) {
+        const packages = await resolveWorkspacePackages(projectRoot, workspaces);
 
-      // Determine specific type
-      if (files.has('turbo.json')) {
-        return { type: 'turborepo', rootDir: projectRoot, packages };
+        // Determine specific type
+        if (files.has('turbo.json')) {
+          return { type: 'turborepo', rootDir: projectRoot, packages };
+        }
+        if (files.has('lerna.json')) {
+          return { type: 'lerna', rootDir: projectRoot, packages };
+        }
+        // Check for pnpm workspaces (only pnpm-workspace.yaml, not just any .npmrc)
+        if (files.has('pnpm-workspace.yaml')) {
+          return { type: 'pnpm-workspaces', rootDir: projectRoot, packages };
+        }
+        return { type: 'npm-workspaces', rootDir: projectRoot, packages };
       }
-      if (files.has('lerna.json')) {
-        return { type: 'lerna', rootDir: projectRoot, packages };
-      }
-      // Check for pnpm workspaces (only pnpm-workspace.yaml, not just any .npmrc)
-      if (files.has('pnpm-workspace.yaml')) {
-        return { type: 'pnpm-workspaces', rootDir: projectRoot, packages };
-      }
-      return { type: 'npm-workspaces', rootDir: projectRoot, packages };
+    } catch {
+      // Malformed package.json, continue with other detection methods
     }
   }
 

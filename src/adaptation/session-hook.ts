@@ -7,7 +7,7 @@ import { applyAutoUpdates } from './auto-updater.js';
  * Runs when Claude Code starts a new session in a project.
  * Checks for changes and notifies if a sync is needed.
  */
-export async function onSessionStart(projectRoot: string): Promise<string | null> {
+export async function onSessionStart(projectRoot: string, options?: { onError?: (msg: string) => void }): Promise<string | null> {
   // A5: Wrap entire body in try/catch so hook failures never crash Claude Code session
   try {
     const meta = await loadMeta(projectRoot);
@@ -24,7 +24,7 @@ export async function onSessionStart(projectRoot: string): Promise<string | null
     return `[diverger-claude] ${messages.join(' | ')}`;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[diverger-claude] SessionStart hook error: ${msg}`);
+    (options?.onError ?? console.error)(`[diverger-claude] SessionStart hook error: ${msg}`);
     return null;
   }
 }

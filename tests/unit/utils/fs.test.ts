@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { readFileOrNull, writeFileAtomic } from '../../../src/utils/fs.js';
+import { readFileOrNull, writeFileAtomic, assertPathWithin } from '../../../src/utils/fs.js';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
@@ -66,6 +66,24 @@ describe('readFileOrNull', () => {
     const result = await readFileOrNull(filePath);
     expect(result).toBe('line1\r\nline2\r\n');
     expect(result!.startsWith('line1')).toBe(true);
+  });
+});
+
+describe('assertPathWithin', () => {
+  it('should not throw for paths within the base directory', () => {
+    expect(() => assertPathWithin('/project/.claude/rules/test.md', '/project/.claude/rules')).not.toThrow();
+  });
+
+  it('should throw for path traversal attempts', () => {
+    expect(() => assertPathWithin('/project/.claude/rules/../../etc/passwd', '/project/.claude/rules')).toThrow('Path traversal');
+  });
+
+  it('should throw for paths outside base directory', () => {
+    expect(() => assertPathWithin('/other/file.md', '/project/.claude/rules')).toThrow('Path traversal');
+  });
+
+  it('should allow the base directory itself', () => {
+    expect(() => assertPathWithin('/project/.claude/rules', '/project/.claude/rules')).not.toThrow();
   });
 });
 

@@ -38,14 +38,15 @@ export class GoAnalyzer extends BaseAnalyzer {
       { pattern: 'github.com/gorilla/mux', id: 'gorilla-mux', name: 'Gorilla Mux', profiles: [] },
     ];
 
+    const requireDeps = this.extractRequireDeps(goMod);
     for (const fw of frameworkPatterns) {
-      if (goMod.includes(fw.pattern)) {
+      if (requireDeps.includes(fw.pattern)) {
         technologies.push({
           id: fw.id,
           name: fw.name,
           category: 'framework',
           confidence: 90,
-          evidence: [{ source: 'go.mod', type: 'manifest', description: `Found "${fw.pattern}" in dependencies`, weight: 90 }],
+          evidence: [{ source: 'go.mod', type: 'manifest', description: `Found "${fw.pattern}" in dependencies`, weight: 90, trackedPackage: fw.pattern }],
           parentId: 'go',
           profileIds: fw.profiles,
         });
@@ -53,5 +54,26 @@ export class GoAnalyzer extends BaseAnalyzer {
     }
 
     return { technologies, analyzedFiles };
+  }
+
+  /** Extract dependency lines from require blocks and single-line requires, excluding comments and replace blocks */
+  private extractRequireDeps(goMod: string): string {
+    const lines = goMod.split('\n');
+    const depLines: string[] = [];
+    let inRequireBlock = false;
+    let inReplaceBlock = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//')) continue;
+      if (/^replace\s*\(/.test(trimmed)) { inReplaceBlock = true; continue; }
+      if (inReplaceBlock && trimmed === ')') { inReplaceBlock = false; continue; }
+      if (inReplaceBlock) continue;
+      if (/^require\s*\(/.test(trimmed)) { inRequireBlock = true; continue; }
+      if (inRequireBlock && trimmed === ')') { inRequireBlock = false; continue; }
+      if (inRequireBlock) depLines.push(trimmed);
+      if (/^require\s+\S/.test(trimmed)) depLines.push(trimmed.replace(/^require\s+/, ''));
+    }
+    return depLines.join('\n');
   }
 }

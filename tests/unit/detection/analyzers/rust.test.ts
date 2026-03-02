@@ -31,6 +31,13 @@ version = "0.1.0"
 edition = "2021"
 `;
 
+const CARGO_MSRV = `[package]
+name = "my-lib"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+`;
+
 describe('RustAnalyzer', () => {
   const analyzer = new RustAnalyzer();
 
@@ -47,7 +54,7 @@ describe('RustAnalyzer', () => {
     expect(result.analyzedFiles).toHaveLength(0);
   });
 
-  it('should detect Rust from bare Cargo.toml', async () => {
+  it('should detect Rust from bare Cargo.toml (edition-only, no majorVersion)', async () => {
     const files = new Map<string, string>();
     files.set('Cargo.toml', CARGO_BARE);
     const result = await analyzer.analyze(files, '/project');
@@ -57,7 +64,10 @@ describe('RustAnalyzer', () => {
     expect(rust!.name).toBe('Rust');
     expect(rust!.category).toBe('language');
     expect(rust!.confidence).toBe(95);
+    // version should be the Rust edition as display version
     expect(rust!.version).toBe('2021');
+    // majorVersion should NOT be derived from edition (2021 is not a useful major version)
+    expect(rust!.majorVersion).toBeUndefined();
     expect(rust!.profileIds).toContain('languages/rust');
     expect(result.analyzedFiles).toContain('Cargo.toml');
   });
@@ -123,6 +133,57 @@ describe('RustAnalyzer', () => {
     const rust = result.technologies.find((t) => t.id === 'rust');
     expect(rust).toBeDefined();
     expect(rust!.version).toBeUndefined();
+  });
+
+  it('should prefer rust-version (MSRV) over edition for language version', async () => {
+    const files = new Map<string, string>();
+    files.set('Cargo.toml', CARGO_MSRV);
+    const result = await analyzer.analyze(files, '/project');
+
+    const rust = result.technologies.find((t) => t.id === 'rust');
+    expect(rust).toBeDefined();
+    // rust-version (MSRV) takes priority over edition
+    expect(rust!.version).toBe('1.75');
+    expect(rust!.majorVersion).toBe(1);
+  });
+
+  it('should handle edition.workspace = true without [object Object]', async () => {
+    const cargoWorkspace = `[package]
+name = "my-crate"
+version = "0.1.0"
+
+[package.edition]
+workspace = true
+
+[dependencies]
+actix-web = "4"
+serde = { version = "1", features = ["derive"] }
+`;
+    const files = new Map<string, string>();
+    files.set('Cargo.toml', cargoWorkspace);
+    const result = await analyzer.analyze(files, '/project');
+
+    const rust = result.technologies.find((t) => t.id === 'rust');
+    expect(rust).toBeDefined();
+    // version should NOT be '[object Object]' — should be undefined when edition is workspace-inherited
+    expect(rust!.version).toBeUndefined();
+    expect(rust!.majorVersion).toBeUndefined();
+    // Frameworks should still be detected
+    const actix = result.technologies.find((t) => t.id === 'actix-web');
+    expect(actix).toBeDefined();
+  });
+
+  it('should return false from hasRelevantFiles when only irrelevant files present', () => {
+    const files = new Map<string, string>();
+    files.set('package.json', '{}');
+    files.set('tsconfig.json', '{}');
+    expect(analyzer.hasRelevantFiles(files)).toBe(false);
+  });
+
+  it('should return true from hasRelevantFiles when Cargo.toml is present', () => {
+    const files = new Map<string, string>();
+    files.set('Cargo.toml', '');
+    expect(analyzer.hasRelevantFiles(files)).toBe(true);
   });
 
   it('should include proper evidence', async () => {

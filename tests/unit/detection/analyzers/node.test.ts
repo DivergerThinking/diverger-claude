@@ -208,6 +208,41 @@ describe('NodeAnalyzer', () => {
     expect(vue!.majorVersion).toBe(3);
   });
 
+  // ── Git URL version handling ─────────────────────────────────────────
+
+  it('should not store git URLs as version strings', async () => {
+    const files = new Map<string, string>();
+    files.set(
+      'package.json',
+      makePkgJson({ dependencies: { react: 'github:facebook/react' } }),
+    );
+    const result = await analyzer.analyze(files, '/project');
+
+    const react = result.technologies.find((t) => t.id === 'react');
+    expect(react).toBeDefined();
+    // Tech still detected
+    expect(react!.confidence).toBe(90);
+    // But version should be undefined, not the git URL
+    expect(react!.version).toBeUndefined();
+    expect(react!.majorVersion).toBeUndefined();
+    // Evidence description should not include the git URL
+    expect(react!.evidence[0]!.description).not.toContain('github:');
+  });
+
+  it('should not store https git URLs as version strings', async () => {
+    const files = new Map<string, string>();
+    files.set(
+      'package.json',
+      makePkgJson({ dependencies: { express: 'https://github.com/expressjs/express.git' } }),
+    );
+    const result = await analyzer.analyze(files, '/project');
+
+    const express = result.technologies.find((t) => t.id === 'express');
+    expect(express).toBeDefined();
+    expect(express!.version).toBeUndefined();
+    expect(express!.majorVersion).toBeUndefined();
+  });
+
   // ── Config file boosting ──────────────────────────────────────────────
 
   it('should boost TypeScript confidence when tsconfig.json is present', async () => {
@@ -323,6 +358,16 @@ describe('NodeAnalyzer', () => {
     expect(nextjs).toBeUndefined();
     // But the config file should still be tracked in analyzedFiles
     expect(result.analyzedFiles).toContain('next.config.js');
+  });
+
+  // ── Malformed input ──────────────────────────────────────────────────
+
+  it('should handle malformed package.json gracefully', async () => {
+    const files = new Map<string, string>();
+    files.set('package.json', 'this is not valid json {{{');
+    const result = await analyzer.analyze(files, '/project');
+    expect(result.technologies).toHaveLength(0);
+    expect(result.analyzedFiles).toContain('package.json');
   });
 
   // ── Evidence structure ────────────────────────────────────────────────

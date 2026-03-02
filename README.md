@@ -14,14 +14,17 @@ diverger-claude detecta automáticamente las tecnologías de tu proyecto y gener
 
 ## Instalación
 
+> **Nota:** Este es un paquete privado en GitHub Packages. Necesitas autenticarte primero.
+> Consulta la [guía de instalación](docs/guia-instalacion.md) para configurar el acceso.
+
 ```bash
-npm install @anthropic-internal/diverger-claude --save-dev
+npm install @divergerthinking/diverger-claude --save-dev
 ```
 
 O directamente con npx:
 
 ```bash
-npx @anthropic-internal/diverger-claude init
+npx @divergerthinking/diverger-claude init
 ```
 
 ## Uso rápido
@@ -65,7 +68,7 @@ npx diverger-claude init --force
 TypeScript, Python, Java, Go, Rust, C#
 
 ### Frameworks
-React, Next.js, Angular, Vue.js, Express, NestJS, FastAPI, Django, Spring Boot
+React, Next.js, Angular, Vue.js, Svelte, Nuxt, Express, NestJS, Flask, FastAPI, Django, Spring Boot, Gin, Echo, Fiber, Actix-web, Axum, Rocket
 
 ### Testing
 Jest, Vitest, Pytest, JUnit, Cypress, Playwright

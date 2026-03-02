@@ -17,7 +17,7 @@ function makeFile(path: string, content: string): GeneratedFile {
 
 function makeMeta(
   fileHashes: Record<string, string> = {},
-  fileContents?: Record<string, string>,
+  fileContents: Record<string, string> = {},
 ): DivergentMeta {
   return {
     version: '0.1.0',
@@ -27,6 +27,7 @@ function makeMeta(
     fileHashes,
     ruleGovernance: {},
     fileContents,
+    trackedDependencies: [],
   };
 }
 
@@ -159,12 +160,15 @@ describe('ThreeWayMerge', () => {
       const libraryContent = '## Section A\nOriginal A\n\n## Section B\nLibrary updated B\n\n## Section C\nNew section C';
       const file = makeFile('/project/.claude/CLAUDE.md', libraryContent);
       const meta = makeMeta({ '/project/.claude/CLAUDE.md': hash });
-      const result = await merger.mergeFile(file, meta);
+      // Pass originalContent as base for true three-way merge
+      const result = await merger.mergeFile(file, meta, originalContent);
 
       expect(result.outcome).toBe('merged');
-      // Team's sections should be preserved
+      // Team changed section A, library didn't → keep team's
       expect(result.content).toContain('Team modified A');
-      // New library section should be added
+      // Library changed section B, team didn't → use library's
+      expect(result.content).toContain('Library updated B');
+      // Library added section C (not in base) → include it
       expect(result.content).toContain('New section C');
     });
 
@@ -180,7 +184,8 @@ describe('ThreeWayMerge', () => {
       const libraryContent = JSON.stringify({ a: 1, b: 3, c: 'new' }, null, 2);
       const file = makeFile('/project/.claude/settings.json', libraryContent);
       const meta = makeMeta({ '/project/.claude/settings.json': hash });
-      const result = await merger.mergeFile(file, meta);
+      // Pass originalContent as base for true three-way merge
+      const result = await merger.mergeFile(file, meta, originalContent);
 
       expect(result.outcome).toBe('merged');
       const parsed = JSON.parse(result.content!);
@@ -249,6 +254,8 @@ describe('ThreeWayMerge', () => {
 
       // Should attempt merge, not force auto-apply
       expect(result.outcome).toBe('merged');
+      // Team's modifications should be preserved in the merged content
+      expect(result.content).toContain('Team modified A');
     });
   });
 
@@ -318,6 +325,120 @@ describe('ThreeWayMerge', () => {
     });
   });
 
+  // ── Case 6c: Markdown merge produces empty content → conflict ────────
+
+  describe('Case 6c: markdown merge results in empty content', () => {
+    it('should conflict when markdown merge eliminates all sections', async () => {
+      // Base has sections that both sides reference
+      const originalContent = '## Section A\nOriginal A\n\n## Section B\nOriginal B';
+      const hash = hashForMeta(originalContent);
+
+      // Team removed section B (was in base)
+      const teamContent = '## Section A\nTeam A';
+      mockReadFileOrNull.mockResolvedValue(teamContent);
+
+      // Library removed section A (was in base), kept only preamble-like content
+      // Both sides removed what the other kept → all sections eliminated
+      const libraryContent = '## Section B\nLibrary B';
+      const file = makeFile('/project/.claude/CLAUDE.md', libraryContent);
+      const meta = makeMeta(
+        { '/project/.claude/CLAUDE.md': hash },
+        { '/project/.claude/CLAUDE.md': originalContent },
+      );
+      const result = await merger.mergeFile(file, meta, originalContent);
+
+      // Both removed the other's sections → merged is empty → should conflict
+      // (Library removed A which team kept, team removed B which library kept)
+      // The 3-way logic: A in base+theirs but removed by ours → skip; B in base+ours but removed by theirs → skip
+      expect(result.outcome).toBe('conflict');
+      expect(result.conflictDetails).toContain('vacío');
+    });
+  });
+
+  // ── BUG-11: Duplicate headings preserved ──────────────────────────────
+
+  describe('Duplicate headings in markdown', () => {
+    it('should preserve both sections with duplicate ## headings', async () => {
+      const content = '## Notes\nFirst notes\n\n## Notes\nSecond notes';
+      const hash = hashForMeta(content);
+      mockReadFileOrNull.mockResolvedValue(content); // disk matches base
+
+      // Library updates content identically (no changes)
+      const file = makeFile('/project/.claude/doc.md', content);
+      const meta = makeMeta({ '/project/.claude/doc.md': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('skip');
+    });
+
+    it('should merge markdown with duplicate headings without losing sections', async () => {
+      const originalContent = '## Notes\nFirst notes\n\n## Notes\nSecond notes';
+      const hash = hashForMeta(originalContent);
+
+      // Team kept content as-is
+      mockReadFileOrNull.mockResolvedValue(originalContent);
+
+      // Library added new section
+      const libraryContent = '## Notes\nFirst notes\n\n## Notes\nSecond notes\n\n## New\nNew section';
+      const file = makeFile('/project/.claude/doc.md', libraryContent);
+      const meta = makeMeta({ '/project/.claude/doc.md': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      // Library changed, team didn't → auto-apply
+      expect(result.outcome).toBe('auto-apply');
+    });
+  });
+
+  // ── BUG-15: JSON array deduplication for objects ──────────────────────
+
+  describe('JSON merge array deduplication', () => {
+    it('should deduplicate arrays of objects in two-way merge', async () => {
+      const originalContent = JSON.stringify({ items: [{ name: 'a' }] }, null, 2);
+      const hash = hashForMeta(originalContent);
+
+      // Team added duplicate item
+      const teamContent = JSON.stringify({ items: [{ name: 'a' }, { name: 'b' }] }, null, 2);
+      mockReadFileOrNull.mockResolvedValue(teamContent);
+
+      // Library also added the same item
+      const libraryContent = JSON.stringify({ items: [{ name: 'a' }, { name: 'b' }] }, null, 2);
+      const file = makeFile('/project/.claude/config.json', libraryContent);
+      const meta = makeMeta({ '/project/.claude/config.json': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('merged');
+      const parsed = JSON.parse(result.content!);
+      // Should not have duplicate objects
+      expect(parsed.items).toHaveLength(2);
+      expect(parsed.items[0]).toEqual({ name: 'a' });
+      expect(parsed.items[1]).toEqual({ name: 'b' });
+    });
+  });
+
+  // ── BUG-38: deduplicateArrays with different key order ──────────────
+
+  describe('deduplicateArrays with different key order', () => {
+    it('should deduplicate objects with same keys in different order', async () => {
+      const originalContent = JSON.stringify({ items: [] }, null, 2);
+      const hash = hashForMeta(originalContent);
+
+      // Team added {a:1, b:2}
+      const teamContent = JSON.stringify({ items: [{ a: 1, b: 2 }] }, null, 2);
+      mockReadFileOrNull.mockResolvedValue(teamContent);
+
+      // Library added {b:2, a:1} (same data, different key order)
+      const libraryContent = JSON.stringify({ items: [{ b: 2, a: 1 }] }, null, 2);
+      const file = makeFile('/project/.claude/config.json', libraryContent);
+      const meta = makeMeta({ '/project/.claude/config.json': hash });
+      const result = await merger.mergeFile(file, meta);
+
+      expect(result.outcome).toBe('merged');
+      const parsed = JSON.parse(result.content!);
+      // Should have only 1 item since {a:1,b:2} and {b:2,a:1} are the same
+      expect(parsed.items).toHaveLength(1);
+    });
+  });
+
   // ── mergeAll ──────────────────────────────────────────────────────────
 
   describe('mergeAll', () => {
@@ -376,6 +497,23 @@ describe('ThreeWayMerge', () => {
       const meta = makeMeta({ '/project/mandatory.md': hash });
       const governanceMap = { '/project/mandatory.md': 'mandatory' as const };
       const results = await merger.mergeAll([file], meta, governanceMap);
+
+      expect(results[0]!.outcome).toBe('auto-apply');
+      expect(results[0]!.conflictDetails).toContain('mandatory');
+    });
+
+    it('should resolve governance from relative key when file.path is absolute', async () => {
+      const originalContent = '# Original';
+      const hash = hashForMeta(originalContent);
+      mockReadFileOrNull.mockResolvedValue('# Team changed');
+
+      const file = makeFile('/project/.claude/rules/sec.md', originalContent);
+      file.governance = undefined;
+
+      const meta = makeMeta({ '.claude/rules/sec.md': hash });
+      // Governance map uses relative key
+      const governanceMap = { '.claude/rules/sec.md': 'mandatory' as const };
+      const results = await merger.mergeAll([file], meta, governanceMap, '/project');
 
       expect(results[0]!.outcome).toBe('auto-apply');
       expect(results[0]!.conflictDetails).toContain('mandatory');

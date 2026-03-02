@@ -1,6 +1,7 @@
 import type { DivergentMeta, GeneratedFile, GovernanceLevel, MergeResult } from '../core/types.js';
 import { readFileOrNull } from '../utils/fs.js';
 import { hashMatches } from '../utils/hash.js';
+import { toRelativeMetaKey } from '../utils/paths.js';
 import { deepmerge } from 'deepmerge-ts';
 
 /**
@@ -20,8 +21,11 @@ export class ThreeWayMerge {
     meta: DivergentMeta | null,
     base?: string | null,
     governance?: GovernanceLevel,
+    projectRoot?: string,
   ): Promise<MergeResult> {
-    const storedHash = meta?.fileHashes[file.path];
+    // Lookup with relative key first, then fallback to absolute path (backward-compat)
+    const relKey = projectRoot ? toRelativeMetaKey(file.path, projectRoot) : undefined;
+    const storedHash = (relKey ? meta?.fileHashes[relKey] : undefined) ?? meta?.fileHashes[file.path];
     const currentContent = await readFileOrNull(file.path);
 
     // Case 1: File doesn't exist on disk -> create
@@ -71,7 +75,7 @@ export class ThreeWayMerge {
           path: file.path,
           outcome: 'auto-apply',
           content: file.content,
-          conflictDetails: 'Regla mandatory: se fuerza la version de la libreria sobre cambios del equipo.',
+          conflictDetails: 'Regla mandatory: se fuerza la versión de la librería sobre cambios del equipo.',
         };
       }
       return { path: file.path, outcome: 'keep' };
@@ -84,7 +88,7 @@ export class ThreeWayMerge {
         path: file.path,
         outcome: 'auto-apply',
         content: file.content,
-        conflictDetails: 'Regla mandatory: se fuerza la version de la libreria (ambos cambiaron).',
+        conflictDetails: 'Regla mandatory: se fuerza la versión de la librería (ambos cambiaron).',
       };
     }
     // -> attempt smart merge
@@ -101,14 +105,18 @@ export class ThreeWayMerge {
     files: GeneratedFile[],
     meta: DivergentMeta | null,
     governanceMap?: Record<string, GovernanceLevel>,
+    projectRoot?: string,
   ): Promise<MergeResult[]> {
     const results: MergeResult[] = [];
     for (const file of files) {
       try {
-        const governance = governanceMap?.[file.path] ?? file.governance;
+        // Compute relative key first so governance map lookup works with relative keys
+        const relKey = projectRoot ? toRelativeMetaKey(file.path, projectRoot) : undefined;
+        const governance = (relKey ? governanceMap?.[relKey] : undefined) ?? governanceMap?.[file.path] ?? file.governance;
         // C1: retrieve original base content from meta for true three-way merge
-        const base = meta?.fileContents?.[file.path] ?? null;
-        results.push(await this.mergeFile(file, meta, base, governance));
+        // Use relative key with fallback to absolute path for backward-compat
+        const base = (relKey ? meta?.fileContents?.[relKey] : undefined) ?? meta?.fileContents?.[file.path] ?? null;
+        results.push(await this.mergeFile(file, meta, base, governance, projectRoot));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         results.push({
@@ -142,7 +150,7 @@ export class ThreeWayMerge {
       path: file.path,
       outcome: 'conflict',
       content: file.content,
-      conflictDetails: 'Ambos (libreria y equipo) modificaron este archivo. Se requiere revision manual.',
+      conflictDetails: 'Ambos (librería y equipo) modificaron este archivo. Se requiere revisión manual.',
     };
   }
 
@@ -210,7 +218,20 @@ export class ThreeWayMerge {
       }
     }
 
-    const mergedContent = [...mergedSections.values()].join('\n\n');
+    // Trim trailing whitespace from each section to avoid accumulating blank lines
+    // (parseMdSections captures trailing blank lines as part of each section)
+    const mergedContent = [...mergedSections.values()].map((s) => s.trimEnd()).join('\n\n');
+
+    // If merge eliminated all content but both sides had content, flag as conflict
+    if (!mergedContent.trim() && file.content.trim() && currentContent.trim()) {
+      return {
+        path: file.path,
+        outcome: 'conflict',
+        content: file.content,
+        conflictDetails: 'El merge de secciones produjo contenido vacío. Se requiere revisión manual.',
+      };
+    }
+
     return {
       path: file.path,
       outcome: 'merged',
@@ -253,7 +274,7 @@ export class ThreeWayMerge {
         path: file.path,
         outcome: 'conflict',
         content: file.content,
-        conflictDetails: 'No se pudo hacer merge de JSON. Se requiere revision manual.',
+        conflictDetails: 'No se pudo hacer merge de JSON. Se requiere revisión manual.',
       };
     }
   }
@@ -309,9 +330,7 @@ export class ThreeWayMerge {
           const seen = new Set<string>();
           const combined: unknown[] = [];
           for (const item of [...ourVal, ...theirVal]) {
-            const key2 = typeof item === 'object' && item !== null
-              ? JSON.stringify(item, typeof item === 'object' && !Array.isArray(item) ? Object.keys(item as Record<string, unknown>).sort() : undefined)
-              : String(item);
+            const key2 = this.serializeForDedup(item);
             if (!seen.has(key2)) {
               seen.add(key2);
               combined.push(item);
@@ -328,14 +347,37 @@ export class ThreeWayMerge {
     return result;
   }
 
+  /** Serialize a value for dedup. Objects get sorted keys for order-independent comparison. */
+  private serializeForDedup(item: unknown): string {
+    if (typeof item !== 'object' || item === null) return String(item);
+    const replacer = !Array.isArray(item)
+      ? Object.keys(item as Record<string, unknown>).sort()
+      : undefined;
+    return JSON.stringify(item, replacer);
+  }
+
   /** Recursively deduplicate arrays in a JSON object */
   private deduplicateArrays(obj: Record<string, unknown>): void {
     for (const key of Object.keys(obj)) {
       const val = obj[key];
       if (Array.isArray(val)) {
-        // Only deduplicate arrays of primitives
         if (val.every(item => typeof item !== 'object' || item === null)) {
+          // Deduplicate arrays of primitives
           obj[key] = [...new Set(val)];
+        } else {
+          // Deduplicate arrays of objects using JSON.stringify with sorted keys
+          const seen = new Set<string>();
+          const deduped: unknown[] = [];
+          for (const item of val) {
+            const serialized = typeof item === 'object' && item !== null && !Array.isArray(item)
+              ? JSON.stringify(item, Object.keys(item as Record<string, unknown>).sort())
+              : JSON.stringify(item);
+            if (!seen.has(serialized)) {
+              seen.add(serialized);
+              deduped.push(item);
+            }
+          }
+          obj[key] = deduped;
         }
       } else if (val && typeof val === 'object') {
         this.deduplicateArrays(val as Record<string, unknown>);
@@ -343,10 +385,12 @@ export class ThreeWayMerge {
     }
   }
 
-  /** Parse markdown into sections by ## headings */
+  /** Parse markdown into sections by ## headings.
+   *  Duplicate headings get a suffix (__dup2, __dup3, ...) to preserve all sections. */
   private parseMdSections(content: string): Map<string, string> {
     const normalized = content.replace(/\r\n/g, '\n');
     const sections = new Map<string, string>();
+    const headingCounts = new Map<string, number>();
     const lines = normalized.split('\n');
     let currentHeading = '__preamble__';
     let currentLines: string[] = [];
@@ -358,7 +402,10 @@ export class ThreeWayMerge {
         if (currentLines.length > 0) {
           sections.set(currentHeading, currentLines.join('\n'));
         }
-        currentHeading = headingMatch[1]!;
+        const rawHeading = headingMatch[1]!;
+        const count = (headingCounts.get(rawHeading) ?? 0) + 1;
+        headingCounts.set(rawHeading, count);
+        currentHeading = count > 1 ? `${rawHeading}__dup${count}` : rawHeading;
         currentLines = [line];
       } else {
         currentLines.push(line);

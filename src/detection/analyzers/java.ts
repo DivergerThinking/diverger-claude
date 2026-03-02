@@ -32,9 +32,10 @@ export class JavaAnalyzer extends BaseAnalyzer {
       }
     }
 
-    // Gradle
-    const gradleContent = files.get('build.gradle') ?? files.get('build.gradle.kts');
-    const gradleFile = files.has('build.gradle') ? 'build.gradle' : 'build.gradle.kts';
+    // Gradle — determine filename based on which key exists in the map
+    const hasBuildGradle = files.has('build.gradle');
+    const gradleContent = hasBuildGradle ? files.get('build.gradle') : files.get('build.gradle.kts');
+    const gradleFile = hasBuildGradle ? 'build.gradle' : 'build.gradle.kts';
     if (gradleContent) {
       analyzedFiles.push(gradleFile);
       if (!technologies.some((t) => t.id === 'java')) {
@@ -61,10 +62,13 @@ export class JavaAnalyzer extends BaseAnalyzer {
     const deps = project?.dependencies?.dependency;
     const depArray = Array.isArray(deps) ? deps : deps ? [deps] : [];
 
-    // XML dependency objects are untyped; as any needed for property access
+    // XML dependency objects are untyped; type-guard for safe property access
+    const strIncludes = (val: unknown, needle: string): boolean =>
+      typeof val === 'string' && val.includes(needle);
+
     const hasSpringBoot = depArray.some((d: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
-      d.groupId?.includes('org.springframework.boot') || d.artifactId?.includes('spring-boot')
-    ) || project?.parent?.groupId?.includes('org.springframework.boot');
+      strIncludes(d.groupId, 'org.springframework.boot') || strIncludes(d.artifactId, 'spring-boot')
+    ) || strIncludes(project?.parent?.groupId, 'org.springframework.boot');
 
     if (hasSpringBoot && !technologies.some((t) => t.id === 'spring-boot')) {
       technologies.push({
@@ -72,13 +76,13 @@ export class JavaAnalyzer extends BaseAnalyzer {
         name: 'Spring Boot',
         category: 'framework',
         confidence: 90,
-        evidence: [{ source: 'pom.xml', type: 'manifest', description: 'Found "spring-boot" in dependencies', weight: 90 }],
+        evidence: [{ source: 'pom.xml', type: 'manifest', description: 'Found "spring-boot" in dependencies', weight: 90, trackedPackage: 'spring-boot' }],
         profileIds: ['frameworks/spring-boot'],
       });
     }
 
     const hasJUnit = depArray.some((d: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
-      d.artifactId?.includes('junit-jupiter') || d.artifactId?.includes('junit-vintage')
+      strIncludes(d.artifactId, 'junit-jupiter') || strIncludes(d.artifactId, 'junit-vintage')
     );
 
     if (hasJUnit && !technologies.some((t) => t.id === 'junit')) {
@@ -87,7 +91,7 @@ export class JavaAnalyzer extends BaseAnalyzer {
         name: 'JUnit',
         category: 'testing',
         confidence: 90,
-        evidence: [{ source: 'pom.xml', type: 'manifest', description: 'Found "junit" in dependencies', weight: 90 }],
+        evidence: [{ source: 'pom.xml', type: 'manifest', description: 'Found "junit" in dependencies', weight: 90, trackedPackage: 'junit' }],
         profileIds: ['testing/junit'],
       });
     }
@@ -108,7 +112,7 @@ export class JavaAnalyzer extends BaseAnalyzer {
         name: 'Spring Boot',
         category: 'framework',
         confidence: 90,
-        evidence: [{ source: file, type: 'manifest', description: 'Found "spring-boot" in dependencies', weight: 90 }],
+        evidence: [{ source: file, type: 'manifest', description: 'Found "spring-boot" in dependencies', weight: 90, trackedPackage: 'spring-boot' }],
         profileIds: ['frameworks/spring-boot'],
       });
     }
@@ -122,7 +126,7 @@ export class JavaAnalyzer extends BaseAnalyzer {
         name: 'JUnit',
         category: 'testing',
         confidence: 90,
-        evidence: [{ source: file, type: 'manifest', description: 'Found "junit" in dependencies', weight: 90 }],
+        evidence: [{ source: file, type: 'manifest', description: 'Found "junit" in dependencies', weight: 90, trackedPackage: 'junit' }],
         profileIds: ['testing/junit'],
       });
     }

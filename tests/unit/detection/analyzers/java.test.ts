@@ -170,6 +170,24 @@ describe('JavaAnalyzer', () => {
     expect(springBoot).toBeUndefined();
   });
 
+  it('should prefer build.gradle over build.gradle.kts when both exist', async () => {
+    const files = new Map<string, string>();
+    // Both exist with content — build.gradle takes priority
+    files.set('build.gradle', GRADLE_BASIC);
+    files.set('build.gradle.kts', GRADLE_KTS);
+    const result = await analyzer.analyze(files, '/project');
+
+    // Should use build.gradle (has priority since files.has('build.gradle') is true)
+    expect(result.analyzedFiles).toContain('build.gradle');
+    expect(result.analyzedFiles).not.toContain('build.gradle.kts');
+    // Java should be detected
+    const java = result.technologies.find((t) => t.id === 'java');
+    expect(java).toBeDefined();
+    // Evidence should reference build.gradle, not build.gradle.kts
+    expect(java!.evidence[0]!.description).toContain('build.gradle');
+    expect(java!.evidence[0]!.description).not.toContain('.kts');
+  });
+
   it('should include proper evidence', async () => {
     const files = new Map<string, string>();
     files.set('pom.xml', POM_SPRING_BOOT);

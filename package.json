@@ -1,5 +1,5 @@
 {
-  "name": "@anthropic-internal/diverger-claude",
+  "name": "@divergerthinking/diverger-claude",
   "version": "0.1.0",
   "description": "Herramienta para detectar stack tecnológico y generar configuración .claude/ adaptada",
   "type": "module",
@@ -59,7 +59,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/anthropic-internal/diverger-claude.git"
+    "url": "https://github.com/DivergerThinking/diverger-claude.git"
   },
   "keywords": [
     "claude-code",

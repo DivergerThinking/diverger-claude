@@ -179,6 +179,74 @@ describe('generateAgents', () => {
     expect(closingIdx).toBeLessThan(promptIdx);
   });
 
+  it('should reject agent names with path traversal', () => {
+    const agents: AgentDefinition[] = [
+      { name: '../../etc/passwd', prompt: 'malicious', skills: [], description: 'hack' },
+    ];
+    const config = makeConfig(agents);
+    expect(() => generateAgents(config, '/project')).toThrow('Nombre de agente inválido');
+  });
+
+  it('should reject agent names with special characters', () => {
+    const agents: AgentDefinition[] = [
+      { name: 'agent name with spaces', prompt: 'test', skills: [], description: 'test' },
+    ];
+    const config = makeConfig(agents);
+    expect(() => generateAgents(config, '/project')).toThrow('Nombre de agente inválido');
+  });
+
+  it('should escape YAML-unsafe characters in description', () => {
+    const agents: AgentDefinition[] = [
+      { name: 'reviewer', prompt: 'Test.', skills: [], description: 'Has: colons and "quotes"' },
+    ];
+    const config = makeConfig(agents);
+    const result = generateAgents(config, '/project');
+    // Description with colons should be quoted in YAML
+    expect(result[0]!.content).toContain('description: "Has: colons and');
+  });
+
+  it('should include skills in frontmatter when agent has skills', () => {
+    const agents: AgentDefinition[] = [
+      {
+        name: 'reviewer',
+        prompt: 'Review code.',
+        skills: ['commit', 'review', 'test-gen'],
+        description: 'Reviewer',
+      },
+    ];
+    const config = makeConfig(agents);
+    const result = generateAgents(config, projectRoot);
+
+    expect(result[0]!.content).toContain('skills:');
+    expect(result[0]!.content).toContain('  - commit');
+    expect(result[0]!.content).toContain('  - review');
+    expect(result[0]!.content).toContain('  - test-gen');
+  });
+
+  it('should not include skills section when agent has no skills', () => {
+    const agents: AgentDefinition[] = [
+      { name: 'reviewer', prompt: 'Review.', skills: [], description: 'Reviewer' },
+    ];
+    const config = makeConfig(agents);
+    const result = generateAgents(config, projectRoot);
+
+    expect(result[0]!.content).not.toContain('skills:');
+  });
+
+  it('should escape \\r in YAML description', () => {
+    const agents: AgentDefinition[] = [
+      { name: 'reviewer', prompt: 'Test.', skills: [], description: 'Has\r\nCRLF' },
+    ];
+    const config = makeConfig(agents);
+    const result = generateAgents(config, '/project');
+
+    // Should escape both \r and \n
+    expect(result[0]!.content).toContain('\\r');
+    expect(result[0]!.content).toContain('\\n');
+    // Should not contain raw \r
+    expect(result[0]!.content).not.toMatch(/\r[^"]/);
+  });
+
   it('should generate multiple agent files with correct content', () => {
     const agents: AgentDefinition[] = [
       {

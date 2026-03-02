@@ -9,7 +9,7 @@ export class DivergerError extends Error {
   }
 }
 
-/** Error during technology detection */
+/** @planned — pendiente de integración en detection pipeline error paths */
 export class DetectionError extends DivergerError {
   constructor(message: string) {
     super(message, 'DETECTION_ERROR');
@@ -25,7 +25,7 @@ export class CompositionError extends DivergerError {
   }
 }
 
-/** Error during file generation */
+/** @planned — pendiente de integración en generation pipeline error paths */
 export class GenerationError extends DivergerError {
   constructor(message: string) {
     super(message, 'GENERATION_ERROR');
@@ -33,7 +33,7 @@ export class GenerationError extends DivergerError {
   }
 }
 
-/** Error during three-way merge */
+/** @planned — pendiente de integración en merge pipeline error paths */
 export class MergeError extends DivergerError {
   constructor(
     message: string,
@@ -74,7 +74,7 @@ export class ApiKeyError extends DivergerError {
   }
 }
 
-/** Error when target directory is not a valid project */
+/** @planned — pendiente de integración en CLI validation error paths */
 export class InvalidProjectError extends DivergerError {
   constructor(dir: string) {
     super(
@@ -85,7 +85,7 @@ export class InvalidProjectError extends DivergerError {
   }
 }
 
-/** Conflict in profile composition that cannot be auto-resolved */
+/** @planned — pendiente de integración en profile composition error paths */
 export class ProfileConflictError extends CompositionError {
   constructor(
     public readonly profileA: string,

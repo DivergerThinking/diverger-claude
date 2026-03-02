@@ -1,5 +1,6 @@
 import type { Command } from 'commander';
 import { confirmAction } from '../ui/prompts.js';
+import { DivergerError } from '../../core/errors.js';
 import * as log from '../ui/logger.js';
 import { META_FILE, BACKUP_DIR, KNOWLEDGE_CACHE_DIR } from '../../core/constants.js';
 import fs from 'fs/promises';
@@ -76,7 +77,11 @@ export function registerEjectCommand(program: Command): void {
           log.jsonOutput({ ejected: true, removed });
         }
       } catch (err) {
-        log.error(err instanceof Error ? err.message : String(err));
+        if (err instanceof DivergerError) {
+          log.error(`[${err.code}] ${err.message}`);
+        } else {
+          log.error(err instanceof Error ? err.message : String(err));
+        }
         process.exit(1);
       }
     });

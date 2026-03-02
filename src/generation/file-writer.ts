@@ -1,5 +1,5 @@
 import type { GeneratedFile } from '../core/types.js';
-import { ensureDir, fileExists, readFileOrNull, writeFileAtomic } from '../utils/fs.js';
+import { ensureDir, readFileOrNull, writeFileAtomic, assertPathWithin } from '../utils/fs.js';
 import { BACKUP_DIR } from '../core/constants.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -41,16 +41,14 @@ export class FileWriter {
     projectRoot: string,
     force: boolean,
   ): Promise<WriteResult> {
-    const exists = await fileExists(file.path);
+    // Single read eliminates TOCTOU between fileExists and readFileOrNull
+    const existingContent = await readFileOrNull(file.path);
+    const exists = existingContent !== null;
 
     if (exists && !force) {
-      // Read existing content to check if it's the same (BOM-stripped + CRLF normalized)
-      const existingContent = await readFileOrNull(file.path);
-      if (existingContent !== null && existingContent.replace(/\r\n/g, '\n') === file.content.replace(/\r\n/g, '\n')) {
+      if (existingContent.replace(/\r\n/g, '\n') === file.content.replace(/\r\n/g, '\n')) {
         return { path: file.path, action: 'skipped' };
       }
-
-      // Create backup
       await this.createBackup(file.path, projectRoot);
     }
 
@@ -65,6 +63,7 @@ export class FileWriter {
     const relativePath = path.relative(projectRoot, filePath);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupPath = path.join(backupDir, `${relativePath}.${timestamp}.bak`);
+    assertPathWithin(backupPath, backupDir);
 
     await ensureDir(path.dirname(backupPath));
     await fs.copyFile(filePath, backupPath);

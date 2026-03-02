@@ -25,6 +25,8 @@ describe('detectChanges', () => {
       appliedProfiles: [],
       fileHashes: {},
       ruleGovernance: {},
+      fileContents: {},
+      trackedDependencies: [],
       ...overrides,
     };
   }
@@ -104,9 +106,49 @@ describe('detectChanges', () => {
     });
 
     const result = await detectChanges(tempDir, meta);
-    // No crash, just no dependency changes detected
+    // No crash; no new deps, but tracked deps are reported as removed (no manifests found)
     expect(result.newDependencies).toHaveLength(0);
-    expect(result.removedDependencies).toHaveLength(0);
+    expect(result.removedDependencies).toContain('some-dep');
+  });
+
+  it('should detect removed deps when all manifests are missing', async () => {
+    // No package.json, go.mod, etc. — tempDir is empty
+    const meta = makeMeta({
+      trackedDependencies: ['react', 'lodash'],
+    });
+
+    const result = await detectChanges(tempDir, meta);
+    expect(result.hasChanges).toBe(true);
+    expect(result.removedDependencies).toContain('react');
+    expect(result.removedDependencies).toContain('lodash');
+  });
+
+  it('should not produce "(" as a dependency from go.mod require blocks', async () => {
+    const goModPath = path.join(tempDir, 'go.mod');
+    await fs.writeFile(goModPath, `module example.com/mymod
+
+go 1.21
+
+require (
+\tgithub.com/foo/bar v1.2.3
+\tgithub.com/baz/qux v0.1.0
+)
+
+require github.com/single/dep v1.0.0
+`, 'utf-8');
+
+    // Track one dep so the comparison logic runs
+    const meta = makeMeta({
+      trackedDependencies: ['github.com/foo/bar'],
+    });
+
+    const result = await detectChanges(tempDir, meta);
+    // Should not contain "(" as a dependency
+    for (const dep of result.newDependencies) {
+      expect(dep).not.toBe('(');
+    }
+    // Should detect single-line require
+    expect(result.newDependencies).toContain('github.com/single/dep');
   });
 
   it('should skip dependency comparison when trackedDependencies is empty', async () => {

@@ -1,6 +1,8 @@
 import type { DivergentMeta } from '../core/types.js';
 import { readFileOrNull } from '../utils/fs.js';
 import { hashMatches } from '../utils/hash.js';
+import { resolveMetaKey } from '../utils/paths.js';
+import { parseJson } from '../utils/parsers.js';
 import { CLAUDE_DIR, CLAUDE_MD, RULES_DIR } from '../core/constants.js';
 import path from 'path';
 import fg from 'fast-glob';
@@ -41,6 +43,16 @@ export async function validateConfig(
       file: '.claude/settings.json',
       message: 'settings.json no encontrado.',
     });
+  } else {
+    try {
+      parseJson(settings, '.claude/settings.json');
+    } catch {
+      issues.push({
+        severity: 'error',
+        file: '.claude/settings.json',
+        message: 'settings.json contiene JSON inválido.',
+      });
+    }
   }
 
   // Validate mandatory rules haven't been modified
@@ -51,8 +63,8 @@ export async function validateConfig(
       const storedHash = meta.fileHashes[rulePath];
       if (!storedHash) continue;
 
-      // Resolve relative paths against projectRoot for cross-system compatibility
-      const absoluteRulePath = path.isAbsolute(rulePath) ? rulePath : path.join(projectRoot, rulePath);
+      // Resolve relative or absolute paths against projectRoot for cross-system compatibility
+      const absoluteRulePath = resolveMetaKey(rulePath, projectRoot);
       const currentContent = await readFileOrNull(absoluteRulePath);
       if (currentContent === null) {
         issues.push({

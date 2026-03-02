@@ -42,6 +42,8 @@ export interface DetectionEvidence {
   description: string;
   /** Confidence contribution (0-100) */
   weight: number;
+  /** Package name for dependency tracking (avoids parsing description) */
+  trackedPackage?: string;
 }
 
 export interface DetectionResult {
@@ -357,9 +359,9 @@ export interface DivergentMeta {
   /** Governance level per rule path */
   ruleGovernance: Record<string, GovernanceLevel>;
   /** Original generated file contents for three-way merge base (C1) */
-  fileContents?: Record<string, string>;
+  fileContents: Record<string, string>;
   /** Real npm package names tracked for dependency change detection (C5) */
-  trackedDependencies?: string[];
+  trackedDependencies: string[];
 }
 
 export interface MergeAllResult {
@@ -392,6 +394,7 @@ export interface MergeResult {
 
 // --- Knowledge Types ---
 
+/** @planned — pendiente de uso en knowledge client v2 */
 export interface KnowledgeQuery {
   /** Technology to search for */
   technology: string;
@@ -438,14 +441,3 @@ export interface AnalyzerResult {
   analyzedFiles: string[];
 }
 
-// --- Plugin Types ---
-
-export interface PluginManifest {
-  name: string;
-  version: string;
-  description: string;
-  commands?: string[];
-  agents?: string[];
-  skills?: string[];
-  hooks?: string;
-}

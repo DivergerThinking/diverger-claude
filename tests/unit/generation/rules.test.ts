@@ -51,6 +51,15 @@ describe('generateRules', () => {
     expect(result[0]!.governance).toBe('mandatory');
   });
 
+  it('should reject rules with path traversal', () => {
+    const config = makeConfig({
+      rules: [
+        { path: '../../etc/passwd', content: 'malicious', governance: 'mandatory', description: 'hack' },
+      ],
+    });
+    expect(() => generateRules(config, '/project')).toThrow('Path traversal');
+  });
+
   it('should place files under .claude/rules/', () => {
     const config = makeConfig({
       rules: [

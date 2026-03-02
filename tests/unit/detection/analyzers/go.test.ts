@@ -126,4 +126,62 @@ describe('GoAnalyzer', () => {
     expect(go!.version).toBeUndefined();
     expect(go!.majorVersion).toBeUndefined();
   });
+
+  it('should NOT detect gin from commented-out dependency', async () => {
+    const goMod = `module github.com/myapp
+
+go 1.22
+
+// github.com/gin-gonic/gin was removed in favor of echo
+require (
+	github.com/labstack/echo/v4 v4.11.4
+)
+`;
+    const files = new Map<string, string>();
+    files.set('go.mod', goMod);
+    const result = await analyzer.analyze(files, '/project');
+
+    const gin = result.technologies.find((t) => t.id === 'gin');
+    expect(gin).toBeUndefined();
+    const echo = result.technologies.find((t) => t.id === 'echo');
+    expect(echo).toBeDefined();
+  });
+
+  it('should NOT detect gin from replace directive', async () => {
+    const goMod = `module github.com/myapp
+
+go 1.22
+
+replace (
+	github.com/gin-gonic/gin => ./local-gin
+)
+
+require (
+	github.com/labstack/echo/v4 v4.11.4
+)
+`;
+    const files = new Map<string, string>();
+    files.set('go.mod', goMod);
+    const result = await analyzer.analyze(files, '/project');
+
+    const gin = result.technologies.find((t) => t.id === 'gin');
+    expect(gin).toBeUndefined();
+    const echo = result.technologies.find((t) => t.id === 'echo');
+    expect(echo).toBeDefined();
+  });
+
+  it('should detect gin from single-line require', async () => {
+    const goMod = `module github.com/myapp
+
+go 1.22
+
+require github.com/gin-gonic/gin v1.9.1
+`;
+    const files = new Map<string, string>();
+    files.set('go.mod', goMod);
+    const result = await analyzer.analyze(files, '/project');
+
+    const gin = result.technologies.find((t) => t.id === 'gin');
+    expect(gin).toBeDefined();
+  });
 });

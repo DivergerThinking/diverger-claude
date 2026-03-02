@@ -29,6 +29,8 @@ export class DotnetAnalyzer extends BaseAnalyzer {
           });
         }
 
+        if (!content) continue;
+
         try {
           const parsed = parseXml<Record<string, unknown>>(content, filePath);
           const projStr = JSON.stringify(parsed);
@@ -46,13 +48,20 @@ export class DotnetAnalyzer extends BaseAnalyzer {
             }
           }
 
-          // Detect target framework version
-          const tfMatch = projStr.match(/net(\d+)\.\d+/);
-          if (tfMatch) {
+          // Detect target framework version (supports both net6.0 and netcoreapp3.1)
+          // For multi-target (e.g. net6.0;net8.0), pick the highest version
+          const tfMatches = [...projStr.matchAll(/net(?:coreapp)?(\d+)\.\d+/g)];
+          if (tfMatches.length > 0) {
+            let bestMatch = tfMatches[0]!;
+            let bestMajor = parseInt(bestMatch[1]!, 10);
+            for (const m of tfMatches.slice(1)) {
+              const major = parseInt(m[1]!, 10);
+              if (major > bestMajor) { bestMatch = m; bestMajor = major; }
+            }
             const dotnetTech = technologies.find((t) => t.id === lang);
             if (dotnetTech) {
-              dotnetTech.version = tfMatch[0];
-              dotnetTech.majorVersion = parseInt(tfMatch[1]!, 10);
+              dotnetTech.version = bestMatch[0];
+              dotnetTech.majorVersion = bestMajor;
             }
           }
         } catch {

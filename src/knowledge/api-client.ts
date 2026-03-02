@@ -98,7 +98,7 @@ export class ClaudeApiClient {
 
       const fullText = textParts.join('\n\n');
       if (!fullText) {
-        throw new KnowledgeError('No se recibio respuesta de texto de la API');
+        throw new KnowledgeError('No se recibió respuesta de texto de la API');
       }
 
       // Deduplicate sources
@@ -120,13 +120,13 @@ export class ClaudeApiClient {
         const retryAfter = err.headers?.['retry-after'];
         const waitSecs = retryAfter ? parseInt(retryAfter, 10) : 60;
         throw new KnowledgeError(
-          `Rate limit alcanzado. Reintentar despues de ${waitSecs} segundos.`,
+          `Rate limit alcanzado. Reintentar después de ${waitSecs} segundos.`,
         );
       }
 
       if (err instanceof Anthropic.APIConnectionError) {
         throw new KnowledgeError(
-          `Error de conexion a Claude API. Verificar red e intentar de nuevo.`,
+          `Error de conexión a Claude API. Verificar red e intentar de nuevo.`,
         );
       }
 

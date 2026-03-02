@@ -1,6 +1,6 @@
 import type { ComposedConfig, ExternalToolConfig, GeneratedFile } from '../../core/types.js';
 import path from 'path';
-import { readJsonOrNull } from '../../utils/fs.js';
+import { readFileOrNull, assertPathWithin } from '../../utils/fs.js';
 import { deepmerge } from 'deepmerge-ts';
 
 /** Generate external tool configuration files (ESLint, Prettier, tsconfig) */
@@ -23,12 +23,13 @@ async function generateToolConfig(
   projectRoot: string,
 ): Promise<GeneratedFile | null> {
   const filePath = path.join(projectRoot, tool.filePath);
+  assertPathWithin(filePath, projectRoot);
 
   switch (tool.mergeStrategy) {
     case 'create-only': {
-      // Only generate if file doesn't exist
-      const existing = await readJsonOrNull(filePath);
-      if (existing !== null) return null;
+      // Only generate if file doesn't exist (check raw existence, not JSON validity)
+      const existingRaw = await readFileOrNull(filePath);
+      if (existingRaw !== null) return null;
       return {
         path: filePath,
         content: JSON.stringify(tool.config, null, 2) + '\n',
@@ -37,12 +38,19 @@ async function generateToolConfig(
 
     case 'align': {
       // Merge with existing config (existing values take precedence for user customizations)
-      const existing = await readJsonOrNull<Record<string, unknown>>(filePath);
-      if (existing === null) {
+      const existingRaw = await readFileOrNull(filePath);
+      if (existingRaw === null) {
         return {
           path: filePath,
           content: JSON.stringify(tool.config, null, 2) + '\n',
         };
+      }
+      // Only merge if existing file is valid JSON; skip non-JSON files (e.g. YAML configs)
+      let existing: Record<string, unknown>;
+      try {
+        existing = JSON.parse(existingRaw) as Record<string, unknown>;
+      } catch {
+        return null;
       }
       // Deep merge: tool defaults as base, existing user config on top
       const merged = deepmerge(tool.config, existing);

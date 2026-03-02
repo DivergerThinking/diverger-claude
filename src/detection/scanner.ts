@@ -74,6 +74,7 @@ export class FileScanner {
       cwd: projectRoot,
       absolute: false,
       dot: true,
+      followSymbolicLinks: false,
       ignore: [
         '**/node_modules/**',
         '**/dist/**',
@@ -110,6 +111,7 @@ export class FileScanner {
       cwd: projectRoot,
       absolute: false,
       dot: true,
+      followSymbolicLinks: false,
       ignore: [
         '**/node_modules/**',
         '**/dist/**',

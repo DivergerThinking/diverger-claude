@@ -6,7 +6,7 @@ export const universalProfile: Profile = {
   id: 'base/universal',
   name: 'Universal Base',
   layer: PROFILE_LAYERS.BASE,
-  technologyIds: ['*'],
+  technologyIds: [], // Base profiles always apply via layer === 0, no technology match needed
   contributions: {
     claudeMd: [
       {

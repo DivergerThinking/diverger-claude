@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 import { DivergerEngine } from '../../core/engine.js';
 import type { CliOptions } from '../../core/types.js';
 import { withSpinner } from '../ui/spinner.js';
+import { DivergerError } from '../../core/errors.js';
 import * as log from '../ui/logger.js';
 import { displayDiffs, displayDiffSummary } from '../ui/diff-display.js';
 
@@ -38,7 +39,11 @@ export function registerDiffCommand(program: Command): void {
           log.jsonOutput({ diffs });
         }
       } catch (err) {
-        log.error(err instanceof Error ? err.message : String(err));
+        if (err instanceof DivergerError) {
+          log.error(`[${err.code}] ${err.message}`);
+        } else {
+          log.error(err instanceof Error ? err.message : String(err));
+        }
         process.exit(1);
       }
     });

@@ -1,16 +1,39 @@
 import type { AgentDefinition, ComposedConfig, GeneratedFile } from '../../core/types.js';
 import { CLAUDE_DIR, AGENTS_DIR } from '../../core/constants.js';
+import { assertPathWithin } from '../../utils/fs.js';
 import path from 'path';
+
+/** Escape a string for safe inclusion in YAML frontmatter */
+function yamlEscape(value: string): string {
+  if (/[:\n\r#"'{}[\],&*?|><!%@`]/.test(value) || value.trim() !== value) {
+    return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`;
+
+  }
+  return value;
+}
+
+/** Validate an agent name is safe for use as a filename */
+function validateAgentName(name: string): void {
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    throw new Error(`Nombre de agente inválido "${name}": solo se permiten alfanuméricos, guiones y guiones bajos`);
+  }
+}
 
 /** Generate all .claude/agents/*.md files from composed config */
 export function generateAgents(
   config: ComposedConfig,
   projectRoot: string,
 ): GeneratedFile[] {
-  return config.agents.map((agent) => ({
-    path: path.join(projectRoot, CLAUDE_DIR, AGENTS_DIR, `${agent.name}.md`),
-    content: formatAgentFile(agent),
-  }));
+  const agentsBase = path.join(projectRoot, CLAUDE_DIR, AGENTS_DIR);
+  return config.agents.map((agent) => {
+    validateAgentName(agent.name);
+    const fullPath = path.join(agentsBase, `${agent.name}.md`);
+    assertPathWithin(fullPath, agentsBase);
+    return {
+      path: fullPath,
+      content: formatAgentFile(agent),
+    };
+  });
 }
 
 const DEFAULT_TOOLS = ['Read', 'Grep', 'Glob', 'Bash'];
@@ -18,16 +41,22 @@ const DEFAULT_TOOLS = ['Read', 'Grep', 'Glob', 'Bash'];
 function formatAgentFile(agent: AgentDefinition): string {
   const parts: string[] = [];
 
-  // YAML frontmatter
+  // YAML frontmatter with proper escaping
   parts.push('---');
-  parts.push(`name: ${agent.name}`);
-  parts.push(`description: ${agent.description || agent.name}`);
+  parts.push(`name: ${yamlEscape(agent.name)}`);
+  parts.push(`description: ${yamlEscape(agent.description || agent.name)}`);
   if (agent.model) {
-    parts.push(`model: ${agent.model}`);
+    parts.push(`model: ${yamlEscape(agent.model)}`);
   }
   parts.push('tools:');
   for (const tool of DEFAULT_TOOLS) {
     parts.push(`  - ${tool}`);
+  }
+  if (agent.skills.length > 0) {
+    parts.push('skills:');
+    for (const skill of agent.skills) {
+      parts.push(`  - ${skill}`);
+    }
   }
   parts.push('---');
   parts.push('');

@@ -13,7 +13,7 @@ export async function fileExists(filePath: string): Promise<boolean> {
 }
 
 /** Strip UTF-8 BOM (U+FEFF) if present at the start of a string */
-function stripBom(content: string): string {
+export function stripBom(content: string): string {
   return content.charCodeAt(0) === 0xFEFF ? content.slice(1) : content;
 }
 
@@ -51,15 +51,35 @@ export async function writeFileAtomic(filePath: string, content: string): Promis
   const tempPath = `${filePath}.tmp.${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {
     await fs.writeFile(tempPath, content, 'utf-8');
-    await fs.rename(tempPath, filePath);
+    try {
+      await fs.rename(tempPath, filePath);
+    } catch (renameErr: unknown) {
+      if ((renameErr as NodeJS.ErrnoException).code === 'EXDEV') {
+        // Cross-device rename not supported — fallback to copy + unlink
+        await fs.copyFile(tempPath, filePath);
+        try { await fs.unlink(tempPath); } catch { /* best-effort cleanup after successful copy */ }
+      } else {
+        throw renameErr;
+      }
+    }
   } catch (err) {
-    // Cleanup temp file on failure
+    // Cleanup temp file on failure (may already be removed in EXDEV path)
     try {
       await fs.unlink(tempPath);
     } catch {
       // Ignore cleanup errors
     }
     throw err;
+  }
+}
+
+/** Ensure a resolved path stays within the expected base directory.
+ *  Throws if the path escapes via '..' or absolute segments. */
+export function assertPathWithin(resolvedPath: string, baseDir: string): void {
+  const normalizedResolved = path.resolve(resolvedPath);
+  const normalizedBase = path.resolve(baseDir);
+  if (!normalizedResolved.startsWith(normalizedBase + path.sep) && normalizedResolved !== normalizedBase) {
+    throw new Error(`Path traversal detectado: "${resolvedPath}" escapa de "${baseDir}"`);
   }
 }
 

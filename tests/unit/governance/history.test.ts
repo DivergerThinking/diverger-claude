@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createMeta, finalizeMetaAfterWrite } from '../../../src/governance/history.js';
+import { hashForMeta } from '../../../src/utils/hash.js';
 import type { DivergentMeta, GeneratedFile } from '../../../src/core/types.js';
 
 describe('createMeta', () => {
@@ -17,9 +18,8 @@ describe('createMeta', () => {
 
   it('should store file contents for three-way merge', () => {
     const meta = createMeta(files, ['nodejs'], ['languages/typescript'], {});
-    expect(meta.fileContents).toBeDefined();
-    expect(meta.fileContents!['CLAUDE.md']).toBe('# Config\nTest content');
-    expect(meta.fileContents!['.claude/settings.json']).toBe('{"permissions":{}}');
+    expect(meta.fileContents['CLAUDE.md']).toBe('# Config\nTest content');
+    expect(meta.fileContents['.claude/settings.json']).toBe('{"permissions":{}}');
   });
 
   it('should store detectedStack and appliedProfiles', () => {
@@ -39,6 +39,11 @@ describe('createMeta', () => {
     expect(meta.trackedDependencies).toEqual(['react', 'typescript']);
   });
 
+  it('should default trackedDependencies to empty array when not provided', () => {
+    const meta = createMeta(files, [], [], {});
+    expect(meta.trackedDependencies).toEqual([]);
+  });
+
   it('should include version and generatedAt', () => {
     const meta = createMeta(files, [], [], {});
     expect(meta.version).toBeDefined();
@@ -56,6 +61,8 @@ describe('finalizeMetaAfterWrite', () => {
       appliedProfiles: [],
       fileHashes: {},
       ruleGovernance: {},
+      fileContents: {},
+      trackedDependencies: [],
       ...overrides,
     };
   }
@@ -69,10 +76,11 @@ describe('finalizeMetaAfterWrite', () => {
 
     const result = finalizeMetaAfterWrite(pendingMeta, writtenFiles);
 
-    // a.md should have new hash
-    expect(result.fileHashes['a.md']).not.toBe('old-hash');
+    // a.md should have new hash matching the written content
+    expect(result.fileHashes['a.md']).toBe(hashForMeta('new-a'));
     // b.md should keep old hash (not written)
-    expect(result.fileContents!['b.md']).toBe('old-b');
+    expect(result.fileHashes['b.md']).toBe('old-hash');
+    expect(result.fileContents['b.md']).toBe('old-b');
   });
 
   it('should preserve old meta hashes for unwritten files', () => {
@@ -90,7 +98,7 @@ describe('finalizeMetaAfterWrite', () => {
 
     // existing.md was NOT written, so should keep old meta's hash
     expect(result.fileHashes['existing.md']).toBe('old-existing-hash');
-    expect(result.fileContents!['existing.md']).toBe('old content');
+    expect(result.fileContents['existing.md']).toBe('old content');
   });
 
   it('should include new files from pending meta not in old meta', () => {
@@ -103,7 +111,7 @@ describe('finalizeMetaAfterWrite', () => {
     const result = finalizeMetaAfterWrite(pendingMeta, [], oldMeta);
 
     expect(result.fileHashes['brand-new.md']).toBe('pending-hash');
-    expect(result.fileContents!['brand-new.md']).toBe('pending content');
+    expect(result.fileContents['brand-new.md']).toBe('pending content');
   });
 
   it('should handle null oldMeta', () => {
@@ -116,6 +124,6 @@ describe('finalizeMetaAfterWrite', () => {
     const result = finalizeMetaAfterWrite(pendingMeta, writtenFiles, null);
 
     expect(result.fileHashes['file.md']).toBeDefined();
-    expect(result.fileContents!['file.md']).toBe('content');
+    expect(result.fileContents['file.md']).toBe('content');
   });
 });

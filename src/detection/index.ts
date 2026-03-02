@@ -19,7 +19,7 @@ export class DetectionEngine {
   }
 
   /** Run full detection on a project directory */
-  async detect(projectRoot: string): Promise<DetectionResult> {
+  async detect(projectRoot: string, options?: { onWarning?: (msg: string) => void }): Promise<DetectionResult> {
     // Step 1: Run all analyzers
     const analyzers = getAllAnalyzers();
     const allTechnologies: DetectedTechnology[] = [];
@@ -44,7 +44,7 @@ export class DetectionEngine {
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[diverger] Warning: ${analyzer.name} analyzer failed: ${msg}`);
+        options?.onWarning?.(`[diverger] Warning: ${analyzer.name} analyzer failed: ${msg}`);
       }
     }
 

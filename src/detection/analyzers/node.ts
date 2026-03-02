@@ -175,7 +175,15 @@ export class NodeAnalyzer extends BaseAnalyzer {
     }
 
     analyzedFiles.push('package.json');
-    const pkg = parseJson<PackageJson>(pkgContent, 'package.json');
+
+    let pkg: PackageJson;
+    try {
+      pkg = parseJson<PackageJson>(pkgContent, 'package.json');
+    } catch {
+      // Malformed package.json: return empty result instead of crashing the pipeline
+      return { technologies, analyzedFiles };
+    }
+
     const allDeps = {
       ...pkg.dependencies,
       ...pkg.devDependencies,
@@ -201,13 +209,17 @@ export class NodeAnalyzer extends BaseAnalyzer {
     for (const pattern of DEP_PATTERNS) {
       const found = pattern.packages.find((pkg) => pkg in allDeps);
       if (found) {
-        const version = allDeps[found];
-        const majorVersion = this.extractMajorVersion(version);
+        const rawVersion = allDeps[found];
+        // Git URLs and other non-semver specifiers should not be stored as version
+        const isGitUrl = rawVersion && /^(git[+:]|github:|https?:\/\/|file:)/.test(rawVersion);
+        const version = isGitUrl ? undefined : rawVersion;
+        const majorVersion = isGitUrl ? undefined : this.extractMajorVersion(rawVersion);
         const evidence: DetectionEvidence[] = [{
           source: 'package.json',
           type: 'manifest',
-          description: `Found "${found}" in dependencies (${version})`,
+          description: `Found "${found}" in dependencies${version ? ` (${version})` : ''}`,
           weight: pattern.weight,
+          trackedPackage: found,
         }];
 
         technologies.push({
@@ -281,6 +293,8 @@ export class NodeAnalyzer extends BaseAnalyzer {
       'vitest.config.js': { techId: 'vitest', weight: 5 },
       'jest.config.ts': { techId: 'jest', weight: 5 },
       'jest.config.js': { techId: 'jest', weight: 5 },
+      'jest.config.cjs': { techId: 'jest', weight: 5 },
+      'jest.config.mjs': { techId: 'jest', weight: 5 },
       'cypress.config.ts': { techId: 'cypress', weight: 5 },
       'playwright.config.ts': { techId: 'playwright', weight: 5 },
     };

@@ -31,10 +31,10 @@ export function success(message: string): void {
   console.log(chalk.green('✔'), message);
 }
 
-/** Print warning message (yellow) */
+/** Print warning message (yellow) — prints to stderr to not contaminate JSON pipes */
 export function warn(message: string): void {
   if (isQuiet() || isJson()) return;
-  console.log(chalk.yellow('⚠'), message);
+  console.error(chalk.yellow('⚠'), message);
 }
 
 /** Print error message (red) — always prints to stderr */

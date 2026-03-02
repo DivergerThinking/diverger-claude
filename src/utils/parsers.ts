@@ -1,11 +1,7 @@
 import yaml from 'js-yaml';
 import { parse as parseToml } from 'smol-toml';
 import { XMLParser } from 'fast-xml-parser';
-
-/** Strip UTF-8 BOM (U+FEFF) if present at the start of a string */
-function stripBom(content: string): string {
-  return content.charCodeAt(0) === 0xFEFF ? content.slice(1) : content;
-}
+import { stripBom } from './fs.js';
 
 /** Parse JSON with better error messages */
 export function parseJson<T = unknown>(content: string, source?: string): T {
@@ -20,7 +16,11 @@ export function parseJson<T = unknown>(content: string, source?: string): T {
 /** Parse YAML content */
 export function parseYaml<T = unknown>(content: string, source?: string): T {
   try {
-    return yaml.load(stripBom(content), { schema: yaml.JSON_SCHEMA }) as T;
+    const result = yaml.load(stripBom(content), { schema: yaml.CORE_SCHEMA });
+    if (result === undefined || result === null) {
+      return {} as T;
+    }
+    return result as T;
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     throw new Error(`Error parsing YAML${source ? ` from ${source}` : ''}: ${msg}`);

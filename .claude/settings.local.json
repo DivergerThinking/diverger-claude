@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebSearch",
+      "WebFetch(domain:claude.com)",
+      "WebFetch(domain:alexop.dev)",
+      "Bash(python:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npm run:*)",
+      "Bash(node:*)",
+      "Bash(find src:*)",
+      "Bash(echo EXIT:$?:*)",
+      "Bash(done)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(/tmp/trace_logic.txt:*)",
+      "Bash(/tmp/new_file_scenario.txt:*)",
+      "Bash(/tmp/correct_logic.txt:*)",
+      "Bash(/tmp/crlf_test.ts:*)",
+      "Bash(echo EXIT: $?:*)",
+      "Bash(__NEW_LINE_308584871af2d49d__ echo:*)",
+      "Bash(echo:*)",
+      "Bash(rm:*)",
+      "Bash(tasklist:*)",
+      "Bash(wmic process:*)",
+      "Bash(powershell:*)",
+      "Bash(\"C:/Windows/System32/wbem/wmic.exe\" process:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}

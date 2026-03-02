@@ -179,6 +179,42 @@ describe('PythonAnalyzer', () => {
     expect(pythonEntries).toHaveLength(1);
   });
 
+  it('should detect pytest from Poetry 1.2+ dependency groups', async () => {
+    const pyproject = `[tool.poetry]
+name = "my-app"
+version = "0.1.0"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+django = "^4.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4"
+
+[tool.poetry.group.test.dependencies]
+pytest-cov = "^4.0"
+`;
+    const files = new Map<string, string>();
+    files.set('pyproject.toml', pyproject);
+    const result = await analyzer.analyze(files, '/project');
+
+    const pytest = result.technologies.find((t) => t.id === 'pytest');
+    expect(pytest).toBeDefined();
+    expect(pytest!.name).toBe('Pytest');
+    expect(pytest!.profileIds).toContain('testing/pytest');
+  });
+
+  it('should have consistent confidence and evidence weight for Python', async () => {
+    const files = new Map<string, string>();
+    files.set('pyproject.toml', PYPROJECT_PEP621);
+    const result = await analyzer.analyze(files, '/project');
+
+    const python = result.technologies.find((t) => t.id === 'python');
+    expect(python).toBeDefined();
+    expect(python!.confidence).toBe(95);
+    expect(python!.evidence[0]!.weight).toBe(95);
+  });
+
   it('should include proper evidence', async () => {
     const files = new Map<string, string>();
     files.set('requirements.txt', REQUIREMENTS_TXT);

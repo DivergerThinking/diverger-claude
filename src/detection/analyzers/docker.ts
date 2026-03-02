@@ -23,11 +23,11 @@ export class DockerAnalyzer extends BaseAnalyzer {
     // Track multi-stage build evidence separately
     let multiStageFile: string | undefined;
     let multiStageCount = 0;
+    let emittedMicroservicesHint = false;
 
     for (const [filePath, content] of files) {
-      analyzedFiles.push(filePath);
-
       if (filePath.startsWith('Dockerfile')) {
+        analyzedFiles.push(filePath);
         hasDockerfile = true;
 
         // Detect multi-stage builds
@@ -36,18 +36,20 @@ export class DockerAnalyzer extends BaseAnalyzer {
           multiStageFile = filePath;
           multiStageCount = stageCount;
         }
-      }
-
-      if (filePath.includes('compose')) {
+      } else if (filePath.includes('compose')) {
+        analyzedFiles.push(filePath);
         hasCompose = true;
-        // Count services under the "services:" key
-        const servicesMatch = content.match(/^services:\s*\n((?:\s{2}\w[^\n]*\n?)*)/m);
+        // Count services under the "services:" key (handle 2 or 4-space indentation)
+        const servicesMatch = content.match(/^services:\s*\n((?:\s+\S[^\n]*\n?)*)/m);
         let serviceCount = 0;
         if (servicesMatch?.[1]) {
-          // Count top-level keys under services (exactly 2-space indented, not deeper)
-          serviceCount = (servicesMatch[1].match(/^\s{2}[a-zA-Z_][\w-]*:/gm) ?? []).length;
+          // Detect actual indentation level from first service line
+          const firstIndent = servicesMatch[1].match(/^(\s+)/)?.[1]?.length ?? 2;
+          const indentPattern = new RegExp(`^\\s{${firstIndent}}[a-zA-Z_][\\w-]*:`, 'gm');
+          serviceCount = (servicesMatch[1].match(indentPattern) ?? []).length;
         }
-        if (serviceCount > 3) {
+        if (serviceCount > 3 && !emittedMicroservicesHint) {
+          emittedMicroservicesHint = true;
           technologies.push({
             id: 'microservices-hint',
             name: 'Microservices (hint)',

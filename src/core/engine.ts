@@ -13,6 +13,7 @@ import { GenerationEngine } from '../generation/index.js';
 import { GovernanceEngine } from '../governance/index.js';
 import { KnowledgeEngine } from '../knowledge/index.js';
 import { CONFIDENCE_THRESHOLD } from './constants.js';
+import { loadMeta } from '../governance/history.js';
 
 export interface EngineContext {
   projectRoot: string;
@@ -21,6 +22,10 @@ export interface EngineContext {
   onConfirm?: (message: string, technologies: string[]) => Promise<boolean>;
   /** Callback for knowledge search permission */
   onKnowledgePermission?: (technology: string) => Promise<boolean>;
+  /** Callback for non-fatal warnings (e.g. knowledge fetch failures) */
+  onWarning?: (message: string) => void;
+  /** Tech IDs to preserve from filtering (e.g. from previous init's meta) */
+  _preservedTechIds?: string[];
 }
 
 /**
@@ -76,7 +81,7 @@ export class DivergerEngine {
 
   /** Detect technologies in the project */
   async detect(ctx: EngineContext): Promise<DetectionResult> {
-    return this.detection.detect(ctx.projectRoot);
+    return this.detection.detect(ctx.projectRoot, { onWarning: ctx.onWarning });
   }
 
   /** Compute diff without writing (dry-run) */
@@ -92,7 +97,10 @@ export class DivergerEngine {
 
   /** Sync: detect changes and apply updates with three-way merge (C3: returns MergeAllResult) */
   async sync(ctx: EngineContext): Promise<MergeAllResult> {
-    const result = await this.init(ctx);
+    // Preserve previously-confirmed techs so sync doesn't drop them due to low confidence
+    const oldMeta = await loadMeta(ctx.projectRoot);
+    const syncCtx = oldMeta ? { ...ctx, _preservedTechIds: oldMeta.detectedStack } : ctx;
+    const result = await this.init(syncCtx);
     return this.governance.mergeAll(result, ctx.projectRoot);
   }
 
@@ -120,19 +128,31 @@ export class DivergerEngine {
       (t) => t.confidence < CONFIDENCE_THRESHOLD,
     );
 
-    if (lowConfidence.length > 0 && ctx.onConfirm) {
-      const names = lowConfidence.map(
-        (t) => `${t.name} (${t.confidence}%)`,
-      );
-      const confirmed = await ctx.onConfirm(
-        'Se detectaron tecnologías con baja confianza. ¿Incluirlas?',
-        names,
-      );
-      if (!confirmed) {
+    if (lowConfidence.length > 0) {
+      if (ctx.onConfirm) {
+        const names = lowConfidence.map(
+          (t) => `${t.name} (${t.confidence}%)`,
+        );
+        const confirmed = await ctx.onConfirm(
+          'Se detectaron tecnologías con baja confianza. ¿Incluirlas?',
+          names,
+        );
+        if (!confirmed) {
+          return {
+            ...detection,
+            technologies: detection.technologies.filter(
+              (t) => t.confidence >= CONFIDENCE_THRESHOLD,
+            ),
+          };
+        }
+      } else {
+        // Non-interactive: filter low-confidence techs automatically (parity with init)
+        // But preserve techs from previous init's meta (sync should not drop confirmed techs)
+        const preserved = new Set(ctx._preservedTechIds ?? []);
         return {
           ...detection,
           technologies: detection.technologies.filter(
-            (t) => t.confidence >= CONFIDENCE_THRESHOLD,
+            (t) => t.confidence >= CONFIDENCE_THRESHOLD || preserved.has(t.id),
           ),
         };
       }
@@ -163,7 +183,7 @@ export class DivergerEngine {
             results.push(result);
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            console.error(`[diverger] Warning: knowledge fetch failed for ${tech.name}: ${msg}`);
+            ctx.onWarning?.(`[diverger] Warning: knowledge fetch failed for ${tech.name}: ${msg}`);
           }
         }
       }

@@ -35,6 +35,12 @@ export async function runGreenfieldWizard(
   return templateToDetection(template, projectRoot);
 }
 
+/** Normalize a technology display name to a canonical lowercase hyphenated ID.
+ *  Exported for testing. */
+export function normalizeTechId(name: string): string {
+  return name.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
 function inferCategory(name: string): 'language' | 'framework' | 'testing' | 'infra' {
   const languages = new Set(['typescript', 'javascript', 'python', 'java', 'go', 'rust', 'csharp', 'ruby', 'php']);
   const testing = new Set(['jest', 'vitest', 'pytest', 'junit', 'cypress', 'playwright', 'mocha']);
@@ -46,23 +52,76 @@ function inferCategory(name: string): 'language' | 'framework' | 'testing' | 'in
   return 'framework';
 }
 
+/** Map of common technology display names to canonical IDs used by analyzers/profiles */
+const TECH_NAME_ALIASES: Record<string, string> = {
+  'next.js': 'nextjs',
+  'vue.js': 'vue',
+  'node.js': 'nodejs',
+  'nest.js': 'nestjs',
+  'asp.net': 'aspnet',
+  'asp.net core': 'aspnet',
+  'spring boot': 'spring-boot',
+  'react testing library': 'react-testing-library',
+  'github actions': 'github-actions',
+  'gitlab ci': 'gitlab-ci',
+  'azure pipelines': 'azure-pipelines',
+  'actix web': 'actix-web',
+  'gorilla mux': 'gorilla-mux',
+};
+
+/** Map canonical tech IDs to their profile IDs */
+const TECH_PROFILE_MAP: Record<string, string[]> = {
+  typescript: ['languages/typescript'],
+  python: ['languages/python'],
+  java: ['languages/java'],
+  go: ['languages/go'],
+  rust: ['languages/rust'],
+  csharp: ['languages/csharp'],
+  react: ['frameworks/react'],
+  nextjs: ['frameworks/nextjs'],
+  express: ['frameworks/express'],
+  nestjs: ['frameworks/nestjs'],
+  angular: ['frameworks/angular'],
+  vue: ['frameworks/vue'],
+  nuxt: ['frameworks/nuxt'],
+  svelte: ['frameworks/svelte'],
+  fastapi: ['frameworks/fastapi'],
+  django: ['frameworks/django'],
+  flask: ['frameworks/flask'],
+  'spring-boot': ['frameworks/spring-boot'],
+  jest: ['testing/jest'],
+  vitest: ['testing/vitest'],
+  pytest: ['testing/pytest'],
+  junit: ['testing/junit'],
+  cypress: ['testing/cypress'],
+  playwright: ['testing/playwright'],
+  docker: ['infra/docker'],
+  'github-actions': ['infra/github-actions'],
+};
+
 function inferFromArchitecture(
   archDoc: Awaited<ReturnType<typeof parseArchitectureDoc>> & object,
   projectRoot: string,
 ): DetectionResult {
-  const technologies = archDoc.technologies.map((name) => ({
-    id: name.toLowerCase().replace(/\s+/g, '-'),
-    name,
-    category: inferCategory(name),
-    confidence: 70,
-    evidence: [{
-      source: 'ARCHITECTURE.md',
-      type: 'content' as const,
-      description: `Mencionado en documento de arquitectura`,
-      weight: 70,
-    }],
-    profileIds: [] as string[],
-  }));
+  const technologies = archDoc.technologies.map((name) => {
+    // Normalize: lowercase, collapse whitespace to hyphens, then check aliases
+    const normalized = name.toLowerCase().replace(/\s+/g, ' ').trim();
+    const id = TECH_NAME_ALIASES[normalized] ?? normalizeTechId(normalized);
+    const profileIds = TECH_PROFILE_MAP[id] ?? [];
+    return {
+      id,
+      name,
+      category: inferCategory(name),
+      confidence: 70,
+      evidence: [{
+        source: 'ARCHITECTURE.md',
+        type: 'content' as const,
+        description: `Mencionado en documento de arquitectura`,
+        weight: 70,
+      }],
+      profileIds,
+    };
+  });
 
   return {
     technologies,
@@ -86,7 +145,7 @@ function templateToDetection(
       description: `Seleccionado desde template "${template.name}"`,
       weight: 100,
     }],
-    profileIds: template.profiles.filter((p) => p.includes(id)),
+    profileIds: template.profiles.filter((p) => p.endsWith('/' + id)),
   }));
 
   return {
