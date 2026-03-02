@@ -399,7 +399,7 @@ export interface MergeResult {
 
 // --- Knowledge Types ---
 
-/** @planned — pendiente de uso en knowledge client v2 */
+/** Query parameters for knowledge client searches */
 export interface KnowledgeQuery {
   /** Technology to search for */
   technology: string;

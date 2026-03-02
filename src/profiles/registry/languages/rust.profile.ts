@@ -860,7 +860,7 @@ async fn login(username: &str, password: &str) -> Result<Token> {
     ],
     externalTools: [
       {
-        type: 'clippy' as any,
+        type: 'clippy',
         filePath: 'clippy.toml',
         mergeStrategy: 'create-only',
         config: {

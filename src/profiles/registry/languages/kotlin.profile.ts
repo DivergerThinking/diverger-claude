@@ -1113,7 +1113,7 @@ repository.observeUpdates()
     ],
     externalTools: [
       {
-        type: 'ktlint' as any,
+        type: 'ktlint',
         filePath: '.editorconfig',
         config: {
           '[*.{kt,kts}]': {

@@ -1050,7 +1050,7 @@ public class RequestTimingMiddleware(RequestDelegate next, ILogger<RequestTiming
     ],
     externalTools: [
       {
-        type: 'editorconfig' as any,
+        type: 'editorconfig',
         filePath: '.editorconfig',
         mergeStrategy: 'create-only',
         config: {

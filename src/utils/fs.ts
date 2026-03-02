@@ -1,13 +1,18 @@
 import fs from 'fs/promises';
 import path from 'path';
 
+/** Type guard for Node.js filesystem errors */
+function isNodeError(err: unknown): err is NodeJS.ErrnoException {
+  return err instanceof Error && 'code' in err;
+}
+
 /** Check if a file exists */
 export async function fileExists(filePath: string): Promise<boolean> {
   try {
     await fs.access(filePath);
     return true;
   } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    if (isNodeError(err) && err.code === 'ENOENT') return false;
     throw err;
   }
 }
@@ -23,7 +28,7 @@ export async function readFileOrNull(filePath: string): Promise<string | null> {
     const raw = await fs.readFile(filePath, 'utf-8');
     return stripBom(raw);
   } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    if (isNodeError(err) && err.code === 'ENOENT') return null;
     throw err;
   }
 }
@@ -54,7 +59,7 @@ export async function writeFileAtomic(filePath: string, content: string): Promis
     try {
       await fs.rename(tempPath, filePath);
     } catch (renameErr: unknown) {
-      if ((renameErr as NodeJS.ErrnoException).code === 'EXDEV') {
+      if (isNodeError(renameErr) && renameErr.code === 'EXDEV') {
         // Cross-device rename not supported — fallback to copy + unlink
         await fs.copyFile(tempPath, filePath);
         try { await fs.unlink(tempPath); } catch { /* best-effort cleanup after successful copy */ }
@@ -97,7 +102,7 @@ export async function listFiles(dirPath: string): Promise<string[]> {
       .filter((e) => e.isFile())
       .map((e) => path.join(dirPath, e.name));
   } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    if (isNodeError(err) && err.code === 'ENOENT') return [];
     throw err;
   }
 }

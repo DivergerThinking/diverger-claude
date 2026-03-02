@@ -1142,7 +1142,7 @@ assert(result is Map<String, dynamic>, 'Expected Map, got \${result.runtimeType}
     ],
     externalTools: [
       {
-        type: 'dart-analysis' as any,
+        type: 'dart-analysis',
         filePath: 'analysis_options.yaml',
         config: {
           include: 'package:lints/recommended.yaml',

@@ -1449,7 +1449,7 @@ func fetchUser(id: String) async throws -> User {
     ],
     externalTools: [
       {
-        type: 'swiftlint' as any,
+        type: 'swiftlint',
         filePath: '.swiftlint.yml',
         config: {
           disabled_rules: ['trailing_whitespace'],

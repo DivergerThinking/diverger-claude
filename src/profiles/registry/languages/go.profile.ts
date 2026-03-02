@@ -705,7 +705,7 @@ srv := &http.Server{
     ],
     externalTools: [
       {
-        type: 'golangci' as any,
+        type: 'golangci',
         filePath: '.golangci.yml',
         mergeStrategy: 'create-only',
         config: {

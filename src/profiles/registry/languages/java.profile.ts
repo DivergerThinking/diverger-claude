@@ -551,7 +551,7 @@ try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
     ],
     externalTools: [
       {
-        type: 'checkstyle' as any,
+        type: 'checkstyle',
         filePath: 'checkstyle.xml',
         mergeStrategy: 'create-only',
         config: {
