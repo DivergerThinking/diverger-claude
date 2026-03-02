@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // vi.mock factories are hoisted, so we must define everything inline.
 // Use vi.hoisted to create shared references accessible inside the factory.
 
-const { mockCreate, MockAuthenticationError, MockRateLimitError, MockAPIConnectionError } =
+const { mockCreate, MockAuthenticationError, MockRateLimitError, MockAPIConnectionError, MockAPIConnectionTimeoutError } =
   vi.hoisted(() => {
     const mockCreate = vi.fn();
 
@@ -31,7 +31,14 @@ const { mockCreate, MockAuthenticationError, MockRateLimitError, MockAPIConnecti
       }
     }
 
-    return { mockCreate, MockAuthenticationError, MockRateLimitError, MockAPIConnectionError };
+    class MockAPIConnectionTimeoutError extends Error {
+      constructor() {
+        super('Connection timed out');
+        this.name = 'APIConnectionTimeoutError';
+      }
+    }
+
+    return { mockCreate, MockAuthenticationError, MockRateLimitError, MockAPIConnectionError, MockAPIConnectionTimeoutError };
   });
 
 vi.mock('@anthropic-ai/sdk', () => {
@@ -44,6 +51,7 @@ vi.mock('@anthropic-ai/sdk', () => {
     AuthenticationError: MockAuthenticationError,
     RateLimitError: MockRateLimitError,
     APIConnectionError: MockAPIConnectionError,
+    APIConnectionTimeoutError: MockAPIConnectionTimeoutError,
   });
 
   return { default: MockAnthropic };
@@ -109,6 +117,7 @@ describe('ClaudeApiClient', () => {
 
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({ model: 'claude-opus-4-20250514' }),
+        expect.objectContaining({ timeout: expect.any(Number) }),
       );
     });
 
@@ -120,6 +129,7 @@ describe('ClaudeApiClient', () => {
 
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({ model: 'claude-sonnet-4-20250514' }),
+        expect.objectContaining({ timeout: expect.any(Number) }),
       );
     });
   });
@@ -227,6 +237,16 @@ describe('ClaudeApiClient', () => {
       await expect(client.searchBestPractices('React')).rejects.toThrow(KnowledgeError);
       await expect(client.searchBestPractices('React')).rejects.toThrow(
         'Error de conexión a Claude API. Verificar red e intentar de nuevo.',
+      );
+    });
+
+    it('should throw KnowledgeError on API timeout', async () => {
+      mockCreate.mockRejectedValue(new MockAPIConnectionTimeoutError());
+
+      const client = new ClaudeApiClient();
+      await expect(client.searchBestPractices('React')).rejects.toThrow(KnowledgeError);
+      await expect(client.searchBestPractices('React')).rejects.toThrow(
+        'Timeout al consultar Claude API',
       );
     });
 
@@ -353,6 +373,7 @@ describe('ClaudeApiClient', () => {
             }),
           ],
         }),
+        expect.objectContaining({ timeout: expect.any(Number) }),
       );
     });
 
@@ -366,6 +387,19 @@ describe('ClaudeApiClient', () => {
         expect.objectContaining({
           messages: [{ role: 'user', content: expect.any(String) }],
         }),
+        expect.objectContaining({ timeout: expect.any(Number) }),
+      );
+    });
+
+    it('should set a timeout on API calls', async () => {
+      mockCreate.mockResolvedValue(makeResponse(['content']));
+
+      const client = new ClaudeApiClient();
+      await client.searchBestPractices('React');
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({ timeout: 90000 }),
       );
     });
   });

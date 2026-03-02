@@ -5,6 +5,9 @@ import { bestPracticesPrompt, securityPrompt, performancePrompt } from './prompt
 /** Default model for knowledge queries; override via DIVERGER_MODEL env var */
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
 
+/** Timeout for a single API call (90 seconds) */
+const API_TIMEOUT_MS = 90_000;
+
 interface SearchResult {
   content: string;
   sources: string[];
@@ -75,7 +78,7 @@ export class ClaudeApiClient {
         max_tokens: 4096,
         tools: [webSearchTool as unknown as Anthropic.Messages.Tool],
         messages: [{ role: 'user', content: prompt }],
-      });
+      }, { timeout: API_TIMEOUT_MS });
 
       // Collect all text from text blocks and extract URLs from web search results
       const textParts: string[] = [];
@@ -127,6 +130,12 @@ export class ClaudeApiClient {
       if (err instanceof Anthropic.APIConnectionError) {
         throw new KnowledgeError(
           `Error de conexión a Claude API. Verificar red e intentar de nuevo.`,
+        );
+      }
+
+      if (err instanceof Anthropic.APIConnectionTimeoutError) {
+        throw new KnowledgeError(
+          `Timeout al consultar Claude API (${API_TIMEOUT_MS / 1000}s). La búsqueda tardó demasiado.`,
         );
       }
 

@@ -1,6 +1,7 @@
 import type {
   CliOptions,
   ComposedConfig,
+  DetectedTechnology,
   DetectionResult,
   DiffEntry,
   GenerationResult,
@@ -24,6 +25,10 @@ export interface EngineContext {
   onKnowledgePermission?: (technology: string) => Promise<boolean>;
   /** Callback for non-fatal warnings (e.g. knowledge fetch failures) */
   onWarning?: (message: string) => void;
+  /** Callback for progress updates during generation */
+  onProgress?: (message: string) => void;
+  /** Pre-resolved knowledge permissions (tech name → allowed) */
+  knowledgePermissions?: Map<string, boolean>;
   /** Tech IDs to preserve from filtering (e.g. from previous init's meta) */
   _preservedTechIds?: string[];
 }
@@ -62,6 +67,8 @@ export class DivergerEngine {
   async initWithDetection(detection: DetectionResult, ctx: EngineContext): Promise<GenerationResult> {
     // C4: fetchKnowledge now returns results to inject into composed config
     const knowledgeResults = await this.fetchKnowledge(detection, ctx);
+
+    ctx.onProgress?.('Componiendo profiles...');
     const composed = this.compose(detection);
     if (knowledgeResults.length > 0) {
       composed.knowledge = knowledgeResults;
@@ -75,6 +82,8 @@ export class DivergerEngine {
         });
       }
     }
+
+    ctx.onProgress?.('Generando archivos de configuración...');
     const result = await this.generation.generate(composed, ctx.projectRoot, detection);
     return result;
   }
@@ -161,30 +170,42 @@ export class DivergerEngine {
     return detection;
   }
 
+  /** Get the list of technologies eligible for knowledge fetch */
+  getKnowledgeTechs(detection: DetectionResult): DetectedTechnology[] {
+    return detection.technologies.filter(
+      (t) => t.category === 'framework' || t.category === 'language',
+    );
+  }
+
   private async fetchKnowledge(
     detection: DetectionResult,
     ctx: EngineContext,
   ): Promise<KnowledgeResult[]> {
     // A2: skip knowledge fetch entirely in dry-run mode
     if (ctx.options.dryRun) return [];
-    if (!ctx.onKnowledgePermission) return [];
+
+    // Use pre-resolved permissions if available, otherwise fall back to callback
+    const permissions = ctx.knowledgePermissions;
+    if (!permissions && !ctx.onKnowledgePermission) return [];
 
     // Initialize the knowledge cache for this project
     this.knowledge.initCache(ctx.projectRoot);
 
+    const eligibleTechs = this.getKnowledgeTechs(detection);
     const results: KnowledgeResult[] = [];
-    for (const tech of detection.technologies) {
-      if (tech.category === 'framework' || tech.category === 'language') {
-        const allowed = await ctx.onKnowledgePermission(tech.name);
-        if (allowed) {
-          // A3: wrap in try/catch so API failures don't abort the pipeline
-          try {
-            const result = await this.knowledge.fetchBestPractices(tech);
-            results.push(result);
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            ctx.onWarning?.(`[diverger] Warning: knowledge fetch failed for ${tech.name}: ${msg}`);
-          }
+    for (const tech of eligibleTechs) {
+      const allowed = permissions
+        ? permissions.get(tech.name) ?? false
+        : await ctx.onKnowledgePermission!(tech.name);
+      if (allowed) {
+        ctx.onProgress?.(`Buscando best practices de ${tech.name}...`);
+        // A3: wrap in try/catch so API failures don't abort the pipeline
+        try {
+          const result = await this.knowledge.fetchBestPractices(tech);
+          results.push(result);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          ctx.onWarning?.(`[diverger] Warning: knowledge fetch failed for ${tech.name}: ${msg}`);
         }
       }
     }

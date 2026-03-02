@@ -7,7 +7,7 @@ import { createMeta, saveMeta } from '../../governance/history.js';
 import { extractTrackedDeps } from '../../governance/index.js';
 import { toRelativeMetaKey } from '../../utils/paths.js';
 import { runGreenfieldWizard } from '../../greenfield/wizard.js';
-import { withSpinner } from '../ui/spinner.js';
+import { withSpinner, createSpinner } from '../ui/spinner.js';
 import { confirmTechnologies, askKnowledgePermission } from '../ui/prompts.js';
 import { DivergerError } from '../../core/errors.js';
 import * as log from '../ui/logger.js';
@@ -84,11 +84,23 @@ async function handleDryRun(
   confirmed: DetectionResult,
   options: CliOptions,
 ): Promise<void> {
-  const ctx = { projectRoot: options.targetDir, options, onWarning: (msg: string) => log.warn(msg) };
-  const result = await withSpinner(
-    'Calculando cambios...',
-    () => engine.initWithDetection(confirmed, ctx),
-  );
+  const spinner = createSpinner('Calculando cambios...');
+  spinner.start();
+  const ctx = {
+    projectRoot: options.targetDir,
+    options,
+    onWarning: (msg: string) => log.warn(msg),
+    onProgress: (msg: string) => { spinner.text = msg; },
+  };
+  let result;
+  try {
+    result = await engine.initWithDetection(confirmed, ctx);
+    spinner.succeed('Cambios calculados');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    spinner.fail(`Calculando cambios... - ${message}`);
+    throw err;
+  }
   const diffs = await engine.computeDiff(result, options.targetDir);
   log.blank();
   log.header('Cambios propuestos (dry-run)');
@@ -100,25 +112,61 @@ async function handleDryRun(
   }
 }
 
+/** Ask knowledge permissions upfront (before any spinner) */
+async function askKnowledgePermissions(
+  engine: DivergerEngine,
+  confirmed: DetectionResult,
+  options: CliOptions,
+): Promise<Map<string, boolean>> {
+  const permissions = new Map<string, boolean>();
+  if (options.force || options.output !== 'rich') return permissions;
+
+  const eligibleTechs = engine.getKnowledgeTechs(confirmed);
+  if (eligibleTechs.length === 0) return permissions;
+
+  log.blank();
+  for (const tech of eligibleTechs) {
+    const allowed = await askKnowledgePermission(tech.name);
+    permissions.set(tech.name, allowed);
+  }
+
+  return permissions;
+}
+
 /** Generate config, write files, and save meta. Returns write results. */
 async function generateAndWrite(
   engine: DivergerEngine,
   confirmed: DetectionResult,
   options: CliOptions,
 ): Promise<WriteResult[]> {
+  // Ask knowledge permissions BEFORE starting the spinner
+  const knowledgePermissions = await askKnowledgePermissions(engine, confirmed, options);
+
+  const spinner = createSpinner('Generando configuración...');
+  spinner.start();
+
   const ctx = {
     projectRoot: options.targetDir,
     options,
-    onWarning: (msg: string) => log.warn(msg),
-    // In --force mode, skip knowledge prompts entirely; in non-interactive modes, also skip
-    onKnowledgePermission: (options.force || options.output !== 'rich')
-      ? undefined
-      : async (tech: string) => askKnowledgePermission(tech),
+    onWarning: (msg: string) => {
+      spinner.warn(msg);
+      spinner.start('Generando configuración...');
+    },
+    knowledgePermissions,
+    onProgress: (msg: string) => {
+      spinner.text = msg;
+    },
   };
-  const result = await withSpinner(
-    'Generando configuración...',
-    () => engine.initWithDetection(confirmed, ctx),
-  );
+
+  let result;
+  try {
+    result = await engine.initWithDetection(confirmed, ctx);
+    spinner.succeed('Configuración generada');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    spinner.fail(`Generando configuración... - ${message}`);
+    throw err;
+  }
 
   const writeResults = await withSpinner(
     'Escribiendo archivos...',
