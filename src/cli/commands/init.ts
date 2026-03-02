@@ -9,7 +9,7 @@ import { toRelativeMetaKey } from '../../utils/paths.js';
 import { runGreenfieldWizard } from '../../greenfield/wizard.js';
 import { withSpinner, createSpinner } from '../ui/spinner.js';
 import { confirmTechnologies, askKnowledgePermission } from '../ui/prompts.js';
-import { DivergerError } from '../../core/errors.js';
+import { DivergerError, extractErrorMessage } from '../../core/errors.js';
 import * as log from '../ui/logger.js';
 import { displayDiffs, displayDiffSummary } from '../ui/diff-display.js';
 import { buildSummary } from '../ui/summary.js';
@@ -105,7 +105,7 @@ async function handleDryRun(
     result = await engine.initWithDetection(confirmed, ctx);
     spinner.succeed('Cambios calculados');
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = extractErrorMessage(err);
     spinner.fail(`Calculando cambios... - ${message}`);
     throw err;
   }
@@ -171,7 +171,7 @@ async function generateAndWrite(
     result = await engine.initWithDetection(confirmed, ctx);
     spinner.succeed('Configuración generada');
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = extractErrorMessage(err);
     spinner.fail(`Generando configuración... - ${message}`);
     throw err;
   }
@@ -275,7 +275,7 @@ export function registerInitCommand(program: Command): void {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {
-          log.error(err instanceof Error ? err.message : String(err));
+          log.error(extractErrorMessage(err));
         }
         process.exit(1);
       }

@@ -1,4 +1,5 @@
 import type { DivergentMeta, GeneratedFile, GovernanceLevel, MergeResult } from '../core/types.js';
+import { extractErrorMessage } from '../core/errors.js';
 import { readFileOrNull } from '../utils/fs.js';
 import { hashMatches } from '../utils/hash.js';
 import { toRelativeMetaKey } from '../utils/paths.js';
@@ -118,11 +119,10 @@ export class ThreeWayMerge {
         const base = (relKey ? meta?.fileContents?.[relKey] : undefined) ?? meta?.fileContents?.[file.path] ?? null;
         results.push(await this.mergeFile(file, meta, base, governance, projectRoot));
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
         results.push({
           path: file.path,
           outcome: 'error',
-          conflictDetails: `Error durante merge: ${msg}`,
+          conflictDetails: `Error durante merge: ${extractErrorMessage(err)}`,
         });
       }
     }

@@ -1,3 +1,4 @@
+import { extractErrorMessage } from '../core/errors.js';
 import { loadMeta } from '../governance/history.js';
 import { detectChanges } from './change-detector.js';
 import { applyAutoUpdates } from './auto-updater.js';
@@ -23,8 +24,7 @@ export async function onSessionStart(projectRoot: string, options?: { onError?: 
     const messages = updates.map((u) => u.description);
     return `[diverger-claude] ${messages.join(' | ')}`;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    (options?.onError ?? console.error)(`[diverger-claude] SessionStart hook error: ${msg}`);
+    (options?.onError ?? console.error)(`[diverger-claude] SessionStart hook error: ${extractErrorMessage(err)}`);
     return null;
   }
 }

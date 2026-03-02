@@ -1,6 +1,6 @@
 import type { DivergentMeta, GeneratedFile, GovernanceLevel } from '../core/types.js';
 import { META_FILE } from '../core/constants.js';
-import { GovernanceError } from '../core/errors.js';
+import { GovernanceError, extractErrorMessage } from '../core/errors.js';
 import { readFileOrNull, writeFileAtomic } from '../utils/fs.js';
 import { hashForMeta } from '../utils/hash.js';
 import { toRelativeMetaKey } from '../utils/paths.js';
@@ -21,9 +21,8 @@ export async function loadMeta(projectRoot: string): Promise<DivergentMeta | nul
     parsed.trackedDependencies ??= [];
     return parsed;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
     throw new GovernanceError(
-      `${META_FILE} está corrupto: ${msg}. Elimina el archivo y ejecuta 'diverger init --force' para regenerar.`,
+      `${META_FILE} está corrupto: ${extractErrorMessage(err)}. Elimina el archivo y ejecuta 'diverger init --force' para regenerar.`,
       META_FILE,
     );
   }

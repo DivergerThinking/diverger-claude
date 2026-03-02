@@ -5,7 +5,7 @@ import { writeFileAtomic, readFileOrNull } from '../../utils/fs.js';
 import { saveMeta, finalizeMetaAfterWrite } from '../../governance/history.js';
 import { withSpinner } from '../ui/spinner.js';
 import { resolveConflict } from '../ui/prompts.js';
-import { DivergerError } from '../../core/errors.js';
+import { DivergerError, extractErrorMessage } from '../../core/errors.js';
 import * as log from '../ui/logger.js';
 
 /** Display per-file merge outcomes. Returns true if conflicts were found. */
@@ -184,7 +184,7 @@ export function registerSyncCommand(program: Command): void {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {
-          log.error(err instanceof Error ? err.message : String(err));
+          log.error(extractErrorMessage(err));
         }
         process.exit(1);
       }

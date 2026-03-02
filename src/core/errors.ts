@@ -9,7 +9,7 @@ export class DivergerError extends Error {
   }
 }
 
-/** @planned — pendiente de integración en detection pipeline error paths */
+/** Error during technology detection (analyzer failures, invalid manifests) */
 export class DetectionError extends DivergerError {
   constructor(message: string) {
     super(message, 'DETECTION_ERROR');
@@ -25,7 +25,7 @@ export class CompositionError extends DivergerError {
   }
 }
 
-/** @planned — pendiente de integración en generation pipeline error paths */
+/** Error during file generation (template rendering, file writing) */
 export class GenerationError extends DivergerError {
   constructor(message: string) {
     super(message, 'GENERATION_ERROR');
@@ -33,7 +33,7 @@ export class GenerationError extends DivergerError {
   }
 }
 
-/** @planned — pendiente de integración en merge pipeline error paths */
+/** Error during three-way merge of configuration files */
 export class MergeError extends DivergerError {
   constructor(
     message: string,
@@ -86,7 +86,7 @@ export class BillingError extends DivergerError {
   }
 }
 
-/** @planned — pendiente de integración en CLI validation error paths */
+/** Error when the target directory is not a valid project */
 export class InvalidProjectError extends DivergerError {
   constructor(dir: string) {
     super(
@@ -97,7 +97,7 @@ export class InvalidProjectError extends DivergerError {
   }
 }
 
-/** @planned — pendiente de integración en profile composition error paths */
+/** Error when two profiles have conflicting contributions */
 export class ProfileConflictError extends CompositionError {
   constructor(
     public readonly profileA: string,
@@ -109,4 +109,10 @@ export class ProfileConflictError extends CompositionError {
     );
     this.name = 'ProfileConflictError';
   }
+}
+
+/** Extract a human-readable message from an unknown catch value */
+export function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
 }

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ApiKeyError, BillingError, KnowledgeError } from '../core/errors.js';
+import { ApiKeyError, BillingError, KnowledgeError, extractErrorMessage } from '../core/errors.js';
 import { bestPracticesPrompt, securityPrompt, performancePrompt } from './prompts.js';
 
 /** Default model for knowledge queries; override via DIVERGER_MODEL env var */
@@ -147,8 +147,7 @@ export class ClaudeApiClient {
         }
       }
 
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new KnowledgeError(`Error al consultar Claude API: ${msg}`);
+      throw new KnowledgeError(`Error al consultar Claude API: ${extractErrorMessage(err)}`);
     }
   }
 }

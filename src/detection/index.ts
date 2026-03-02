@@ -1,4 +1,5 @@
 import type { DetectedTechnology, DetectionResult } from '../core/types.js';
+import { extractErrorMessage } from '../core/errors.js';
 import { FileScanner } from './scanner.js';
 import { getAllAnalyzers } from './analyzers/index.js';
 import { ConfidenceScorer } from './scoring.js';
@@ -51,8 +52,7 @@ export class DetectionEngine {
           allTechnologies.push(...result.technologies);
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        options?.onWarning?.(`[diverger] Warning: ${analyzer.name} analyzer failed: ${msg}`);
+        options?.onWarning?.(`[diverger] Warning: ${analyzer.name} analyzer failed: ${extractErrorMessage(err)}`);
       }
     }
 

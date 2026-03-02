@@ -2,7 +2,7 @@ import type { Command } from 'commander';
 import { DivergerEngine } from '../../core/engine.js';
 import type { CliOptions } from '../../core/types.js';
 import { withSpinner } from '../ui/spinner.js';
-import { DivergerError } from '../../core/errors.js';
+import { DivergerError, extractErrorMessage } from '../../core/errors.js';
 import * as log from '../ui/logger.js';
 
 export function registerCheckCommand(program: Command): void {
@@ -56,7 +56,7 @@ export function registerCheckCommand(program: Command): void {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {
-          log.error(err instanceof Error ? err.message : String(err));
+          log.error(extractErrorMessage(err));
         }
         process.exit(1);
       }

@@ -1,4 +1,5 @@
 import ora, { type Ora } from 'ora';
+import { extractErrorMessage } from '../../core/errors.js';
 import { getOutputMode } from './logger.js';
 
 /** Create a spinner that respects output mode */
@@ -31,7 +32,7 @@ export async function withSpinner<T>(
     spinner.succeed(successText ?? text);
     return result;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = extractErrorMessage(err);
     spinner.fail(`${text} - ${message}`);
     throw err;
   }
