@@ -226,4 +226,60 @@ pytest-cov = "^4.0"
     expect(flask!.evidence[0]!.type).toBe('manifest');
     expect(flask!.evidence[0]!.description).toContain('flask');
   });
+
+  // ── Subdirectory detection ──────────────────────────────────────────
+
+  describe('subdirectory detection', () => {
+    it('should detect Python from pyproject.toml in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('backend/pyproject.toml', PYPROJECT_PEP621);
+      const result = await analyzer.analyze(files, '/project');
+
+      const python = result.technologies.find((t) => t.id === 'python');
+      expect(python).toBeDefined();
+      expect(result.analyzedFiles).toContain('backend/pyproject.toml');
+    });
+
+    it('should detect FastAPI from subdirectory pyproject.toml', async () => {
+      const files = new Map<string, string>();
+      files.set('backend/pyproject.toml', PYPROJECT_PEP621);
+      const result = await analyzer.analyze(files, '/project');
+
+      const fastapi = result.technologies.find((t) => t.id === 'fastapi');
+      expect(fastapi).toBeDefined();
+      expect(fastapi!.profileIds).toContain('frameworks/fastapi');
+    });
+
+    it('should detect Flask from subdirectory requirements.txt', async () => {
+      const files = new Map<string, string>();
+      files.set('backend/requirements.txt', REQUIREMENTS_TXT);
+      const result = await analyzer.analyze(files, '/project');
+
+      const flask = result.technologies.find((t) => t.id === 'flask');
+      expect(flask).toBeDefined();
+      expect(result.analyzedFiles).toContain('backend/requirements.txt');
+    });
+
+    it('should process multiple pyproject.toml files', async () => {
+      const files = new Map<string, string>();
+      files.set('service-a/pyproject.toml', PYPROJECT_PEP621);  // has FastAPI
+      files.set('service-b/pyproject.toml', PYPROJECT_POETRY);  // has Django
+      const result = await analyzer.analyze(files, '/project');
+
+      const fastapi = result.technologies.find((t) => t.id === 'fastapi');
+      expect(fastapi).toBeDefined();
+      const django = result.technologies.find((t) => t.id === 'django');
+      expect(django).toBeDefined();
+    });
+
+    it('should detect setup.py in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('lib/setup.py', 'from setuptools import setup\nsetup()');
+      const result = await analyzer.analyze(files, '/project');
+
+      const python = result.technologies.find((t) => t.id === 'python');
+      expect(python).toBeDefined();
+      expect(result.analyzedFiles).toContain('lib/setup.py');
+    });
+  });
 });

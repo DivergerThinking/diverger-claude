@@ -1,6 +1,7 @@
 import type { AnalyzerResult, DetectedTechnology } from '../../core/types.js';
 import { BaseAnalyzer } from './base.js';
 import { parseXml } from '../../utils/parsers.js';
+import { findFileEntry, findFile, hasFile } from '../file-utils.js';
 
 export class JavaAnalyzer extends BaseAnalyzer {
   readonly id = 'java';
@@ -12,50 +13,50 @@ export class JavaAnalyzer extends BaseAnalyzer {
     const analyzedFiles: string[] = [];
 
     // Maven (pom.xml)
-    const pomContent = files.get('pom.xml');
-    if (pomContent) {
-      analyzedFiles.push('pom.xml');
+    const pomEntry = findFileEntry(files, 'pom.xml');
+    if (pomEntry) {
+      analyzedFiles.push(pomEntry.path);
       technologies.push({
         id: 'java',
         name: 'Java',
         category: 'language',
         confidence: 95,
-        evidence: [{ source: 'pom.xml', type: 'manifest', description: 'Maven pom.xml found', weight: 95 }],
+        evidence: [{ source: pomEntry.path, type: 'manifest', description: 'Maven pom.xml found', weight: 95 }],
         profileIds: ['languages/java'],
       });
 
       try {
-        const pom = parseXml<Record<string, unknown>>(pomContent, 'pom.xml');
-        this.detectMavenDeps(pom, technologies);
+        const pom = parseXml<Record<string, unknown>>(pomEntry.content, pomEntry.path);
+        this.detectMavenDeps(pom, technologies, pomEntry.path);
       } catch {
         // Continue without deep analysis
       }
     }
 
     // Gradle — determine filename based on which key exists in the map
-    const hasBuildGradle = files.has('build.gradle');
-    const gradleContent = hasBuildGradle ? files.get('build.gradle') : files.get('build.gradle.kts');
-    const gradleFile = hasBuildGradle ? 'build.gradle' : 'build.gradle.kts';
-    if (gradleContent) {
-      analyzedFiles.push(gradleFile);
+    const hasBuildGradle = hasFile(files, 'build.gradle');
+    const gradleContent = hasBuildGradle ? findFile(files, 'build.gradle') : findFile(files, 'build.gradle.kts');
+    const gradleEntry = hasBuildGradle ? findFileEntry(files, 'build.gradle') : findFileEntry(files, 'build.gradle.kts');
+    if (gradleContent && gradleEntry) {
+      analyzedFiles.push(gradleEntry.path);
       if (!technologies.some((t) => t.id === 'java')) {
         technologies.push({
           id: 'java',
           name: 'Java',
           category: 'language',
           confidence: 95,
-          evidence: [{ source: gradleFile, type: 'manifest', description: `Gradle ${gradleFile} found`, weight: 95 }],
+          evidence: [{ source: gradleEntry.path, type: 'manifest', description: `Gradle ${gradleEntry.path} found`, weight: 95 }],
           profileIds: ['languages/java'],
         });
       }
 
-      this.detectGradleDeps(gradleContent, gradleFile, technologies);
+      this.detectGradleDeps(gradleContent, gradleEntry.path, technologies);
     }
 
     return { technologies, analyzedFiles };
   }
 
-  private detectMavenDeps(pom: Record<string, unknown>, technologies: DetectedTechnology[]): void {
+  private detectMavenDeps(pom: Record<string, unknown>, technologies: DetectedTechnology[], source: string): void {
     // Check actual dependency structures instead of naive string matching
     // XML parser returns deeply nested unknown structure; as any needed for traversal
     const project = (pom as any)?.project; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -76,7 +77,7 @@ export class JavaAnalyzer extends BaseAnalyzer {
         name: 'Spring Boot',
         category: 'framework',
         confidence: 90,
-        evidence: [{ source: 'pom.xml', type: 'manifest', description: 'Found "spring-boot" in dependencies', weight: 90, trackedPackage: 'spring-boot' }],
+        evidence: [{ source, type: 'manifest', description: 'Found "spring-boot" in dependencies', weight: 90, trackedPackage: 'spring-boot' }],
         profileIds: ['frameworks/spring-boot'],
       });
     }
@@ -91,7 +92,7 @@ export class JavaAnalyzer extends BaseAnalyzer {
         name: 'JUnit',
         category: 'testing',
         confidence: 90,
-        evidence: [{ source: 'pom.xml', type: 'manifest', description: 'Found "junit" in dependencies', weight: 90, trackedPackage: 'junit' }],
+        evidence: [{ source, type: 'manifest', description: 'Found "junit" in dependencies', weight: 90, trackedPackage: 'junit' }],
         profileIds: ['testing/junit'],
       });
     }

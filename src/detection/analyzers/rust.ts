@@ -1,6 +1,7 @@
 import type { AnalyzerResult, DetectedTechnology } from '../../core/types.js';
 import { BaseAnalyzer } from './base.js';
 import { parseTOML } from '../../utils/parsers.js';
+import { findFileEntry } from '../file-utils.js';
 
 interface CargoToml {
   package?: { name?: string; version?: string; edition?: string | { workspace: boolean }; 'rust-version'?: string };
@@ -17,14 +18,14 @@ export class RustAnalyzer extends BaseAnalyzer {
     const technologies: DetectedTechnology[] = [];
     const analyzedFiles: string[] = [];
 
-    const cargoContent = files.get('Cargo.toml');
-    if (!cargoContent) return { technologies, analyzedFiles };
+    const cargoEntry = findFileEntry(files, 'Cargo.toml');
+    if (!cargoEntry) return { technologies, analyzedFiles };
 
-    analyzedFiles.push('Cargo.toml');
+    analyzedFiles.push(cargoEntry.path);
 
     let cargo: CargoToml = {};
     try {
-      cargo = parseTOML<CargoToml>(cargoContent, 'Cargo.toml');
+      cargo = parseTOML<CargoToml>(cargoEntry.content, cargoEntry.path);
     } catch {
       // Continue with basic detection
     }
@@ -45,7 +46,7 @@ export class RustAnalyzer extends BaseAnalyzer {
       version: rustVersion,
       majorVersion: Number.isFinite(rustMajor) ? rustMajor : undefined,
       confidence: 95,
-      evidence: [{ source: 'Cargo.toml', type: 'manifest', description: 'Cargo.toml found', weight: 95 }],
+      evidence: [{ source: cargoEntry.path, type: 'manifest', description: 'Cargo.toml found', weight: 95 }],
       profileIds: ['languages/rust'],
     });
 
@@ -67,7 +68,7 @@ export class RustAnalyzer extends BaseAnalyzer {
           name: p.name,
           category: 'framework',
           confidence: 85,
-          evidence: [{ source: 'Cargo.toml', type: 'manifest', description: `Found "${p.dep}" in dependencies`, weight: 85 }],
+          evidence: [{ source: cargoEntry.path, type: 'manifest', description: `Found "${p.dep}" in dependencies`, weight: 85 }],
           parentId: 'rust',
           profileIds: p.profileIds,
         });

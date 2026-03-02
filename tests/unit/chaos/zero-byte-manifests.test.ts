@@ -31,12 +31,14 @@ describe('Chaos: zero-byte / empty manifest files', () => {
   });
 
   describe('Rust analyzer with empty Cargo.toml', () => {
-    it('should not crash on empty Cargo.toml (empty string is falsy → early return)', async () => {
+    it('should not crash on empty Cargo.toml', async () => {
       const analyzer = new RustAnalyzer();
       const files = new Map<string, string>([['Cargo.toml', '']]);
       const result = await analyzer.analyze(files, '/project');
-      // "" is falsy → if (!cargoContent) return → 0 techs. No crash is the key assertion.
-      expect(result.technologies).toHaveLength(0);
+      // File exists → Rust detected (like DotNet/Docker). No crash is the key assertion.
+      expect(result.technologies.some((t) => t.id === 'rust')).toBe(true);
+      // No frameworks detected from empty content
+      expect(result.technologies.filter((t) => t.category === 'framework')).toHaveLength(0);
     });
   });
 
@@ -45,9 +47,10 @@ describe('Chaos: zero-byte / empty manifest files', () => {
       const analyzer = new PythonAnalyzer();
       const files = new Map<string, string>([['pyproject.toml', '']]);
       const result = await analyzer.analyze(files, '/project');
-      // "" is falsy → if (pyproject) is false → pyproject.toml not added to analyzedFiles
-      // analyzedFiles.length === 0 → early return. No crash is the key assertion.
-      expect(result.technologies).toHaveLength(0);
+      // File exists → Python detected. No crash is the key assertion.
+      expect(result.technologies.some((t) => t.id === 'python')).toBe(true);
+      // No frameworks detected from empty content
+      expect(result.technologies.filter((t) => t.category === 'framework')).toHaveLength(0);
     });
   });
 
@@ -56,8 +59,10 @@ describe('Chaos: zero-byte / empty manifest files', () => {
       const analyzer = new JavaAnalyzer();
       const files = new Map<string, string>([['pom.xml', '']]);
       const result = await analyzer.analyze(files, '/project');
-      // "" is falsy → if (pomContent) is false → no Java detected. No crash is key.
-      expect(result.technologies).toHaveLength(0);
+      // File exists → Java detected. No crash is the key assertion.
+      expect(result.technologies.some((t) => t.id === 'java')).toBe(true);
+      // No frameworks detected from empty content
+      expect(result.technologies.filter((t) => t.category === 'framework')).toHaveLength(0);
     });
   });
 

@@ -1,6 +1,8 @@
+import path from 'path';
 import type { AnalyzerResult, DetectedTechnology, DetectionEvidence } from '../../core/types.js';
 import { BaseAnalyzer } from './base.js';
 import { parseJson } from '../../utils/parsers.js';
+import { findAllFileEntries, hasFile } from '../file-utils.js';
 
 interface PackageJson {
   name?: string;
@@ -169,76 +171,100 @@ export class NodeAnalyzer extends BaseAnalyzer {
     const technologies: DetectedTechnology[] = [];
     const analyzedFiles: string[] = [];
 
-    const pkgContent = files.get('package.json');
-    if (!pkgContent) {
+    // Find all package.json files (root and subdirectories)
+    const pkgEntries = findAllFileEntries(files, 'package.json');
+    if (pkgEntries.length === 0) {
       return { technologies, analyzedFiles };
     }
 
-    analyzedFiles.push('package.json');
+    // Process each package.json
+    for (const entry of pkgEntries) {
+      analyzedFiles.push(entry.path);
 
-    let pkg: PackageJson;
-    try {
-      pkg = parseJson<PackageJson>(pkgContent, 'package.json');
-    } catch {
-      // Malformed package.json: return empty result instead of crashing the pipeline
-      return { technologies, analyzedFiles };
-    }
+      let pkg: PackageJson;
+      try {
+        pkg = parseJson<PackageJson>(entry.content, entry.path);
+      } catch {
+        // Malformed package.json: skip this one
+        continue;
+      }
 
-    const allDeps = {
-      ...pkg.dependencies,
-      ...pkg.devDependencies,
-      ...pkg.peerDependencies,
-    };
+      const allDeps = {
+        ...pkg.dependencies,
+        ...pkg.devDependencies,
+        ...pkg.peerDependencies,
+      };
 
-    // Detect Node.js itself
-    technologies.push({
-      id: 'nodejs',
-      name: 'Node.js',
-      category: 'language',
-      confidence: 95,
-      evidence: [{
-        source: 'package.json',
-        type: 'manifest',
-        description: 'package.json found',
-        weight: 95,
-      }],
-      profileIds: [],
-    });
-
-    // Check each dependency pattern
-    for (const pattern of DEP_PATTERNS) {
-      const found = pattern.packages.find((pkg) => pkg in allDeps);
-      if (found) {
-        const rawVersion = allDeps[found];
-        // Git URLs and other non-semver specifiers should not be stored as version
-        const isGitUrl = rawVersion && /^(git[+:]|github:|https?:\/\/|file:)/.test(rawVersion);
-        const version = isGitUrl ? undefined : rawVersion;
-        const majorVersion = isGitUrl ? undefined : this.extractMajorVersion(rawVersion);
-        const evidence: DetectionEvidence[] = [{
-          source: 'package.json',
-          type: 'manifest',
-          description: `Found "${found}" in dependencies${version ? ` (${version})` : ''}`,
-          weight: pattern.weight,
-          trackedPackage: found,
-        }];
-
+      // Detect Node.js itself (only once)
+      if (!technologies.some((t) => t.id === 'nodejs')) {
         technologies.push({
-          id: pattern.techId,
-          name: pattern.techName,
-          category: pattern.category,
-          version: version?.replace(/^[\^~>=<]*/g, ''),
-          majorVersion,
-          confidence: pattern.weight,
-          evidence,
-          parentId: pattern.parentId,
-          profileIds: pattern.profileIds,
+          id: 'nodejs',
+          name: 'Node.js',
+          category: 'language',
+          confidence: 95,
+          evidence: [{
+            source: entry.path,
+            type: 'manifest',
+            description: 'package.json found',
+            weight: 95,
+          }],
+          profileIds: [],
         });
+      } else {
+        // Add evidence from additional package.json files
+        const nodeTech = technologies.find((t) => t.id === 'nodejs');
+        if (nodeTech) {
+          nodeTech.evidence.push({
+            source: entry.path,
+            type: 'manifest',
+            description: `Additional package.json found: ${entry.path}`,
+            weight: 10,
+          });
+        }
+      }
+
+      // Check each dependency pattern
+      for (const pattern of DEP_PATTERNS) {
+        const found = pattern.packages.find((pkg) => pkg in allDeps);
+        if (found) {
+          const rawVersion = allDeps[found];
+          // Git URLs and other non-semver specifiers should not be stored as version
+          const isGitUrl = rawVersion && /^(git[+:]|github:|https?:\/\/|file:)/.test(rawVersion);
+          const version = isGitUrl ? undefined : rawVersion;
+          const majorVersion = isGitUrl ? undefined : this.extractMajorVersion(rawVersion);
+          const evidence: DetectionEvidence[] = [{
+            source: entry.path,
+            type: 'manifest',
+            description: `Found "${found}" in dependencies${version ? ` (${version})` : ''}`,
+            weight: pattern.weight,
+            trackedPackage: found,
+          }];
+
+          // If tech already detected (from another package.json), add evidence
+          const existingTech = technologies.find((t) => t.id === pattern.techId);
+          if (existingTech) {
+            existingTech.evidence.push(...evidence);
+          } else {
+            technologies.push({
+              id: pattern.techId,
+              name: pattern.techName,
+              category: pattern.category,
+              version: version?.replace(/^[\^~>=<]*/g, ''),
+              majorVersion,
+              confidence: pattern.weight,
+              evidence,
+              parentId: pattern.parentId,
+              profileIds: pattern.profileIds,
+            });
+          }
+        }
       }
     }
 
     // Check for TypeScript config files (boosts confidence)
     for (const [filePath] of files) {
-      if (filePath === 'tsconfig.json' || filePath.match(/^tsconfig\..+\.json$/)) {
+      const basename = path.basename(filePath);
+      if (basename === 'tsconfig.json' || basename.match(/^tsconfig\..+\.json$/)) {
         analyzedFiles.push(filePath);
         const tsTech = technologies.find((t) => t.id === 'typescript');
         if (tsTech) {
@@ -299,18 +325,24 @@ export class NodeAnalyzer extends BaseAnalyzer {
       'playwright.config.ts': { techId: 'playwright', weight: 5 },
     };
 
-    for (const [filePath, boost] of Object.entries(configBoosts)) {
-      if (files.has(filePath)) {
-        analyzedFiles.push(filePath);
-        const tech = technologies.find((t) => t.id === boost.techId);
-        if (tech) {
-          tech.evidence.push({
-            source: filePath,
-            type: 'config-file',
-            description: `Config file found: ${filePath}`,
-            weight: boost.weight,
-          });
-          tech.confidence = Math.min(100, tech.confidence + boost.weight);
+    for (const [configName, boost] of Object.entries(configBoosts)) {
+      if (hasFile(files, configName)) {
+        // Find the actual path (may be in a subdirectory)
+        for (const filePath of files.keys()) {
+          if (path.basename(filePath) === configName) {
+            analyzedFiles.push(filePath);
+            const tech = technologies.find((t) => t.id === boost.techId);
+            if (tech) {
+              tech.evidence.push({
+                source: filePath,
+                type: 'config-file',
+                description: `Config file found: ${filePath}`,
+                weight: boost.weight,
+              });
+              tech.confidence = Math.min(100, tech.confidence + boost.weight);
+            }
+            break; // Only boost once per config type
+          }
         }
       }
     }

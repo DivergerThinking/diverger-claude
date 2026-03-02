@@ -1,0 +1,5 @@
+services:
+  app:
+    build: ./app
+  db:
+    image: postgres:15

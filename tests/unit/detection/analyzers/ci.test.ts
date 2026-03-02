@@ -97,4 +97,15 @@ describe('CIAnalyzer', () => {
     expect(result.analyzedFiles).toContain('.github/workflows/ci.yml');
     expect(result.analyzedFiles).not.toContain('package.json');
   });
+
+  // ── rootOnlyPatterns ────────────────────────────────────────────────
+
+  describe('rootOnlyPatterns', () => {
+    it('should declare rootOnlyPatterns for root-only CI configs', () => {
+      expect(analyzer.rootOnlyPatterns).toBeDefined();
+      expect(analyzer.rootOnlyPatterns).toContain('Jenkinsfile');
+      expect(analyzer.rootOnlyPatterns).toContain('.gitlab-ci.yml');
+      expect(analyzer.rootOnlyPatterns).toContain('azure-pipelines.yml');
+    });
+  });
 });

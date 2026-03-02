@@ -13,6 +13,13 @@ export class CIAnalyzer extends BaseAnalyzer {
     'azure-pipelines.yml',
   ];
 
+  /** CI configs are always at the project root — never expand to subdirectories */
+  readonly rootOnlyPatterns = [
+    '.gitlab-ci.yml',
+    'Jenkinsfile',
+    'azure-pipelines.yml',
+  ];
+
   async analyze(files: Map<string, string>, _projectRoot: string): Promise<AnalyzerResult> {
     const technologies: DetectedTechnology[] = [];
     const analyzedFiles: string[] = [];

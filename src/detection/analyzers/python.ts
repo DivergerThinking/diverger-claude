@@ -1,6 +1,8 @@
+import path from 'path';
 import type { AnalyzerResult, DetectedTechnology, DetectionEvidence } from '../../core/types.js';
 import { BaseAnalyzer } from './base.js';
 import { parseTOML } from '../../utils/parsers.js';
+import { findAllFileEntries, hasFile } from '../file-utils.js';
 
 interface PyProjectToml {
   project?: {
@@ -97,12 +99,12 @@ export class PythonAnalyzer extends BaseAnalyzer {
     const analyzedFiles: string[] = [];
     const allDeps: string[] = [];
 
-    // Parse pyproject.toml
-    const pyproject = files.get('pyproject.toml');
-    if (pyproject) {
-      analyzedFiles.push('pyproject.toml');
+    // Parse all pyproject.toml files (root + subdirectories)
+    const pyprojectEntries = findAllFileEntries(files, 'pyproject.toml');
+    for (const entry of pyprojectEntries) {
+      analyzedFiles.push(entry.path);
       try {
-        const parsed = parseTOML<PyProjectToml>(pyproject, 'pyproject.toml');
+        const parsed = parseTOML<PyProjectToml>(entry.content, entry.path);
         // PEP 621 dependencies
         if (parsed.project?.dependencies) {
           allDeps.push(...parsed.project.dependencies);
@@ -132,11 +134,11 @@ export class PythonAnalyzer extends BaseAnalyzer {
       }
     }
 
-    // Parse requirements.txt
-    const requirements = files.get('requirements.txt');
-    if (requirements) {
-      analyzedFiles.push('requirements.txt');
-      const lines = requirements.split('\n')
+    // Parse all requirements.txt files (root + subdirectories)
+    const reqEntries = findAllFileEntries(files, 'requirements.txt');
+    for (const entry of reqEntries) {
+      analyzedFiles.push(entry.path);
+      const lines = entry.content.split('\n')
         .map((l) => l.trim())
         .filter((l) => l && !l.startsWith('#') && !l.startsWith('-'));
       allDeps.push(...lines);
@@ -144,8 +146,13 @@ export class PythonAnalyzer extends BaseAnalyzer {
 
     // Detect other Python indicators (even without parseable dependency data)
     for (const marker of ['setup.py', 'setup.cfg', 'Pipfile', '.python-version'] as const) {
-      if (files.has(marker)) {
-        analyzedFiles.push(marker);
+      if (hasFile(files, marker)) {
+        // Find the actual path for this marker
+        for (const filePath of files.keys()) {
+          if (path.basename(filePath) === marker) {
+            analyzedFiles.push(filePath);
+          }
+        }
       }
     }
 

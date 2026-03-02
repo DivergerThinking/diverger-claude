@@ -77,4 +77,81 @@ describe('Chaos: FileScanner edge cases', () => {
     expect(result.size).toBe(1);
     expect(result.has('package.json')).toBe(true);
   });
+
+  // ── Subdirectory scanning ───────────────────────────────────────────
+
+  describe('subdirectory scanning', () => {
+    it('should find package.json in subdirectory via scanPatterns', async () => {
+      await fs.mkdir(path.join(tempDir, 'app'), { recursive: true });
+      await fs.writeFile(path.join(tempDir, 'app', 'package.json'), '{"name":"sub"}');
+
+      const result = await scanner.scanPatterns(tempDir, ['package.json']);
+      expect(result.has('app/package.json')).toBe(true);
+    });
+
+    it('should find manifests in nested subdirectory (depth 2)', async () => {
+      await fs.mkdir(path.join(tempDir, 'apps', 'web'), { recursive: true });
+      await fs.writeFile(path.join(tempDir, 'apps', 'web', 'package.json'), '{"name":"web"}');
+
+      const result = await scanner.scanPatterns(tempDir, ['package.json']);
+      expect(result.has('apps/web/package.json')).toBe(true);
+    });
+
+    it('should find both root and subdirectory manifests', async () => {
+      await fs.writeFile(path.join(tempDir, 'package.json'), '{"name":"root"}');
+      await fs.mkdir(path.join(tempDir, 'frontend'), { recursive: true });
+      await fs.writeFile(path.join(tempDir, 'frontend', 'package.json'), '{"name":"frontend"}');
+
+      const result = await scanner.scanPatterns(tempDir, ['package.json']);
+      expect(result.has('package.json')).toBe(true);
+      expect(result.has('frontend/package.json')).toBe(true);
+    });
+
+    it('should respect rootOnly set and not expand those patterns', async () => {
+      await fs.mkdir(path.join(tempDir, 'subdir'), { recursive: true });
+      await fs.writeFile(path.join(tempDir, 'turbo.json'), '{}');
+      await fs.writeFile(path.join(tempDir, 'subdir', 'turbo.json'), '{}');
+
+      const rootOnly = new Set(['turbo.json']);
+      const result = await scanner.scanPatterns(tempDir, ['turbo.json'], rootOnly);
+      expect(result.has('turbo.json')).toBe(true);
+      expect(result.has('subdir/turbo.json')).toBe(false);
+    });
+
+    it('should not expand patterns that contain path separators', async () => {
+      // .github/workflows/*.yml already has a path separator, so no **/ prefix added
+      await fs.mkdir(path.join(tempDir, '.github', 'workflows'), { recursive: true });
+      await fs.writeFile(path.join(tempDir, '.github', 'workflows', 'ci.yml'), 'name: CI');
+
+      const result = await scanner.scanPatterns(tempDir, ['.github/workflows/*.yml']);
+      expect(result.has('.github/workflows/ci.yml')).toBe(true);
+    });
+
+    it('should ignore subdirectory files in node_modules via scanPatterns', async () => {
+      await fs.mkdir(path.join(tempDir, 'node_modules', 'pkg'), { recursive: true });
+      await fs.writeFile(path.join(tempDir, 'node_modules', 'pkg', 'package.json'), '{}');
+      await fs.mkdir(path.join(tempDir, 'app'), { recursive: true });
+      await fs.writeFile(path.join(tempDir, 'app', 'package.json'), '{"name":"app"}');
+
+      const result = await scanner.scanPatterns(tempDir, ['package.json']);
+      expect(result.has('app/package.json')).toBe(true);
+      expect(result.has('node_modules/pkg/package.json')).toBe(false);
+    });
+
+    it('should find Dockerfile.dev in subdirectory via wildcard expansion', async () => {
+      await fs.mkdir(path.join(tempDir, 'app'), { recursive: true });
+      await fs.writeFile(path.join(tempDir, 'app', 'Dockerfile.dev'), 'FROM node:20');
+
+      const result = await scanner.scanPatterns(tempDir, ['Dockerfile.*']);
+      expect(result.has('app/Dockerfile.dev')).toBe(true);
+    });
+
+    it('should find *.csproj in subdirectory via wildcard expansion', async () => {
+      await fs.mkdir(path.join(tempDir, 'src', 'MyApp'), { recursive: true });
+      await fs.writeFile(path.join(tempDir, 'src', 'MyApp', 'MyApp.csproj'), '<Project/>');
+
+      const result = await scanner.scanPatterns(tempDir, ['*.csproj']);
+      expect(result.has('src/MyApp/MyApp.csproj')).toBe(true);
+    });
+  });
 });

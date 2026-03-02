@@ -184,4 +184,38 @@ require github.com/gin-gonic/gin v1.9.1
     const gin = result.technologies.find((t) => t.id === 'gin');
     expect(gin).toBeDefined();
   });
+
+  // ── Subdirectory detection ──────────────────────────────────────────
+
+  describe('subdirectory detection', () => {
+    it('should detect Go from go.mod in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('backend/go.mod', GO_MOD_BASIC);
+      const result = await analyzer.analyze(files, '/project');
+
+      const go = result.technologies.find((t) => t.id === 'go');
+      expect(go).toBeDefined();
+      expect(go!.evidence[0]!.source).toBe('backend/go.mod');
+      expect(result.analyzedFiles).toContain('backend/go.mod');
+    });
+
+    it('should detect Gin from go.mod in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('api/go.mod', GO_MOD_BASIC);
+      const result = await analyzer.analyze(files, '/project');
+
+      const gin = result.technologies.find((t) => t.id === 'gin');
+      expect(gin).toBeDefined();
+      expect(gin!.evidence[0]!.source).toBe('api/go.mod');
+    });
+
+    it('should extract version from subdirectory go.mod', async () => {
+      const files = new Map<string, string>();
+      files.set('services/api/go.mod', GO_MOD_BASIC);
+      const result = await analyzer.analyze(files, '/project');
+
+      const go = result.technologies.find((t) => t.id === 'go');
+      expect(go!.version).toBe('1.22');
+    });
+  });
 });

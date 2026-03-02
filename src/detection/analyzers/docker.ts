@@ -1,3 +1,4 @@
+import path from 'path';
 import type { AnalyzerResult, DetectedTechnology } from '../../core/types.js';
 import { BaseAnalyzer } from './base.js';
 
@@ -26,7 +27,8 @@ export class DockerAnalyzer extends BaseAnalyzer {
     let emittedMicroservicesHint = false;
 
     for (const [filePath, content] of files) {
-      if (filePath.startsWith('Dockerfile')) {
+      const basename = path.basename(filePath);
+      if (basename.startsWith('Dockerfile')) {
         analyzedFiles.push(filePath);
         hasDockerfile = true;
 
@@ -36,7 +38,7 @@ export class DockerAnalyzer extends BaseAnalyzer {
           multiStageFile = filePath;
           multiStageCount = stageCount;
         }
-      } else if (filePath.includes('compose')) {
+      } else if (basename.includes('compose')) {
         analyzedFiles.push(filePath);
         hasCompose = true;
         // Count services under the "services:" key (handle 2 or 4-space indentation)

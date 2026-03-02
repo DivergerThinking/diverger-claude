@@ -199,4 +199,49 @@ describe('JavaAnalyzer', () => {
     expect(springBoot!.evidence[0]!.type).toBe('manifest');
     expect(springBoot!.evidence[0]!.description).toContain('spring-boot');
   });
+
+  // ── Subdirectory detection ──────────────────────────────────────────
+
+  describe('subdirectory detection', () => {
+    it('should detect Java from pom.xml in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('backend/pom.xml', POM_BASIC);
+      const result = await analyzer.analyze(files, '/project');
+
+      const java = result.technologies.find((t) => t.id === 'java');
+      expect(java).toBeDefined();
+      expect(java!.evidence[0]!.source).toBe('backend/pom.xml');
+      expect(result.analyzedFiles).toContain('backend/pom.xml');
+    });
+
+    it('should detect Spring Boot from subdirectory pom.xml', async () => {
+      const files = new Map<string, string>();
+      files.set('api/pom.xml', POM_SPRING_BOOT);
+      const result = await analyzer.analyze(files, '/project');
+
+      const springBoot = result.technologies.find((t) => t.id === 'spring-boot');
+      expect(springBoot).toBeDefined();
+      expect(springBoot!.evidence[0]!.source).toBe('api/pom.xml');
+    });
+
+    it('should detect Java from build.gradle in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('app/build.gradle', GRADLE_BASIC);
+      const result = await analyzer.analyze(files, '/project');
+
+      const java = result.technologies.find((t) => t.id === 'java');
+      expect(java).toBeDefined();
+      expect(result.analyzedFiles).toContain('app/build.gradle');
+    });
+
+    it('should detect Java from build.gradle.kts in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('services/api/build.gradle.kts', GRADLE_KTS);
+      const result = await analyzer.analyze(files, '/project');
+
+      const java = result.technologies.find((t) => t.id === 'java');
+      expect(java).toBeDefined();
+      expect(result.analyzedFiles).toContain('services/api/build.gradle.kts');
+    });
+  });
 });

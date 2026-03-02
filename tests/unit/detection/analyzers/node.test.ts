@@ -389,4 +389,82 @@ describe('NodeAnalyzer', () => {
     expect(ev.description).toContain('^18.2.0');
     expect(ev.weight).toBe(90);
   });
+
+  // ── Subdirectory detection ──────────────────────────────────────────
+
+  describe('subdirectory detection', () => {
+    it('should detect Node.js from package.json in a subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('app/package.json', makePkgJson({ dependencies: { express: '^4.18.0' } }));
+      const result = await analyzer.analyze(files, '/project');
+
+      const nodejs = result.technologies.find((t) => t.id === 'nodejs');
+      expect(nodejs).toBeDefined();
+      expect(nodejs!.evidence[0]!.source).toBe('app/package.json');
+      expect(result.analyzedFiles).toContain('app/package.json');
+    });
+
+    it('should detect frameworks from subdirectory package.json', async () => {
+      const files = new Map<string, string>();
+      files.set('frontend/package.json', makePkgJson({ dependencies: { react: '^18.2.0', next: '^14.0.0' } }));
+      const result = await analyzer.analyze(files, '/project');
+
+      const react = result.technologies.find((t) => t.id === 'react');
+      expect(react).toBeDefined();
+      expect(react!.evidence[0]!.source).toBe('frontend/package.json');
+
+      const nextjs = result.technologies.find((t) => t.id === 'nextjs');
+      expect(nextjs).toBeDefined();
+    });
+
+    it('should process multiple package.json files (frontend + backend)', async () => {
+      const files = new Map<string, string>();
+      files.set('frontend/package.json', makePkgJson({ dependencies: { react: '^18.2.0' } }));
+      files.set('backend/package.json', makePkgJson({ dependencies: { express: '^4.18.0' } }));
+      const result = await analyzer.analyze(files, '/project');
+
+      const react = result.technologies.find((t) => t.id === 'react');
+      expect(react).toBeDefined();
+      const express = result.technologies.find((t) => t.id === 'express');
+      expect(express).toBeDefined();
+
+      expect(result.analyzedFiles).toContain('frontend/package.json');
+      expect(result.analyzedFiles).toContain('backend/package.json');
+    });
+
+    it('should detect Node.js only once from multiple package.json files', async () => {
+      const files = new Map<string, string>();
+      files.set('frontend/package.json', makePkgJson({ dependencies: { react: '^18.2.0' } }));
+      files.set('backend/package.json', makePkgJson({ dependencies: { express: '^4.18.0' } }));
+      const result = await analyzer.analyze(files, '/project');
+
+      const nodejsEntries = result.technologies.filter((t) => t.id === 'nodejs');
+      expect(nodejsEntries).toHaveLength(1);
+      // Should have evidence from both files
+      expect(nodejsEntries[0]!.evidence.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should boost TypeScript from tsconfig.json in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('app/package.json', makePkgJson({ devDependencies: { typescript: '^5.3.0' } }));
+      files.set('app/tsconfig.json', '{}');
+      const result = await analyzer.analyze(files, '/project');
+
+      const ts = result.technologies.find((t) => t.id === 'typescript');
+      expect(ts).toBeDefined();
+      // Base 85 + 10 from tsconfig
+      expect(ts!.confidence).toBe(95);
+    });
+
+    it('should boost Next.js from next.config.mjs in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('app/package.json', makePkgJson({ dependencies: { next: '^14.0.0' } }));
+      files.set('app/next.config.mjs', 'export default {}');
+      const result = await analyzer.analyze(files, '/project');
+
+      const nextjs = result.technologies.find((t) => t.id === 'nextjs');
+      expect(nextjs).toBeDefined();
+      expect(nextjs!.confidence).toBe(99); // 90 + 9
+    });
+  });
 });

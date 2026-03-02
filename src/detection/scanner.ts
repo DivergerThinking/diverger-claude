@@ -2,6 +2,19 @@ import fg from 'fast-glob';
 import fs from 'fs/promises';
 import path from 'path';
 
+const IGNORE_PATTERNS = [
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/build/**',
+  '**/.git/**',
+  '**/vendor/**',
+  '**/.next/**',
+  '**/.nuxt/**',
+  '**/target/**',
+  '**/out/**',
+  '**/.turbo/**',
+];
+
 /** File scanner that finds manifest and config files in a project */
 export class FileScanner {
   /** Scan a directory for relevant project files */
@@ -75,18 +88,7 @@ export class FileScanner {
       absolute: false,
       dot: true,
       followSymbolicLinks: false,
-      ignore: [
-        '**/node_modules/**',
-        '**/dist/**',
-        '**/build/**',
-        '**/.git/**',
-        '**/vendor/**',
-        '**/.next/**',
-        '**/.nuxt/**',
-        '**/target/**',
-        '**/out/**',
-        '**/.turbo/**',
-      ],
+      ignore: IGNORE_PATTERNS,
       onlyFiles: true,
     });
 
@@ -104,27 +106,23 @@ export class FileScanner {
   }
 
   /** Scan for files matching specific patterns (used by individual analyzers) */
-  async scanPatterns(projectRoot: string, patterns: string[]): Promise<Map<string, string>> {
+  async scanPatterns(
+    projectRoot: string,
+    patterns: string[],
+    rootOnly?: Set<string>,
+  ): Promise<Map<string, string>> {
     const files = new Map<string, string>();
 
-    const found = await fg(patterns, {
+    const expandedPatterns = this.expandPatterns(patterns, rootOnly);
+
+    const found = await fg(expandedPatterns, {
       cwd: projectRoot,
       absolute: false,
       dot: true,
       followSymbolicLinks: false,
-      ignore: [
-        '**/node_modules/**',
-        '**/dist/**',
-        '**/build/**',
-        '**/.git/**',
-        '**/vendor/**',
-        '**/.next/**',
-        '**/.nuxt/**',
-        '**/target/**',
-        '**/out/**',
-        '**/.turbo/**',
-      ],
+      ignore: IGNORE_PATTERNS,
       onlyFiles: true,
+      deep: 4,
     });
 
     for (const relativePath of found) {
@@ -138,5 +136,29 @@ export class FileScanner {
     }
 
     return files;
+  }
+
+  /**
+   * Expand patterns to also search in subdirectories.
+   * Patterns that are just a filename (no `/`) get a `**\/` prefixed variant added.
+   * Patterns that already contain a path separator are left as-is.
+   * Patterns in the rootOnly set are never expanded.
+   */
+  private expandPatterns(patterns: string[], rootOnly?: Set<string>): string[] {
+    const expanded: string[] = [];
+
+    for (const pattern of patterns) {
+      expanded.push(pattern);
+
+      // Skip if explicitly root-only
+      if (rootOnly?.has(pattern)) continue;
+
+      // Only expand patterns without path separators (pure filenames or simple globs)
+      if (!pattern.includes('/')) {
+        expanded.push(`**/${pattern}`);
+      }
+    }
+
+    return expanded;
   }
 }

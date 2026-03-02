@@ -131,4 +131,49 @@ describe('DockerAnalyzer', () => {
     expect(result.analyzedFiles).toContain('Dockerfile');
     expect(result.analyzedFiles).not.toContain('package.json');
   });
+
+  // ── Subdirectory detection ──────────────────────────────────────────
+
+  describe('subdirectory detection', () => {
+    it('should detect Docker from Dockerfile in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('app/Dockerfile', 'FROM node:20-alpine\nCOPY . .\nCMD ["node", "index.js"]');
+      const result = await analyzer.analyze(files, '/project');
+
+      const docker = result.technologies.find((t) => t.id === 'docker');
+      expect(docker).toBeDefined();
+      expect(docker!.confidence).toBe(95);
+      expect(result.analyzedFiles).toContain('app/Dockerfile');
+    });
+
+    it('should detect Docker from Dockerfile.dev in subdirectory (basename matching)', async () => {
+      const files = new Map<string, string>();
+      files.set('app/Dockerfile.dev', 'FROM node:20\nCOPY . .');
+      const result = await analyzer.analyze(files, '/project');
+
+      const docker = result.technologies.find((t) => t.id === 'docker');
+      expect(docker).toBeDefined();
+      expect(result.analyzedFiles).toContain('app/Dockerfile.dev');
+    });
+
+    it('should detect multi-stage build in subdirectory Dockerfile', async () => {
+      const files = new Map<string, string>();
+      files.set('services/api/Dockerfile', 'FROM node:20 AS builder\nRUN npm ci\nFROM node:20-alpine\nCOPY --from=builder . .');
+      const result = await analyzer.analyze(files, '/project');
+
+      const docker = result.technologies.find((t) => t.id === 'docker');
+      expect(docker).toBeDefined();
+      expect(docker!.evidence.some((e) => e.description.includes('Multi-stage'))).toBe(true);
+    });
+
+    it('should detect compose file in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('deploy/docker-compose.yml', 'services:\n  app:\n    build: .');
+      const result = await analyzer.analyze(files, '/project');
+
+      const docker = result.technologies.find((t) => t.id === 'docker');
+      expect(docker).toBeDefined();
+      expect(result.analyzedFiles).toContain('deploy/docker-compose.yml');
+    });
+  });
 });

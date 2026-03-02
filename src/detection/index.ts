@@ -33,7 +33,15 @@ export class DetectionEngine {
       'template.yaml', 'template.yml', 'cdk.json', 'sam.json',
     ];
     const allPatterns = [...new Set([...analyzers.flatMap((a) => a.filePatterns), ...extraPatterns])];
-    const files = await this.scanner.scanPatterns(projectRoot, allPatterns);
+
+    // Collect root-only patterns: extra patterns (monorepo/architecture configs) are always root-only,
+    // plus any patterns explicitly marked by individual analyzers
+    const rootOnly = new Set<string>([
+      ...extraPatterns,
+      ...analyzers.flatMap((a) => a.rootOnlyPatterns ?? []),
+    ]);
+
+    const files = await this.scanner.scanPatterns(projectRoot, allPatterns, rootOnly);
 
     // Step 2: Pass the combined scan result to each analyzer (isolated: one failure doesn't stop others)
     for (const analyzer of analyzers) {

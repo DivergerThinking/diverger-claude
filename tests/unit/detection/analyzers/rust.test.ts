@@ -197,4 +197,38 @@ serde = { version = "1", features = ["derive"] }
     expect(actix!.evidence[0]!.type).toBe('manifest');
     expect(actix!.evidence[0]!.description).toContain('actix-web');
   });
+
+  // ── Subdirectory detection ──────────────────────────────────────────
+
+  describe('subdirectory detection', () => {
+    it('should detect Rust from Cargo.toml in subdirectory', async () => {
+      const files = new Map<string, string>();
+      files.set('backend/Cargo.toml', CARGO_BASIC);
+      const result = await analyzer.analyze(files, '/project');
+
+      const rust = result.technologies.find((t) => t.id === 'rust');
+      expect(rust).toBeDefined();
+      expect(rust!.evidence[0]!.source).toBe('backend/Cargo.toml');
+      expect(result.analyzedFiles).toContain('backend/Cargo.toml');
+    });
+
+    it('should detect Actix Web from subdirectory Cargo.toml', async () => {
+      const files = new Map<string, string>();
+      files.set('services/api/Cargo.toml', CARGO_BASIC);
+      const result = await analyzer.analyze(files, '/project');
+
+      const actix = result.technologies.find((t) => t.id === 'actix-web');
+      expect(actix).toBeDefined();
+      expect(actix!.evidence[0]!.source).toBe('services/api/Cargo.toml');
+    });
+
+    it('should extract version from subdirectory Cargo.toml', async () => {
+      const files = new Map<string, string>();
+      files.set('app/Cargo.toml', CARGO_MSRV);
+      const result = await analyzer.analyze(files, '/project');
+
+      const rust = result.technologies.find((t) => t.id === 'rust');
+      expect(rust!.version).toBe('1.75');
+    });
+  });
 });
