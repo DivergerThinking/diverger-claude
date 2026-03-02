@@ -139,10 +139,10 @@ export class ClaudeApiClient {
         );
       }
 
-      // Handle billing/credit errors (400 with "credit balance is too low")
+      // Handle billing/credit errors (400 with "credit balance is too low" or similar)
       if (err instanceof Anthropic.BadRequestError) {
         const errMsg = err.message || '';
-        if (errMsg.includes('credit balance')) {
+        if (errMsg.includes('credit balance') || /credit.*(balance|low)|insufficient.*funds/i.test(errMsg)) {
           throw new BillingError();
         }
       }

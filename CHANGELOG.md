@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.3.0] - 2026-03-02
+
+### Añadido
+- **Soporte mobile completo**: React Native, Expo, Flutter, SwiftUI, Jetpack Compose
+- **3 nuevos lenguajes**: Kotlin, Swift, Dart con reglas, skills y herramientas externas
+- **5 nuevos frameworks mobile**: React Native, Expo, Flutter, SwiftUI, Jetpack Compose
+- **3 nuevos testing profiles**: Detox (RN E2E), XCTest (Swift), Espresso (Android)
+- **1 nuevo infra profile**: Fastlane (CI/CD mobile)
+- **MobileAnalyzer**: detección automática de frameworks mobile desde manifiestos
+- **4 templates greenfield**: React Native, Expo, Flutter, SwiftUI (configs iniciales)
+- **Skills para todos los profiles**: react-component-generator, nextjs-route-generator, django-model-generator, y 16+ más
+- **Hooks de advertencia**: useEffect sin cleanup, "use client" innecesario, @Autowired field injection, raw SQL en Django, latest tag en Docker, rutas sin validación
+- **Resumen detallado post-init**: box con stack detectado, profiles aplicados, archivos generados, reglas activas, agentes configurados
+- **Versión centralizada**: `src/cli/version.ts` con `getVersion()` usada en CLI, banner y update
+
+### Corregido
+- **Bug 1**: `normalizeTechId` eliminaba mayúsculas en vez de convertirlas a minúsculas ("React" → "eact" ahora → "react")
+- **Bug 2**: `KnowledgeResult.fromCache` leído pero no definido en el tipo
+- **Bug 3**: Tres archivos usaban diferentes fallback versions — ahora centralizado
+- **Bug 4**: `update.ts` usaba `2>/dev/null` incompatible con Windows — reemplazado por `stdio: 'pipe'`
+- **Bug 5**: Detección de BillingError frágil — agregado regex fallback `/credit.*(balance|low)|insufficient.*funds/i`
+- **Bug 6**: `diverger init --force` en proyecto vacío retornaba exit 0 sin generar nada — ahora exit 1
+
+### Mejorado
+- 50 profiles totales (era 37): 1 base + 9 lang + 23 framework + 9 testing + 7 infra + 1 archetype
+- Todos los profiles tienen al menos 2 rules, 1+ skills, agents con enrichments
+- Agent enrichments para code-reviewer en todos los testing profiles
+- External tools para Python (ruff), Java (checkstyle), Go (golangci), Rust (clippy), Docker (.dockerignore)
+- Progress más granular durante generación con conteo de profiles
+- 698 tests (era 632), 53 test files, 0 errores TS
+
+## [0.2.2] - 2026-03-02
+
+### Corregido
+- Manejo de errores de billing: detiene búsqueda de knowledge tras primer error a nivel de cuenta
+- Stop-after-first-failure para errores de API key y billing en pipeline de knowledge
+
 ## [0.2.1] - 2026-03-02
 
 ### Añadido

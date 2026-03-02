@@ -27,6 +27,11 @@ export const META_FILE = '.diverger-meta.json';
 /** Confidence threshold for auto-apply in strict mode */
 export const CONFIDENCE_THRESHOLD = 90;
 
+/** Mobile framework technology IDs for use in analyzer/profiles */
+export const MOBILE_TECH_IDS = new Set([
+  'react-native', 'expo', 'flutter', 'swiftui', 'jetpack-compose',
+]);
+
 /** Manifest files that trigger detection */
 export const MANIFEST_FILES = [
   'package.json',

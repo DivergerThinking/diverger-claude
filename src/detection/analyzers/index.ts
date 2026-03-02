@@ -7,6 +7,7 @@ import { RustAnalyzer } from './rust.js';
 import { DotnetAnalyzer } from './dotnet.js';
 import { DockerAnalyzer } from './docker.js';
 import { CIAnalyzer } from './ci.js';
+import { MobileAnalyzer } from './mobile.js';
 
 /** Get all registered analyzers */
 export function getAllAnalyzers(): BaseAnalyzer[] {
@@ -19,6 +20,7 @@ export function getAllAnalyzers(): BaseAnalyzer[] {
     new DotnetAnalyzer(),
     new DockerAnalyzer(),
     new CIAnalyzer(),
+    new MobileAnalyzer(),
   ];
 }
 
@@ -31,3 +33,4 @@ export { RustAnalyzer } from './rust.js';
 export { DotnetAnalyzer } from './dotnet.js';
 export { DockerAnalyzer } from './docker.js';
 export { CIAnalyzer } from './ci.js';
+export { MobileAnalyzer } from './mobile.js';

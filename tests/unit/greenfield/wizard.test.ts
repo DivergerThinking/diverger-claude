@@ -14,8 +14,8 @@ describe('normalizeTechId', () => {
     expect(normalizeTechId('react')).toBe('react');
   });
 
-  it('should strip special characters after converting spaces', () => {
-    expect(normalizeTechId('vue.js')).toBe('vuejs');
+  it('should convert special characters to hyphens', () => {
+    expect(normalizeTechId('vue.js')).toBe('vue-js');
   });
 
   it('should handle multiple spaces', () => {
@@ -24,6 +24,22 @@ describe('normalizeTechId', () => {
 
   it('should preserve hyphens', () => {
     expect(normalizeTechId('actix-web')).toBe('actix-web');
+  });
+
+  it('should lowercase before processing (Bug 1 fix)', () => {
+    expect(normalizeTechId('React')).toBe('react');
+    expect(normalizeTechId('Next.js')).toBe('next-js');
+    expect(normalizeTechId('TypeScript')).toBe('typescript');
+  });
+
+  it('should not produce leading/trailing hyphens', () => {
+    expect(normalizeTechId('.dotnet')).toBe('dotnet');
+    expect(normalizeTechId('trailing.')).toBe('trailing');
+  });
+
+  it('should collapse multiple hyphens', () => {
+    expect(normalizeTechId('a..b')).toBe('a-b');
+    expect(normalizeTechId('a--b')).toBe('a-b');
   });
 });
 

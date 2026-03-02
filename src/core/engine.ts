@@ -175,7 +175,7 @@ export class DivergerEngine {
   /** Get the list of technologies eligible for knowledge fetch */
   getKnowledgeTechs(detection: DetectionResult): DetectedTechnology[] {
     return detection.technologies.filter(
-      (t) => t.category === 'framework' || t.category === 'language',
+      (t) => t.category === 'framework' || t.category === 'language' || t.category === 'mobile',
     );
   }
 

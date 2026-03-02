@@ -10,6 +10,9 @@ import { javaProfile } from './registry/languages/java.profile.js';
 import { goProfile } from './registry/languages/go.profile.js';
 import { rustProfile } from './registry/languages/rust.profile.js';
 import { csharpProfile } from './registry/languages/csharp.profile.js';
+import { kotlinProfile } from './registry/languages/kotlin.profile.js';
+import { swiftProfile } from './registry/languages/swift.profile.js';
+import { dartProfile } from './registry/languages/dart.profile.js';
 // Framework profiles
 import { reactProfile } from './registry/frameworks/react.profile.js';
 import { nextjsProfile } from './registry/frameworks/nextjs.profile.js';
@@ -29,6 +32,11 @@ import { fiberProfile } from './registry/frameworks/fiber.profile.js';
 import { actixWebProfile } from './registry/frameworks/actix-web.profile.js';
 import { axumProfile } from './registry/frameworks/axum.profile.js';
 import { rocketProfile } from './registry/frameworks/rocket.profile.js';
+import { reactNativeProfile } from './registry/frameworks/react-native.profile.js';
+import { expoProfile } from './registry/frameworks/expo.profile.js';
+import { flutterProfile } from './registry/frameworks/flutter.profile.js';
+import { swiftuiProfile } from './registry/frameworks/swiftui.profile.js';
+import { jetpackComposeProfile } from './registry/frameworks/jetpack-compose.profile.js';
 // Testing profiles
 import { jestProfile } from './registry/testing/jest.profile.js';
 import { vitestProfile } from './registry/testing/vitest.profile.js';
@@ -36,6 +44,9 @@ import { pytestProfile } from './registry/testing/pytest.profile.js';
 import { junitProfile } from './registry/testing/junit.profile.js';
 import { cypressProfile } from './registry/testing/cypress.profile.js';
 import { playwrightProfile } from './registry/testing/playwright.profile.js';
+import { detoxProfile } from './registry/testing/detox.profile.js';
+import { xctestProfile } from './registry/testing/xctest.profile.js';
+import { espressoProfile } from './registry/testing/espresso.profile.js';
 // Infra profiles
 import { dockerProfile } from './registry/infra/docker.profile.js';
 import { kubernetesProfile } from './registry/infra/kubernetes.profile.js';
@@ -43,6 +54,7 @@ import { githubActionsProfile } from './registry/infra/github-actions.profile.js
 import { awsProfile } from './registry/infra/aws.profile.js';
 import { terraformProfile } from './registry/infra/terraform.profile.js';
 import { vercelProfile } from './registry/infra/vercel.profile.js';
+import { fastlaneProfile } from './registry/infra/fastlane.profile.js';
 
 /** All registered profiles */
 const ALL_PROFILES: Profile[] = [
@@ -55,6 +67,9 @@ const ALL_PROFILES: Profile[] = [
   goProfile,
   rustProfile,
   csharpProfile,
+  kotlinProfile,
+  swiftProfile,
+  dartProfile,
   // Frameworks (layer 20)
   reactProfile,
   nextjsProfile,
@@ -74,6 +89,11 @@ const ALL_PROFILES: Profile[] = [
   actixWebProfile,
   axumProfile,
   rocketProfile,
+  reactNativeProfile,
+  expoProfile,
+  flutterProfile,
+  swiftuiProfile,
+  jetpackComposeProfile,
   // Testing (layer 30)
   jestProfile,
   vitestProfile,
@@ -81,6 +101,9 @@ const ALL_PROFILES: Profile[] = [
   junitProfile,
   cypressProfile,
   playwrightProfile,
+  detoxProfile,
+  xctestProfile,
+  espressoProfile,
   // Infra (layer 40)
   dockerProfile,
   kubernetesProfile,
@@ -88,6 +111,7 @@ const ALL_PROFILES: Profile[] = [
   awsProfile,
   terraformProfile,
   vercelProfile,
+  fastlaneProfile,
 ];
 
 /** Get all registered profiles */

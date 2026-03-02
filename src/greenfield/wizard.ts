@@ -38,17 +38,19 @@ export async function runGreenfieldWizard(
 /** Normalize a technology display name to a canonical lowercase hyphenated ID.
  *  Exported for testing. */
 export function normalizeTechId(name: string): string {
-  return name.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
 }
 
-function inferCategory(name: string): 'language' | 'framework' | 'testing' | 'infra' {
-  const languages = new Set(['typescript', 'javascript', 'python', 'java', 'go', 'rust', 'csharp', 'ruby', 'php']);
-  const testing = new Set(['jest', 'vitest', 'pytest', 'junit', 'cypress', 'playwright', 'mocha']);
-  const infra = new Set(['docker', 'kubernetes', 'aws', 'gcp', 'azure', 'terraform', 'vercel', 'netlify']);
+function inferCategory(name: string): 'language' | 'framework' | 'testing' | 'infra' | 'mobile' {
+  const languages = new Set(['typescript', 'javascript', 'python', 'java', 'go', 'rust', 'csharp', 'ruby', 'php', 'kotlin', 'swift', 'dart']);
+  const testing = new Set(['jest', 'vitest', 'pytest', 'junit', 'cypress', 'playwright', 'mocha', 'detox', 'xctest', 'espresso']);
+  const infra = new Set(['docker', 'kubernetes', 'aws', 'gcp', 'azure', 'terraform', 'vercel', 'netlify', 'fastlane']);
+  const mobile = new Set(['react-native', 'expo', 'flutter', 'swiftui', 'jetpack-compose']);
   const lowerName = name.toLowerCase().replace(/\s+/g, '-');
   if (languages.has(lowerName)) return 'language';
   if (testing.has(lowerName)) return 'testing';
   if (infra.has(lowerName)) return 'infra';
+  if (mobile.has(lowerName)) return 'mobile';
   return 'framework';
 }
 
@@ -67,6 +69,8 @@ const TECH_NAME_ALIASES: Record<string, string> = {
   'azure pipelines': 'azure-pipelines',
   'actix web': 'actix-web',
   'gorilla mux': 'gorilla-mux',
+  'react native': 'react-native',
+  'jetpack compose': 'jetpack-compose',
 };
 
 /** Map canonical tech IDs to their profile IDs */
@@ -107,6 +111,19 @@ const TECH_PROFILE_MAP: Record<string, string[]> = {
   aws: ['infra/aws'],
   terraform: ['infra/terraform'],
   vercel: ['infra/vercel'],
+  // Mobile
+  kotlin: ['languages/kotlin'],
+  swift: ['languages/swift'],
+  dart: ['languages/dart'],
+  'react-native': ['frameworks/react-native'],
+  expo: ['frameworks/expo'],
+  flutter: ['frameworks/flutter'],
+  swiftui: ['frameworks/swiftui'],
+  'jetpack-compose': ['frameworks/jetpack-compose'],
+  detox: ['testing/detox'],
+  xctest: ['testing/xctest'],
+  espresso: ['testing/espresso'],
+  fastlane: ['infra/fastlane'],
 };
 
 function inferFromArchitecture(

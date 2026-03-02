@@ -10,7 +10,8 @@ export type TechnologyCategory =
   | 'testing'
   | 'infra'
   | 'tooling'
-  | 'monorepo';
+  | 'monorepo'
+  | 'mobile';
 
 export interface DetectedTechnology {
   /** Unique identifier, e.g. "typescript", "nextjs", "jest" */
@@ -276,7 +277,11 @@ export interface McpServerConfig {
 
 // --- External Tool Types ---
 
-export type ExternalToolType = 'eslint' | 'prettier' | 'tsconfig' | 'editorconfig';
+export type ExternalToolType =
+  | 'eslint' | 'prettier' | 'tsconfig' | 'editorconfig'
+  | 'swiftlint' | 'ktlint' | 'dart-analysis' | 'detox-config'
+  | 'fastlane' | 'xcode-build-settings' | 'gradle-config'
+  | 'ruff' | 'checkstyle' | 'golangci' | 'clippy' | 'dockerignore';
 
 export interface ExternalToolConfig {
   /** Tool type */
@@ -415,6 +420,8 @@ export interface KnowledgeResult {
   fetchedAt: string;
   /** TTL in days */
   ttlDays: number;
+  /** Whether result came from local cache */
+  fromCache?: boolean;
 }
 
 // --- CLI Types ---

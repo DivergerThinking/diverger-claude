@@ -1,6 +1,6 @@
 import type { Command } from 'commander';
 import { DivergerEngine } from '../../core/engine.js';
-import type { CliOptions, DetectionResult, GovernanceLevel } from '../../core/types.js';
+import type { CliOptions, ComposedConfig, DetectionResult, GovernanceLevel, KnowledgeResult } from '../../core/types.js';
 import type { WriteResult } from '../../generation/file-writer.js';
 import { CONFIDENCE_THRESHOLD } from '../../core/constants.js';
 import { createMeta, saveMeta } from '../../governance/history.js';
@@ -12,6 +12,13 @@ import { confirmTechnologies, askKnowledgePermission } from '../ui/prompts.js';
 import { DivergerError } from '../../core/errors.js';
 import * as log from '../ui/logger.js';
 import { displayDiffs, displayDiffSummary } from '../ui/diff-display.js';
+import { buildSummary } from '../ui/summary.js';
+
+interface InitResult {
+  writeResults: WriteResult[];
+  composed: ComposedConfig;
+  knowledgeResults?: KnowledgeResult[];
+}
 
 /** Detect technologies and display the detected stack. */
 async function detectAndShowStack(
@@ -59,7 +66,8 @@ async function confirmStack(
       log.blank();
       log.warn('No se detectaron tecnologías en este directorio.');
       log.dim('Verifica que el directorio contenga archivos de proyecto (package.json, go.mod, etc.).');
-      return null;
+      // Exit with error code so CI pipelines catch empty projects
+      process.exit(1);
     }
   }
 
@@ -133,12 +141,12 @@ async function askKnowledgePermissions(
   return permissions;
 }
 
-/** Generate config, write files, and save meta. Returns write results. */
+/** Generate config, write files, and save meta. Returns write results + composed config. */
 async function generateAndWrite(
   engine: DivergerEngine,
   confirmed: DetectionResult,
   options: CliOptions,
-): Promise<WriteResult[]> {
+): Promise<InitResult> {
   // Ask knowledge permissions BEFORE starting the spinner
   const knowledgePermissions = await askKnowledgePermissions(engine, confirmed, options);
 
@@ -192,31 +200,42 @@ async function generateAndWrite(
   );
   await saveMeta(options.targetDir, initialMeta);
 
-  return writeResults;
+  return {
+    writeResults,
+    composed: result.config,
+    knowledgeResults: result.config.knowledge,
+  };
 }
 
-/** Display init summary with written files. */
+/** Display init summary with written files and detailed box. */
 function showInitSummary(
-  writeResults: WriteResult[],
+  initResult: InitResult,
   confirmed: DetectionResult,
   options: CliOptions,
 ): void {
+  const { writeResults, composed, knowledgeResults } = initResult;
+
   log.blank();
   log.header('Resultado');
   for (const wr of writeResults) {
     log.listItem(`${log.actionColor(wr.action)} ${wr.path}`);
   }
-
-  const created = writeResults.filter((r) => r.action === 'created').length;
-  const updated = writeResults.filter((r) => r.action === 'updated').length;
   log.blank();
-  log.success(`Configuración generada: ${created} archivos creados, ${updated} actualizados.`);
-  log.dim('Ejecuta `diverger check` para validar la configuración.');
+
+  // Show detailed summary box (rich mode only)
+  if (options.output === 'rich') {
+    const summary = buildSummary(confirmed, composed, writeResults, knowledgeResults);
+    console.log(summary);
+    log.blank();
+  }
 
   if (options.output === 'json') {
     log.jsonOutput({
       detection: confirmed,
       files: writeResults,
+      profiles: composed.appliedProfiles,
+      ruleCount: composed.rules.length,
+      agentCount: composed.agents.length,
     });
   }
 }
@@ -250,8 +269,8 @@ export function registerInitCommand(program: Command): void {
           return;
         }
 
-        const writeResults = await generateAndWrite(engine, confirmed, options);
-        showInitSummary(writeResults, confirmed, options);
+        const initResult = await generateAndWrite(engine, confirmed, options);
+        showInitSummary(initResult, confirmed, options);
       } catch (err) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);

@@ -7,8 +7,13 @@ import { generateSkills } from './generators/skills.js';
 import { generateMcp } from './generators/mcp.js';
 import { generateSecurityConfig } from './generators/security.js';
 import { generateExternalTools } from './generators/external-tools.js';
+import { generateReactNativeTemplate } from './templates/react-native-template.js';
+import { generateExpoTemplate } from './templates/expo-template.js';
+import { generateFlutterTemplate } from './templates/flutter-template.js';
+import { generateSwiftUITemplate } from './templates/swiftui-template.js';
 import { FileWriter } from './file-writer.js';
 import { DiffEngine } from './diff-engine.js';
+import { existsSync } from 'node:fs';
 
 /**
  * Generation engine facade.
@@ -30,7 +35,7 @@ export class GenerationEngine {
     detection: DetectionResult,
     onProgress?: (message: string) => void,
   ): Promise<GenerationResult> {
-    const files = await this.generateFiles(config, projectRoot, onProgress);
+    const files = await this.generateFiles(config, projectRoot, detection, onProgress);
 
     return {
       files,
@@ -43,6 +48,7 @@ export class GenerationEngine {
   async generateFiles(
     config: ComposedConfig,
     projectRoot: string,
+    detection?: DetectionResult,
     onProgress?: (message: string) => void,
   ): Promise<GeneratedFile[]> {
     const files: GeneratedFile[] = [];
@@ -112,7 +118,48 @@ export class GenerationEngine {
     const externalToolFiles = await generateExternalTools(mergedConfig, projectRoot);
     files.push(...externalToolFiles);
 
+    // 9. Mobile configs (only when detection includes mobile technologies)
+    if (detection) {
+      const mobileFiles = this.generateMobileConfigs(detection, projectRoot, onProgress);
+      files.push(...mobileFiles);
+    }
+
     return files;
+  }
+
+  /** Generate mobile-specific config files based on detected technologies */
+  private generateMobileConfigs(
+    detection: DetectionResult,
+    projectRoot: string,
+    onProgress?: (msg: string) => void,
+  ): GeneratedFile[] {
+    const mobileIds = new Set(
+      detection.technologies.filter((t) => t.category === 'mobile').map((t) => t.id),
+    );
+
+    if (mobileIds.size === 0) return [];
+
+    const files: GeneratedFile[] = [];
+
+    if (mobileIds.has('react-native') && !mobileIds.has('expo')) {
+      onProgress?.('Generando configuracion React Native...');
+      files.push(...generateReactNativeTemplate(projectRoot));
+    }
+    if (mobileIds.has('expo')) {
+      onProgress?.('Generando configuracion Expo...');
+      files.push(...generateExpoTemplate(projectRoot));
+    }
+    if (mobileIds.has('flutter')) {
+      onProgress?.('Generando configuracion Flutter...');
+      files.push(...generateFlutterTemplate(projectRoot));
+    }
+    if (mobileIds.has('swiftui')) {
+      onProgress?.('Generando configuracion SwiftUI...');
+      files.push(...generateSwiftUITemplate(projectRoot));
+    }
+
+    // Only include files that don't already exist on disk
+    return files.filter((f) => !existsSync(f.path));
   }
 
   /** Write files to disk */

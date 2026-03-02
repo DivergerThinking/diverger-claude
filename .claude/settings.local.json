@@ -28,7 +28,14 @@
       "Bash(wmic process:*)",
       "Bash(powershell:*)",
       "Bash(\"C:/Windows/System32/wbem/wmic.exe\" process:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(gh run:*)",
+      "WebFetch(domain:www.conventionalcommits.org)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:owasp.org)",
+      "WebFetch(domain:cheatsheetseries.owasp.org)",
+      "WebFetch(domain:about.gitlab.com)",
+      "Bash(wc:*)"
     ]
   }
 }

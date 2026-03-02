@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import os from 'node:os';
 import { getOutputMode, blank } from './logger.js';
 import { loadMeta } from '../../governance/history.js';
+import { getVersion } from '../version.js';
 
 /** Turquoise brand palette — 3 intensities for 3D depth */
 const tBright = chalk.hex('#5eebd8'); // front surface
@@ -100,7 +101,7 @@ export async function showBanner(): Promise<void> {
   if (getOutputMode() !== 'rich') return;
   if (!process.stdout.isTTY) return;
 
-  const version = process.env.DIVERGER_VERSION ?? '0.1.0';
+  const version = getVersion();
   let username: string;
   try {
     username = os.userInfo().username || 'usuario';

@@ -1,13 +1,14 @@
 import type { Command } from 'commander';
 import { execSync } from 'child_process';
 import * as log from '../ui/logger.js';
+import { getVersion } from '../version.js';
 
 const PKG_NAME = '@divergerthinking/diverger-claude';
 
 /** Check if the package is installed globally */
 function isGlobalInstall(): boolean {
   try {
-    const globalList = execSync(`npm ls -g ${PKG_NAME} --depth=0 --json 2>/dev/null`, {
+    const globalList = execSync(`npm ls -g ${PKG_NAME} --depth=0 --json`, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -21,7 +22,7 @@ function isGlobalInstall(): boolean {
 /** Get the latest published version from the registry */
 function getLatestVersion(): string | null {
   try {
-    return execSync(`npm view ${PKG_NAME} version 2>/dev/null`, {
+    return execSync(`npm view ${PKG_NAME} version`, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
@@ -36,7 +37,7 @@ export function registerUpdateCommand(program: Command): void {
     .description('Actualizar diverger-claude a la última versión')
     .option('--check', 'Solo verificar si hay actualización disponible', false)
     .action(async (opts) => {
-      const currentVersion = process.env.DIVERGER_VERSION ?? '0.2.0';
+      const currentVersion = getVersion();
 
       log.header('diverger-claude update');
       log.info(`Versión actual: v${currentVersion}`);
