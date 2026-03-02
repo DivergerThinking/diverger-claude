@@ -31,6 +31,15 @@
 - Progress más granular durante generación con conteo de profiles
 - 698 tests (era 632), 53 test files, 0 errores TS
 
+### Refactorizado (auditoría de código)
+- Eliminados 7 casts `as any` innecesarios en profiles de lenguajes
+- Añadido type guard `isNodeError()` en `utils/fs.ts` reemplazando 4 casts `as NodeJS.ErrnoException`
+- Añadido `extractErrorMessage()` centralizando 15 patrones duplicados de extracción de error en 13 archivos
+- Eliminadas 5 etiquetas `@planned` de clases de error, reemplazadas con JSDoc descriptivo
+- Añadido type guard `isWebSearchResultBlock()` y constante `WEB_SEARCH_TOOL_VERSION` en API client
+- Extraído `mergeSecurityOverlay()` en `GenerationEngine` reduciendo complejidad de `generateFiles()`
+- Extraído `satisfiesVersionConstraint()` en `ProfileComposer` mejorando legibilidad de lógica de versiones
+
 ## [0.2.2] - 2026-03-02
 
 ### Corregido
