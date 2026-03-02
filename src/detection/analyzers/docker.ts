@@ -43,8 +43,9 @@ export class DockerAnalyzer extends BaseAnalyzer {
         const servicesMatch = content.match(/^services:\s*\n((?:\s+\S[^\n]*\n?)*)/m);
         let serviceCount = 0;
         if (servicesMatch?.[1]) {
-          // Detect actual indentation level from first service line
-          const firstIndent = servicesMatch[1].match(/^(\s+)/)?.[1]?.length ?? 2;
+          // Detect actual indentation level from first service line (capped for safety)
+          const rawIndent = servicesMatch[1].match(/^(\s+)/)?.[1]?.length ?? 2;
+          const firstIndent = Math.min(rawIndent, 32);
           const indentPattern = new RegExp(`^\\s{${firstIndent}}[a-zA-Z_][\\w-]*:`, 'gm');
           serviceCount = (servicesMatch[1].match(indentPattern) ?? []).length;
         }

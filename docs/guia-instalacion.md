@@ -44,11 +44,8 @@ npx @divergerthinking/diverger-claude init
 Para la funcionalidad de búsqueda de best practices actualizadas, configura tu API key corporativa:
 
 ```bash
-# Via variable de entorno (recomendado)
+# Via variable de entorno
 export ANTHROPIC_API_KEY="tu-key-corporativa"
-
-# O via configuración
-npx diverger-claude config set api-key tu-key-corporativa
 ```
 
 ## Primer uso

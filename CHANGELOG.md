@@ -5,7 +5,7 @@
 ### Añadido
 - Motor de detección de stack tecnológico (Node.js, Python, Java, Go, Rust, .NET, Docker, CI)
 - Sistema de profiles de 5 capas (Base, Lenguaje, Framework, Testing, Infra)
-- 27 profiles: 6 lenguajes, 9 frameworks, 6 testing, 6 infra
+- 37 profiles: 1 base + 6 lenguajes, 18 frameworks, 6 testing, 6 infra
 - Algoritmo de composición por capas con enriquecimiento de agentes
 - Generadores: CLAUDE.md, settings.json, rules, agents, skills, hooks, MCP
 - Generador de seguridad (deny rules + sandbox)

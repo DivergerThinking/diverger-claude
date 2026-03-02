@@ -97,6 +97,16 @@ const TECH_PROFILE_MAP: Record<string, string[]> = {
   playwright: ['testing/playwright'],
   docker: ['infra/docker'],
   'github-actions': ['infra/github-actions'],
+  gin: ['frameworks/gin'],
+  echo: ['frameworks/echo'],
+  fiber: ['frameworks/fiber'],
+  'actix-web': ['frameworks/actix-web'],
+  axum: ['frameworks/axum'],
+  rocket: ['frameworks/rocket'],
+  kubernetes: ['infra/kubernetes'],
+  aws: ['infra/aws'],
+  terraform: ['infra/terraform'],
+  vercel: ['infra/vercel'],
 };
 
 function inferFromArchitecture(

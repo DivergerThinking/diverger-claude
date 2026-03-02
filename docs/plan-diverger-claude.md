@@ -389,8 +389,7 @@ Cuando múltiples capas contribuyen al mismo agente (ej: `code-reviewer`):
 
 ### API Key
 
-- Key corporativa configurada via `ANTHROPIC_API_KEY` env var o `diverger-claude config set api-key`
-- Almacenada de forma segura en config local del usuario
+- Key corporativa configurada via variable de entorno `ANTHROPIC_API_KEY`
 
 ---
 
