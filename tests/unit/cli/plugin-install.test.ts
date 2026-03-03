@@ -127,7 +127,7 @@ describe('plugin command helpers', () => {
   });
 
   describe('getLatestReleaseTag', () => {
-    it('returns a tag string or a meaningful error', async () => {
+    it('returns a tag string or a meaningful error', { timeout: 15_000 }, async () => {
       // This test makes a real network call — it should work in CI with internet
       // but we accept either success or a network error
       const result = await getLatestReleaseTag();
