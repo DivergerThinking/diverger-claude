@@ -48,215 +48,35 @@ Module-based architecture with dependency injection. Decorators for metadata, pi
         content: `# NestJS Architecture
 
 ## Module Organization
-- Create one module per domain/feature (e.g., UsersModule, AuthModule, OrdersModule)
+- One module per domain/feature (UsersModule, AuthModule, OrdersModule)
 - Import only what the module needs — avoid circular dependencies
-- Use \`forRoot()\` / \`forRootAsync()\` for global configuration modules (database, config, auth)
-- Use \`forFeature()\` for feature-specific registrations (e.g., TypeORM entities, Mongoose schemas)
-- Export only the providers that other modules need — keep internals encapsulated
-- Use a \`SharedModule\` to re-export commonly used modules (ConfigModule, HttpModule, etc.)
+- Use \`forRoot()\` / \`forRootAsync()\` for global config modules, \`forFeature()\` for feature registrations
+- Export only providers that other modules need — keep internals encapsulated
+- Use a SharedModule to re-export commonly used modules (ConfigModule, HttpModule)
 - Use dynamic modules for configurable, reusable library modules
-
-### Correct — well-organized module
-
-\`\`\`typescript
-// users/users.module.ts
-@Module({
-  imports: [
-    TypeOrmModule.forFeature([User]),
-    AuthModule,       // import only what this feature needs
-  ],
-  controllers: [UsersController],
-  providers: [UsersService, UsersRepository],
-  exports: [UsersService],  // export only what other modules need
-})
-export class UsersModule {}
-\`\`\`
-
-### Anti-Pattern — god module
-
-\`\`\`typescript
-// app.module.ts — everything registered in one module
-@Module({
-  controllers: [UsersController, OrdersController, ProductsController, AuthController],
-  providers: [UsersService, OrdersService, ProductsService, AuthService, MailService],
-  // Problem: no encapsulation, everything coupled, impossible to lazy-load
-})
-export class AppModule {}
-\`\`\`
-
----
 
 ## Controllers
 - Controllers handle HTTP concerns ONLY: parse request, call service, return response
-- Use decorators for routing: \`@Get()\`, \`@Post()\`, \`@Put()\`, \`@Delete()\`, \`@Patch()\`
-- Use \`@Param()\`, \`@Query()\`, \`@Body()\` decorators to extract request data with type safety
-- Return DTOs or serialized responses — never return raw entity/ORM objects
-- Apply route-level guards, pipes, and interceptors via decorators
-- Use \`@HttpCode()\` to set non-default status codes (e.g., 204 for DELETE, 201 for POST)
-- Use \`@Header()\` for custom response headers
-
-### Correct — thin controller delegating to service
-
-\`\`\`typescript
-@Controller('users')
-@ApiTags('users')
-@UseGuards(JwtAuthGuard)
-export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
-
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new user' })
-  @ApiResponse({ status: 201, type: UserResponseDto })
-  async create(@Body() dto: CreateUserDto): Promise<UserResponseDto> {
-    return this.usersService.create(dto);
-  }
-
-  @Get(':id')
-  @ApiOperation({ summary: 'Get user by ID' })
-  async findOne(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<UserResponseDto> {
-    return this.usersService.findOneOrFail(id);
-  }
-}
-\`\`\`
-
-### Anti-Pattern — business logic in controller
-
-\`\`\`typescript
-@Controller('users')
-export class UsersController {
-  constructor(
-    @InjectRepository(User) private readonly userRepo: Repository<User>,
-    private readonly mailer: MailService,
-  ) {}
-
-  @Post()
-  async create(@Body() body: any) {
-    // Problem: direct repo access, no validation, email logic, no DTO
-    const user = this.userRepo.create(body);
-    await this.userRepo.save(user);
-    await this.mailer.send(user.email, 'Welcome!');
-    return user; // leaks entity internals
-  }
-}
-\`\`\`
-
----
+- Use \`@Param()\`, \`@Query()\`, \`@Body()\` decorators for type-safe request data extraction
+- Return DTOs — never return raw entity/ORM objects
+- Use \`@HttpCode()\` for non-default status codes (204 DELETE, 201 POST)
+- Apply guards, pipes, interceptors via decorators at route or controller level
 
 ## Services
-- Services contain ALL business logic — they are the heart of the application
-- Inject dependencies via constructor: \`constructor(private readonly usersRepo: UsersRepository)\`
-- Services must be stateless — no mutable instance properties that hold request data
-- Throw NestJS HTTP exceptions (\`NotFoundException\`, \`ConflictException\`, \`ForbiddenException\`) for API error responses
-- Use custom domain exceptions for business-rule violations that are caught and translated by exception filters
-- Return DTOs or plain objects — never return ORM entities with lazy-loaded relations
-
-### Correct — focused service with proper error handling
-
-\`\`\`typescript
-@Injectable()
-export class UsersService {
-  constructor(
-    private readonly usersRepo: UsersRepository,
-    private readonly eventEmitter: EventEmitter2,
-  ) {}
-
-  async create(dto: CreateUserDto): Promise<UserResponseDto> {
-    const existing = await this.usersRepo.findByEmail(dto.email);
-    if (existing) {
-      throw new ConflictException('Email already registered');
-    }
-
-    const user = await this.usersRepo.create(dto);
-    this.eventEmitter.emit('user.created', new UserCreatedEvent(user.id));
-    return UserResponseDto.fromEntity(user);
-  }
-
-  async findOneOrFail(id: string): Promise<UserResponseDto> {
-    const user = await this.usersRepo.findById(id);
-    if (!user) {
-      throw new NotFoundException(\`User \${id} not found\`);
-    }
-    return UserResponseDto.fromEntity(user);
-  }
-}
-\`\`\`
-
----
+- Services contain ALL business logic — stateless, no mutable request-scoped instance properties
+- Inject dependencies via constructor: \`constructor(private readonly repo: UsersRepository)\`
+- Throw NestJS HTTP exceptions (NotFoundException, ConflictException, ForbiddenException)
+- Use custom domain exceptions for business rules, caught by exception filters
+- Return DTOs or plain objects — never ORM entities with lazy-loaded relations
 
 ## Dependency Injection — Custom Providers
-- Register providers in the module's \`providers\` array
-- Use \`useClass\` for swapping implementations (testing, strategy pattern)
-- Use \`useFactory\` for providers that need async setup or conditional logic
-- Use \`useValue\` for static configuration objects or mock replacements
-- Use \`useExisting\` to alias one provider to another
-- Use string or Symbol injection tokens for interface-based injection
+- \`useClass\` for swapping implementations (testing, strategy pattern)
+- \`useFactory\` for async setup or conditional logic (inject ConfigService)
+- \`useValue\` for static config or mock replacements
+- \`useExisting\` to alias providers
+- Use Symbol injection tokens for interface-based injection
 - Use \`@Optional()\` for optional dependencies
-- Scope providers as singleton (default), request-scoped, or transient as needed
-
-### Correct — factory provider with async configuration
-
-\`\`\`typescript
-// database.providers.ts
-export const DATABASE_CONNECTION = Symbol('DATABASE_CONNECTION');
-
-@Module({
-  providers: [
-    {
-      provide: DATABASE_CONNECTION,
-      useFactory: async (config: ConfigService) => {
-        const dataSource = new DataSource({
-          type: 'postgres',
-          host: config.get('DB_HOST'),
-          port: config.get('DB_PORT'),
-          database: config.get('DB_NAME'),
-        });
-        return dataSource.initialize();
-      },
-      inject: [ConfigService],
-    },
-  ],
-  exports: [DATABASE_CONNECTION],
-})
-export class DatabaseModule {}
-\`\`\`
-
-### Correct — interface-based injection with tokens
-
-\`\`\`typescript
-// payment.interface.ts
-export const PAYMENT_GATEWAY = Symbol('PAYMENT_GATEWAY');
-
-export interface PaymentGateway {
-  charge(amount: number, currency: string): Promise<PaymentResult>;
-  refund(transactionId: string): Promise<RefundResult>;
-}
-
-// payment.module.ts
-@Module({
-  providers: [
-    {
-      provide: PAYMENT_GATEWAY,
-      useClass:
-        process.env.NODE_ENV === 'production'
-          ? StripeGateway
-          : MockPaymentGateway,
-    },
-  ],
-  exports: [PAYMENT_GATEWAY],
-})
-export class PaymentModule {}
-
-// orders.service.ts — consuming the interface
-@Injectable()
-export class OrdersService {
-  constructor(
-    @Inject(PAYMENT_GATEWAY) private readonly payment: PaymentGateway,
-  ) {}
-}
-\`\`\`
+- Scope: singleton (default), request-scoped, or transient as needed
 `,
       },
       {
@@ -267,241 +87,32 @@ export class OrdersService {
         content: `# NestJS Guards, Pipes, Interceptors & Exception Filters
 
 ## Guards — Authentication & Authorization
-- Guards determine whether a request is allowed to proceed
-- Implement \`CanActivate\` interface with a single \`canActivate()\` method
-- Return \`true\` to allow, \`false\` or throw to deny
-- Apply with \`@UseGuards()\` per-controller, per-route, or globally via \`APP_GUARD\`
-- Use custom decorators (\`@Public()\`, \`@Roles()\`) with \`Reflector\` for metadata-driven auth
-
-### Correct — JWT guard with role-based access
-
-\`\`\`typescript
-// auth/guards/jwt-auth.guard.ts
-@Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
-  constructor(private readonly reflector: Reflector) {
-    super();
-  }
-
-  canActivate(context: ExecutionContext): boolean | Promise<boolean> {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (isPublic) return true;
-    return super.canActivate(context) as Promise<boolean>;
-  }
-}
-
-// auth/guards/roles.guard.ts
-@Injectable()
-export class RolesGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (!requiredRoles?.length) return true;
-
-    const { user } = context.switchToHttp().getRequest();
-    return requiredRoles.some((role) => user.roles?.includes(role));
-  }
-}
-
-// Usage in controller
-@Post()
-@Roles(Role.ADMIN)
-@UseGuards(JwtAuthGuard, RolesGuard)
-async createAdmin(@Body() dto: CreateUserDto) { /* ... */ }
-\`\`\`
-
-### Anti-Pattern — auth logic scattered in controllers
-
-\`\`\`typescript
-@Post()
-async create(@Req() req: Request, @Body() dto: CreateUserDto) {
-  // Problem: auth logic duplicated in every handler
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) throw new UnauthorizedException();
-  const payload = this.jwtService.verify(token);
-  if (!payload.roles.includes('admin')) throw new ForbiddenException();
-  // ...
-}
-\`\`\`
-
----
+- Implement \`CanActivate\` interface — return true to allow, false/throw to deny
+- Apply with \`@UseGuards()\` per-controller, per-route, or globally via APP_GUARD
+- Use custom decorators (\`@Public()\`, \`@Roles()\`) with Reflector for metadata-driven auth
+- Extend \`AuthGuard('jwt')\` for JWT auth, check \`IS_PUBLIC_KEY\` to skip public routes
+- Use RolesGuard with Reflector to read required roles from handler/class metadata
 
 ## Pipes — Validation & Transformation
-- Pipes validate and/or transform input data before it reaches the route handler
-- Use the built-in \`ValidationPipe\` with class-validator for DTO validation
-- Enable \`transform: true\` to auto-convert payloads to DTO class instances
-- Enable \`whitelist: true\` to strip properties not in the DTO (prevents mass assignment)
+- Use global \`ValidationPipe\` with class-validator for DTO validation
+- Enable \`whitelist: true\` to strip unknown properties (prevents mass assignment)
 - Enable \`forbidNonWhitelisted: true\` to reject requests with unknown properties
-- Use built-in pipes: \`ParseIntPipe\`, \`ParseUUIDPipe\`, \`ParseBoolPipe\`, \`ParseEnumPipe\`, \`DefaultValuePipe\`
+- Enable \`transform: true\` to auto-convert payloads to DTO class instances
+- Use built-in pipes: ParseIntPipe, ParseUUIDPipe, ParseBoolPipe, ParseEnumPipe, DefaultValuePipe
 - Apply globally via \`app.useGlobalPipes()\` for consistent validation
-
-### Correct — global validation pipe setup
-
-\`\`\`typescript
-// main.ts
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,              // strip unknown properties
-      forbidNonWhitelisted: true,   // reject unknown properties
-      transform: true,              // auto-transform to DTO instances
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
-
-  await app.listen(3000);
-}
-\`\`\`
-
-### Correct — DTO with class-validator decorators
-
-\`\`\`typescript
-// users/dto/create-user.dto.ts
-export class CreateUserDto {
-  @ApiProperty({ example: 'jane.doe@acme.com' })
-  @IsEmail()
-  @IsNotEmpty()
-  readonly email: string;
-
-  @ApiProperty({ example: 'Jane Doe' })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  readonly name: string;
-
-  @ApiPropertyOptional({ enum: Role, default: Role.USER })
-  @IsOptional()
-  @IsEnum(Role)
-  readonly role?: Role = Role.USER;
-}
-\`\`\`
-
-### Anti-Pattern — no validation
-
-\`\`\`typescript
-@Post()
-async create(@Body() body: any) {
-  // Problem: no type safety, no validation, accepts anything
-  return this.usersService.create(body);
-}
-\`\`\`
-
----
+- DTOs: use class-validator decorators (@IsEmail, @IsString, @MinLength, @IsEnum, @IsOptional)
 
 ## Interceptors — Cross-Cutting Concerns
-- Interceptors wrap the route handler execution (before + after)
-- Use for: logging, caching, response transformation, timeout, performance metrics
-- Implement \`NestInterceptor\` with \`intercept()\` method returning an \`Observable\`
-- Use \`tap()\` for side effects (logging), \`map()\` for response transformation, \`catchError()\` for error handling
-- Apply with \`@UseInterceptors()\` per-route, per-controller, or globally via \`APP_INTERCEPTOR\`
-
-### Correct — response transformation interceptor
-
-\`\`\`typescript
-// common/interceptors/transform-response.interceptor.ts
-@Injectable()
-export class TransformResponseInterceptor<T>
-  implements NestInterceptor<T, ApiResponse<T>>
-{
-  intercept(
-    context: ExecutionContext,
-    next: CallHandler<T>,
-  ): Observable<ApiResponse<T>> {
-    return next.handle().pipe(
-      map((data) => ({
-        success: true,
-        data,
-        timestamp: new Date().toISOString(),
-      })),
-    );
-  }
-}
-\`\`\`
-
-### Correct — logging interceptor with timing
-
-\`\`\`typescript
-@Injectable()
-export class LoggingInterceptor implements NestInterceptor {
-  private readonly logger = new Logger(LoggingInterceptor.name);
-
-  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const req = context.switchToHttp().getRequest();
-    const { method, url } = req;
-    const start = Date.now();
-
-    return next.handle().pipe(
-      tap(() => {
-        const elapsed = Date.now() - start;
-        this.logger.log(\`\${method} \${url} — \${elapsed}ms\`);
-      }),
-    );
-  }
-}
-\`\`\`
-
----
+- Interceptors wrap handler execution (before + after) — implement NestInterceptor
+- Use \`tap()\` for side effects (logging), \`map()\` for response transformation
+- Apply with \`@UseInterceptors()\` per-route, per-controller, or globally via APP_INTERCEPTOR
+- Common uses: response wrapping, request logging with timing, caching, timeout
 
 ## Exception Filters — Consistent Error Handling
-- Exception filters catch unhandled exceptions and format error responses
-- Implement \`ExceptionFilter\` with \`catch()\` method
-- Use \`@Catch()\` decorator to specify which exceptions to handle
+- Implement ExceptionFilter with \`catch()\` method, use \`@Catch()\` to specify exception types
 - Apply globally for consistent error response shape across the API
-- Use NestJS built-in exceptions for HTTP errors — extend \`HttpException\` for custom ones
-- Log error details server-side, return sanitized messages to the client
-
-### Correct — global exception filter
-
-\`\`\`typescript
-@Catch()
-export class AllExceptionsFilter implements ExceptionFilter {
-  private readonly logger = new Logger(AllExceptionsFilter.name);
-
-  catch(exception: unknown, host: ArgumentsHost): void {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
-
-    const { status, message } = this.extractError(exception);
-
-    this.logger.error(
-      \`\${request.method} \${request.url} — \${status}\`,
-      exception instanceof Error ? exception.stack : undefined,
-    );
-
-    response.status(status).json({
-      statusCode: status,
-      message,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-    });
-  }
-
-  private extractError(exception: unknown): { status: number; message: string } {
-    if (exception instanceof HttpException) {
-      return {
-        status: exception.getStatus(),
-        message: exception.message,
-      };
-    }
-    return {
-      status: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: 'Internal server error',
-    };
-  }
-}
-\`\`\`
+- Extract status and message from HttpException, return generic message for unknown errors
+- Log error details server-side — never expose stack traces or internals to clients
 `,
       },
       {
@@ -512,92 +123,29 @@ export class AllExceptionsFilter implements ExceptionFilter {
         content: `# NestJS Naming Conventions
 
 ## File Naming — kebab-case with type suffix
-- Controllers: \`users.controller.ts\`
-- Services: \`users.service.ts\`
-- Modules: \`users.module.ts\`
+- Controllers: \`users.controller.ts\` / Services: \`users.service.ts\` / Modules: \`users.module.ts\`
 - DTOs: \`create-user.dto.ts\`, \`update-user.dto.ts\`, \`user-response.dto.ts\`
-- Entities: \`user.entity.ts\`
-- Guards: \`jwt-auth.guard.ts\`, \`roles.guard.ts\`
-- Pipes: \`parse-order-status.pipe.ts\`
-- Interceptors: \`logging.interceptor.ts\`, \`cache.interceptor.ts\`
-- Filters: \`all-exceptions.filter.ts\`, \`http-exception.filter.ts\`
-- Decorators: \`current-user.decorator.ts\`, \`roles.decorator.ts\`
-- Interfaces: \`payment-gateway.interface.ts\`
-- Specs: \`users.service.spec.ts\`, \`users.controller.spec.ts\`
+- Entities: \`user.entity.ts\` / Guards: \`jwt-auth.guard.ts\` / Pipes: \`parse-order-status.pipe.ts\`
+- Interceptors: \`logging.interceptor.ts\` / Filters: \`all-exceptions.filter.ts\`
+- Decorators: \`current-user.decorator.ts\` / Specs: \`users.service.spec.ts\`
 
 ## Class Naming — PascalCase with type suffix
-- Controllers: \`UsersController\`
-- Services: \`UsersService\`
-- Modules: \`UsersModule\`
-- Guards: \`JwtAuthGuard\`, \`RolesGuard\`
-- Pipes: \`ParseOrderStatusPipe\`
-- Interceptors: \`LoggingInterceptor\`, \`CacheInterceptor\`
-- Filters: \`AllExceptionsFilter\`, \`HttpExceptionFilter\`
-- DTOs: \`CreateUserDto\`, \`UpdateUserDto\`, \`UserResponseDto\`
-- Entities: \`User\`, \`Order\` (no suffix needed)
+- Controllers: UsersController / Services: UsersService / Modules: UsersModule
+- Guards: JwtAuthGuard, RolesGuard / Pipes: ParseOrderStatusPipe
+- Interceptors: LoggingInterceptor / Filters: AllExceptionsFilter
+- DTOs: CreateUserDto, UpdateUserDto, UserResponseDto / Entities: User, Order (no suffix)
 
 ## Custom Decorators
-- Use camelCase function names: \`@CurrentUser()\`, \`@Roles()\`, \`@Public()\`
+- camelCase function names: \`@CurrentUser()\`, \`@Roles()\`, \`@Public()\`
 - Place reusable decorators in \`common/decorators/\`
 - Use \`createParamDecorator()\` for request parameter decorators
-- Combine multiple decorators into a single \`applyDecorators()\` call when a pattern repeats
-
-### Correct — custom parameter decorator
-
-\`\`\`typescript
-// common/decorators/current-user.decorator.ts
-export const CurrentUser = createParamDecorator(
-  (data: keyof User | undefined, ctx: ExecutionContext) => {
-    const request = ctx.switchToHttp().getRequest();
-    const user = request.user;
-    return data ? user?.[data] : user;
-  },
-);
-
-// Usage:
-@Get('me')
-async getProfile(@CurrentUser() user: User) {
-  return this.usersService.getProfile(user.id);
-}
-\`\`\`
+- Combine multiple decorators with \`applyDecorators()\` when a pattern repeats
 
 ## Directory Structure
-
-\`\`\`
-src/
-  app.module.ts
-  main.ts
-  common/
-    decorators/          # @CurrentUser(), @Roles(), @Public()
-    filters/             # AllExceptionsFilter
-    guards/              # JwtAuthGuard, RolesGuard
-    interceptors/        # LoggingInterceptor, TransformInterceptor
-    pipes/               # Custom pipes
-    interfaces/          # Shared interfaces and tokens
-    constants/           # Injection tokens, configuration keys
-  config/
-    config.module.ts     # ConfigModule.forRoot() setup
-    database.config.ts   # TypeORM/Prisma config
-    app.config.ts        # Validated app configuration
-  auth/
-    auth.module.ts
-    auth.controller.ts
-    auth.service.ts
-    strategies/          # JwtStrategy, LocalStrategy
-    guards/              # Auth-specific guards
-    dto/
-  users/
-    users.module.ts
-    users.controller.ts
-    users.service.ts
-    users.repository.ts
-    entities/
-      user.entity.ts
-    dto/
-      create-user.dto.ts
-      update-user.dto.ts
-      user-response.dto.ts
-\`\`\`
+- \`src/common/\` — decorators, filters, guards, interceptors, pipes, interfaces, constants
+- \`src/config/\` — config.module.ts, database.config.ts, app.config.ts
+- \`src/{feature}/\` — module, controller, service, repository, entities/, dto/
+- \`src/auth/\` — auth module, controller, service, strategies/, guards/, dto/
 `,
       },
       {
@@ -608,178 +156,35 @@ src/
         content: `# NestJS Testing Patterns
 
 ## Unit Testing with Test.createTestingModule()
-- Use \`@nestjs/testing\` to create an isolated DI container for each test
-- Override real providers with mocks using \`.overrideProvider()\`
-- Get the service/controller under test from the compiled module
-- Test services and controllers independently — mock all injected dependencies
+- Use \`@nestjs/testing\` to create an isolated DI container per test
+- Override real providers with mocks using \`.overrideProvider()\` or inline useValue
+- Get service/controller under test from the compiled module via \`module.get()\`
+- Mock all injected dependencies — test services and controllers independently
+- Use \`jest.Mocked<T>\` type for typed mock access
 
-### Correct — unit testing a service
+## Service Tests
+- Create TestingModule with the service + mock providers for each dependency
+- Test happy path: mock repo returns data, verify service returns correct DTO
+- Test error cases: mock repo returns null, verify NotFoundException thrown
+- Verify repository methods called with correct arguments
 
-\`\`\`typescript
-describe('UsersService', () => {
-  let service: UsersService;
-  let repository: jest.Mocked<UsersRepository>;
+## Controller Tests
+- Create TestingModule with the controller + mock service
+- Verify controller delegates to service with correct arguments
+- Verify return value matches service response
 
-  beforeEach(async () => {
-    const module = await Test.createTestingModule({
-      providers: [
-        UsersService,
-        {
-          provide: UsersRepository,
-          useValue: {
-            findById: jest.fn(),
-            findByEmail: jest.fn(),
-            create: jest.fn(),
-            update: jest.fn(),
-          },
-        },
-      ],
-    }).compile();
-
-    service = module.get(UsersService);
-    repository = module.get(UsersRepository);
-  });
-
-  describe('findOneOrFail', () => {
-    it('should return user when found', async () => {
-      const user = { id: 'uuid-1', email: 'test@example.com', name: 'Test' };
-      repository.findById.mockResolvedValue(user as User);
-
-      const result = await service.findOneOrFail('uuid-1');
-
-      expect(result).toBeDefined();
-      expect(repository.findById).toHaveBeenCalledWith('uuid-1');
-    });
-
-    it('should throw NotFoundException when user not found', async () => {
-      repository.findById.mockResolvedValue(null);
-
-      await expect(service.findOneOrFail('non-existent'))
-        .rejects
-        .toThrow(NotFoundException);
-    });
-  });
-});
-\`\`\`
-
-### Correct — unit testing a controller
-
-\`\`\`typescript
-describe('UsersController', () => {
-  let controller: UsersController;
-  let service: jest.Mocked<UsersService>;
-
-  beforeEach(async () => {
-    const module = await Test.createTestingModule({
-      controllers: [UsersController],
-      providers: [
-        {
-          provide: UsersService,
-          useValue: {
-            create: jest.fn(),
-            findOneOrFail: jest.fn(),
-            update: jest.fn(),
-            remove: jest.fn(),
-          },
-        },
-      ],
-    }).compile();
-
-    controller = module.get(UsersController);
-    service = module.get(UsersService);
-  });
-
-  it('should create a user and return 201', async () => {
-    const dto: CreateUserDto = { email: 'new@test.com', name: 'New User' };
-    const expected = { id: 'uuid-1', ...dto };
-    service.create.mockResolvedValue(expected as UserResponseDto);
-
-    const result = await controller.create(dto);
-
-    expect(result).toEqual(expected);
-    expect(service.create).toHaveBeenCalledWith(dto);
-  });
-});
-\`\`\`
-
----
-
-## Testing Guards
-
-\`\`\`typescript
-describe('RolesGuard', () => {
-  let guard: RolesGuard;
-  let reflector: Reflector;
-
-  beforeEach(async () => {
-    const module = await Test.createTestingModule({
-      providers: [RolesGuard, Reflector],
-    }).compile();
-
-    guard = module.get(RolesGuard);
-    reflector = module.get(Reflector);
-  });
-
-  it('should allow when no roles are required', () => {
-    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
-    const context = createMockExecutionContext({ user: { roles: [] } });
-
-    expect(guard.canActivate(context)).toBe(true);
-  });
-
-  it('should deny when user lacks required role', () => {
-    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([Role.ADMIN]);
-    const context = createMockExecutionContext({ user: { roles: [Role.USER] } });
-
-    expect(guard.canActivate(context)).toBe(false);
-  });
-});
-\`\`\`
-
----
+## Guard Tests
+- Create TestingModule with the guard + Reflector
+- Mock \`reflector.getAllAndOverride()\` to return role metadata
+- Test allow (no roles required), allow (matching role), deny (missing role)
+- Use a mock ExecutionContext with user data on the request
 
 ## E2E Testing with supertest
-
-\`\`\`typescript
-describe('UsersController (e2e)', () => {
-  let app: INestApplication;
-
-  beforeAll(async () => {
-    const moduleFixture = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(UsersRepository)
-      .useValue(mockUsersRepository)
-      .compile();
-
-    app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
-    await app.init();
-  });
-
-  afterAll(async () => {
-    await app.close();
-  });
-
-  it('POST /users — should create user with valid data', () => {
-    return request(app.getHttpServer())
-      .post('/users')
-      .send({ email: 'test@example.com', name: 'Test User' })
-      .expect(201)
-      .expect((res) => {
-        expect(res.body).toHaveProperty('id');
-        expect(res.body.email).toBe('test@example.com');
-      });
-  });
-
-  it('POST /users — should reject invalid email', () => {
-    return request(app.getHttpServer())
-      .post('/users')
-      .send({ email: 'not-an-email', name: 'Test' })
-      .expect(400);
-  });
-});
-\`\`\`
+- Import full AppModule, override providers for test doubles
+- Apply global pipes (ValidationPipe with whitelist) as in production
+- Use \`request(app.getHttpServer())\` for HTTP assertions
+- Test success paths, validation rejections, and auth failures
+- Always call \`app.close()\` in afterAll
 `,
       },
       {
@@ -790,129 +195,27 @@ describe('UsersController (e2e)', () => {
         content: `# NestJS Security
 
 ## Authentication with Passport.js
-- Use \`@nestjs/passport\` with strategy pattern for authentication
-- Implement strategies: \`LocalStrategy\` (username/password), \`JwtStrategy\` (token-based)
-- Use \`AuthGuard('jwt')\` for JWT-protected routes — register as global guard for secure-by-default
-- Use the \`@Public()\` decorator to opt specific routes out of global auth
+- Use \`@nestjs/passport\` with strategy pattern (LocalStrategy, JwtStrategy)
+- Use \`AuthGuard('jwt')\` for JWT-protected routes — register globally for secure-by-default
+- Use \`@Public()\` decorator to opt specific routes out of global auth
 - Store JWT secrets in ConfigService — never hardcode tokens or secrets
-
-### Correct — JWT strategy with ConfigService
-
-\`\`\`typescript
-// auth/strategies/jwt.strategy.ts
-@Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private readonly config: ConfigService) {
-    super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
-      secretOrKey: config.getOrThrow<string>('JWT_SECRET'),
-    });
-  }
-
-  async validate(payload: JwtPayload): Promise<RequestUser> {
-    return {
-      id: payload.sub,
-      email: payload.email,
-      roles: payload.roles,
-    };
-  }
-}
-\`\`\`
-
----
+- JwtStrategy: use \`ExtractJwt.fromAuthHeaderAsBearerToken()\`, set \`ignoreExpiration: false\`
+- Validate method returns the user payload attached to the request
 
 ## Authorization — Role-Based and Policy-Based
 - Use guards for authorization — never check roles inside service methods
-- Combine \`@Roles()\` decorator with \`RolesGuard\` for role-based access
-- For complex authorization (resource ownership, conditional access), use CASL or a policy-based guard
-- Always verify resource ownership — prevent IDOR (Insecure Direct Object Reference)
-
-### Correct — resource ownership check
-
-\`\`\`typescript
-@Injectable()
-export class OrderOwnershipGuard implements CanActivate {
-  constructor(private readonly ordersService: OrdersService) {}
-
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const userId = request.user.id;
-    const orderId = request.params.id;
-
-    const order = await this.ordersService.findById(orderId);
-    if (!order) throw new NotFoundException('Order not found');
-    if (order.userId !== userId && !request.user.roles.includes(Role.ADMIN)) {
-      throw new ForbiddenException('You can only access your own orders');
-    }
-    return true;
-  }
-}
-\`\`\`
-
----
+- Combine \`@Roles()\` decorator with RolesGuard for role-based access
+- For complex authorization (resource ownership), use CASL or a policy-based guard
+- Always verify resource ownership to prevent IDOR vulnerabilities
+- Ownership guards: load resource, compare userId, throw ForbiddenException if mismatch
 
 ## Security Hardening
-- Enable CORS with specific origins — never use wildcard (\`*\`) in production
+- Enable CORS with specific origins — never wildcard (\`*\`) in production
 - Use \`helmet\` for security headers (CSP, HSTS, X-Frame-Options)
-- Apply rate limiting with \`@nestjs/throttler\` — protect login and sensitive endpoints
-- Validate all input with \`ValidationPipe\` (whitelist + forbidNonWhitelisted) to prevent mass assignment
-- Use \`class-transformer\` \`@Exclude()\` on sensitive entity fields (password, tokens) to prevent accidental serialization
-- Set appropriate CSRF protection for cookie-based sessions
-- Use \`csurf\` or custom double-submit cookie pattern for non-SPA clients
-
-### Correct — security bootstrap
-
-\`\`\`typescript
-// main.ts
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  // Security headers
-  app.use(helmet());
-
-  // CORS with specific origins
-  app.enableCors({
-    origin: ['https://app.example.com'],
-    credentials: true,
-  });
-
-  // Global validation
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
-
-  // Rate limiting is configured via ThrottlerModule in AppModule
-
-  await app.listen(3000);
-}
-\`\`\`
-
-### Correct — excluding sensitive fields from serialization
-
-\`\`\`typescript
-// users/entities/user.entity.ts
-@Entity()
-export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @Column({ unique: true })
-  email: string;
-
-  @Column()
-  @Exclude()  // never serialized to response
-  password: string;
-
-  @Column({ nullable: true })
-  @Exclude()
-  refreshToken: string;
-}
-\`\`\`
+- Apply rate limiting with \`@nestjs/throttler\` on login and sensitive endpoints
+- Global ValidationPipe with whitelist + forbidNonWhitelisted prevents mass assignment
+- Use \`@Exclude()\` from class-transformer on sensitive entity fields (password, tokens)
+- CSRF protection for cookie-based sessions (csurf or double-submit cookie pattern)
 `,
       },
       {
@@ -925,20 +228,10 @@ export class User {
 ## TypeORM Integration
 - Use \`TypeOrmModule.forRootAsync()\` with ConfigService for database configuration
 - Use \`TypeOrmModule.forFeature([Entity])\` in feature modules to register entities
-- Create custom repository classes that extend \`Repository<Entity>\` for complex queries
-- Use \`@Transaction()\` decorator or \`QueryRunner\` for multi-step operations
-- Always handle \`QueryFailedError\` — wrap with domain exceptions
-- Use migrations for all schema changes — never rely on synchronize in production
-
-### Correct — async TypeORM configuration
-
-\`\`\`typescript
-// config/database.config.ts
-@Module({
-  imports: [
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
+- Create custom repository classes extending \`Repository<Entity>\` for complex queries
+- Use \`@Transaction()\` decorator or QueryRunner for multi-step operations
+- Handle \`QueryFailedError\` — wrap with domain exceptions
+- Use migrations for all schema changes — never \`synchronize: true\` in production
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
         host: config.getOrThrow('DB_HOST'),
@@ -1126,6 +419,8 @@ TypeOrmModule.forRoot({
       {
         name: 'nestjs-module-generator',
         description: 'Generate complete NestJS feature modules with controller, service, DTOs, entity, and tests',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# NestJS Module Generator
 
 Generate a complete NestJS feature module with:
@@ -1239,7 +534,7 @@ Generate a complete authentication setup with:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `node -e "
+          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.controller\\.ts$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -1249,7 +544,7 @@ if (/Repository|getRepository|InjectRepository|PrismaService|\\bthis\\.prisma\\b
 if (/@Body\\(\\)\\s+\\w+:\\s*any\\b/.test(c)) {
   console.log('Warning: @Body() parameter typed as any. Use a DTO class with class-validator decorators for input validation.');
 }
-" -- "$CLAUDE_FILE_PATH"`,
+" -- "$FILE_PATH"`,
           timeout: 5,
         }],
       },
@@ -1258,14 +553,14 @@ if (/@Body\\(\\)\\s+\\w+:\\s*any\\b/.test(c)) {
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `node -e "
+          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.service\\.ts$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
 if (/@Req\\(\\)|@Res\\(\\)|Request|Response/.test(c) && /@Injectable/.test(c)) {
   console.log('Warning: Service appears to use HTTP Request/Response objects. Services should be framework-agnostic — handle HTTP concerns in controllers.');
 }
-" -- "$CLAUDE_FILE_PATH"`,
+" -- "$FILE_PATH"`,
           timeout: 5,
         }],
       },
@@ -1274,7 +569,7 @@ if (/@Req\\(\\)|@Res\\(\\)|Request|Response/.test(c) && /@Injectable/.test(c)) {
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `node -e "
+          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.dto\\.ts$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -1284,7 +579,7 @@ if (/export\\s+class\\s+\\w+Dto/.test(c) && !/@Is|@Min|@Max|@IsOptional|@Validat
 if (/export\\s+class\\s+\\w+Dto/.test(c) && !/@ApiProperty|@ApiPropertyOptional/.test(c)) {
   console.log('Warning: DTO class detected without @ApiProperty decorators. Add Swagger annotations for API documentation.');
 }
-" -- "$CLAUDE_FILE_PATH"`,
+" -- "$FILE_PATH"`,
           timeout: 5,
         }],
       },

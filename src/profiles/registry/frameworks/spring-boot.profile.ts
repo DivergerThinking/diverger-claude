@@ -42,246 +42,42 @@ Convention over configuration. Layered architecture with dependency injection.
         description: 'Spring Boot layered architecture, DI, JPA, and configuration patterns',
         content: `# Spring Boot Architecture
 
-## Project Structure (Official Recommendation)
-
-Place the main application class in the root package above feature packages.
-Spring Boot uses this package as the base for \`@ComponentScan\`, \`@EntityScan\`, and \`@ConfigurationPropertiesScan\`.
-
-\`\`\`
-com.example.myapp/
-    MyApplication.java                  ← @SpringBootApplication in root package
-    config/
-        SecurityConfig.java             ← @Configuration for cross-cutting concerns
-        CacheConfig.java
-    customer/
-        Customer.java                   ← @Entity
-        CustomerDto.java                ← Request/response DTO
-        CustomerController.java         ← @RestController
-        CustomerService.java            ← @Service
-        CustomerRepository.java         ← Spring Data JPA interface
-    order/
-        Order.java
-        OrderLineItem.java
-        OrderDto.java
-        OrderController.java
-        OrderService.java
-        OrderRepository.java
-\`\`\`
-
-### Correct
-\`\`\`java
-// Root package — ensures all sub-packages are scanned
-package com.example.myapp;
-
-@SpringBootApplication
-public class MyApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(MyApplication.class, args);
-    }
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`java
-// Bad: main class in a sub-package — sibling packages are NOT scanned
-package com.example.myapp.config;
-
-@SpringBootApplication
-public class MyApplication {
-    // Beans in com.example.myapp.order will not be detected!
-    // Fix: move to com.example.myapp root package
-}
-\`\`\`
+## Project Structure
+- Place \`@SpringBootApplication\` class in the root package above all feature packages
+- Organize by feature, not by layer: each domain gets its own package (entity, DTO, controller, service, repository)
+- Cross-cutting \`@Configuration\` classes go in a \`config/\` package
 
 ## Dependency Injection
+- Use constructor injection exclusively — never \`@Autowired\` field injection
+- Single constructor: Spring auto-wires without \`@Autowired\` annotation
+- Declare dependencies as \`private final\` fields for immutability
+- Program to interfaces for testability
 
-### Correct — Constructor Injection
-\`\`\`java
-@Service
-public class OrderService {
-    private final OrderRepository orderRepository;
-    private final PaymentGateway paymentGateway;
-    private final NotificationService notificationService;
+## REST Controllers
+- \`@RestController\` with versioned \`@RequestMapping("/api/v1/...")\`
+- \`@Validated\` on the controller class for constraint annotations on path/query params
+- \`@Valid @RequestBody\` on typed DTO parameters — never raw \`Map<String, Object>\`
+- Explicit \`@ResponseStatus\` for non-200 success codes (201 Created, 204 No Content)
+- Pageable with \`@ParameterObject\` for list endpoints
+- Controllers delegate to service layer — no business logic or repository access
 
-    // Single constructor — Spring auto-wires without @Autowired
-    public OrderService(OrderRepository orderRepository,
-                        PaymentGateway paymentGateway,
-                        NotificationService notificationService) {
-        this.orderRepository = orderRepository;
-        this.paymentGateway = paymentGateway;
-        this.notificationService = notificationService;
-    }
-}
-\`\`\`
+## JPA / Hibernate
+- Entities: \`@Table\` with explicit name, \`@Column\` with constraints, \`@Enumerated(EnumType.STRING)\`
+- Relationships default to \`FetchType.LAZY\` — use \`JOIN FETCH\` or \`@EntityGraph\` when eager loading is needed
+- Never use \`FetchType.EAGER\` on collections — causes N+1 query problems
+- \`CascadeType.ALL\` + \`orphanRemoval = true\` on \`@OneToMany\` owned collections
+- Audit fields via \`@CreationTimestamp\`, \`@LastModifiedTimestamp\`
 
-### Anti-Pattern — Field Injection
-\`\`\`java
-@Service
-public class OrderService {
-    @Autowired private OrderRepository orderRepository;
-    @Autowired private PaymentGateway paymentGateway;
-    // Bad: hides dependencies, prevents final fields, makes unit testing
-    // harder (requires reflection or Spring context)
-    // Fix: use constructor injection as shown above
-}
-\`\`\`
+## Transaction Management
+- \`@Transactional(readOnly = true)\` at class level on services, override with \`@Transactional\` on mutations
+- Apply transactions at service layer — never on controllers or repositories
+- Use \`ApplicationEventPublisher\` for domain events within transactions
 
-## REST Controller Patterns
-
-### Correct — Clean Controller
-\`\`\`java
-@RestController
-@RequestMapping("/api/v1/orders")
-@Validated
-public class OrderController {
-    private final OrderService orderService;
-
-    public OrderController(OrderService orderService) {
-        this.orderService = orderService;
-    }
-
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public OrderResponse createOrder(@Valid @RequestBody CreateOrderRequest request) {
-        return orderService.createOrder(request);
-    }
-
-    @GetMapping("/{id}")
-    public OrderResponse getOrder(@PathVariable UUID id) {
-        return orderService.getOrder(id);
-    }
-
-    @GetMapping
-    public Page<OrderResponse> listOrders(@ParameterObject Pageable pageable) {
-        return orderService.listOrders(pageable);
-    }
-}
-\`\`\`
-
-### Anti-Pattern — Fat Controller
-\`\`\`java
-@RestController
-public class OrderController {
-    @Autowired private OrderRepository orderRepository;
-    @Autowired private EntityManager em;
-
-    @PostMapping("/orders")
-    public Order createOrder(@RequestBody Map<String, Object> body) {
-        // Bad: business logic in controller, raw Map instead of typed DTO,
-        // direct repository access bypassing service layer, no validation
-        Order order = new Order();
-        order.setAmount((Double) body.get("amount"));
-        return orderRepository.save(order);
-    }
-    // Fix: use typed DTO with @Valid, delegate to service layer
-}
-\`\`\`
-
-## JPA / Hibernate Best Practices
-
-### Correct — Entity with Proper Mapping
-\`\`\`java
-@Entity
-@Table(name = "orders")
-public class Order {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(nullable = false, length = 50)
-    @Enumerated(EnumType.STRING)
-    private OrderStatus status;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_id")
-    private Customer customer;
-
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrderLineItem> lineItems = new ArrayList<>();
-
-    @CreationTimestamp
-    private Instant createdAt;
-
-    // Business methods on the entity itself for domain logic
-    public void addLineItem(OrderLineItem item) {
-        lineItems.add(item);
-        item.setOrder(this);
-    }
-}
-\`\`\`
-
-### Anti-Pattern — N+1 Query Risk
-\`\`\`java
-@Entity
-public class Order {
-    @OneToMany(fetch = FetchType.EAGER)  // Bad: EAGER loads all line items on every query
-    private List<OrderLineItem> lineItems;
-    // Fix: use FetchType.LAZY (default for collections) + JOIN FETCH in queries
-}
-
-// Repository with N+1 problem:
-List<Order> orders = orderRepository.findAll();
-orders.forEach(o -> o.getLineItems().size()); // N+1 queries!
-
-// Fix: use @EntityGraph or JPQL JOIN FETCH
-@Query("SELECT o FROM Order o JOIN FETCH o.lineItems WHERE o.status = :status")
-List<Order> findByStatusWithLineItems(@Param("status") OrderStatus status);
-\`\`\`
-
-### Transaction Management
-\`\`\`java
-@Service
-@Transactional(readOnly = true) // Default: read-only for all methods
-public class OrderService {
-
-    @Transactional // Overrides to read-write for mutations
-    public OrderResponse createOrder(CreateOrderRequest request) {
-        Order order = mapToEntity(request);
-        Order saved = orderRepository.save(order);
-        eventPublisher.publishEvent(new OrderCreatedEvent(saved.getId()));
-        return mapToResponse(saved);
-    }
-
-    public OrderResponse getOrder(UUID id) {
-        // Inherits read-only transaction — enables JPA query optimizations
-        return orderRepository.findById(id)
-            .map(this::mapToResponse)
-            .orElseThrow(() -> new OrderNotFoundException(id));
-    }
-}
-\`\`\`
-
-## Type-Safe Configuration
-
-### Correct — @ConfigurationProperties
-\`\`\`java
-@Validated
-@ConfigurationProperties(prefix = "app.payment")
-public record PaymentProperties(
-    @NotBlank String apiUrl,
-    @NotBlank String apiKey,
-    @Min(1) @Max(30) int timeoutSeconds,
-    @NotNull RetryProperties retry
-) {
-    public record RetryProperties(
-        @Min(0) @Max(10) int maxAttempts,
-        @Min(100) long backoffMs
-    ) {}
-}
-\`\`\`
-
-### Anti-Pattern — Scattered @Value
-\`\`\`java
-@Service
-public class PaymentService {
-    @Value("\${app.payment.api-url}") private String apiUrl;
-    @Value("\${app.payment.api-key}") private String apiKey;
-    @Value("\${app.payment.timeout:10}") private int timeout;
-    // Bad: no validation at startup, no type safety for nested config,
-    // scattered across classes, hard to test
-    // Fix: use @ConfigurationProperties record with @Validated
-}
-\`\`\`
+## Configuration
+- Use \`@ConfigurationProperties\` records with \`@Validated\` for type-safe, validated config
+- Never use scattered \`@Value\` annotations — they lack validation, type safety, and testability
+- Load secrets from environment variables — never hardcode
+- Use Spring profiles (\`application-{profile}.yml\`) for environment-specific settings
 `,
       },
       {
@@ -291,106 +87,20 @@ public class PaymentService {
         description: 'Spring Boot centralized error handling with RFC 9457 ProblemDetail',
         content: `# Spring Boot Error Handling
 
-## Centralized Exception Handling with @RestControllerAdvice
-
-Use a single \`@RestControllerAdvice\` class to map exceptions to consistent HTTP responses.
-Spring Boot 3+ supports RFC 9457 (ProblemDetail) natively.
-
-### Correct — Structured Error Handling
-\`\`\`java
-@RestControllerAdvice
-public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
-
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ProblemDetail handleNotFound(ResourceNotFoundException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-            HttpStatus.NOT_FOUND, ex.getMessage());
-        problem.setTitle("Resource Not Found");
-        problem.setProperty("resourceId", ex.getResourceId());
-        return problem;
-    }
-
-    @ExceptionHandler(BusinessRuleViolationException.class)
-    public ProblemDetail handleBusinessRule(BusinessRuleViolationException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-            HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
-        problem.setTitle("Business Rule Violation");
-        problem.setProperty("ruleCode", ex.getRuleCode());
-        return problem;
-    }
-
-    @Override
-    protected ResponseEntity<Object> handleMethodArgumentNotValid(
-            MethodArgumentNotValidException ex, HttpHeaders headers,
-            HttpStatusCode status, WebRequest request) {
-        ProblemDetail problem = ProblemDetail.forStatus(status);
-        problem.setTitle("Validation Failed");
-        Map<String, String> errors = ex.getBindingResult().getFieldErrors().stream()
-            .collect(Collectors.toMap(
-                FieldError::getField,
-                fe -> fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "invalid",
-                (a, b) -> a));
-        problem.setProperty("fieldErrors", errors);
-        return ResponseEntity.status(status).body(problem);
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ProblemDetail handleUnexpected(Exception ex) {
-        log.error("Unexpected error", ex);
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-            HttpStatus.INTERNAL_SERVER_ERROR,
-            "An unexpected error occurred");
-        problem.setTitle("Internal Server Error");
-        // Never expose stack trace or internal details to the client
-        return problem;
-    }
-}
-\`\`\`
-
-### Anti-Pattern — No Centralized Handling
-\`\`\`java
-@RestController
-public class OrderController {
-    @GetMapping("/orders/{id}")
-    public ResponseEntity<?> getOrder(@PathVariable UUID id) {
-        try {
-            return ResponseEntity.ok(orderService.getOrder(id));
-        } catch (OrderNotFoundException e) {
-            return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", e.toString()));
-            // Bad: inconsistent error format, stack trace leak, duplicated in every controller
-        }
-    }
-    // Fix: let exceptions propagate — @RestControllerAdvice handles them uniformly
-}
-\`\`\`
+## Centralized Exception Handling
+- Use a single \`@RestControllerAdvice\` extending \`ResponseEntityExceptionHandler\`
+- Return RFC 9457 \`ProblemDetail\` responses (Spring Boot 3+ native support)
+- Map each domain exception to a specific HTTP status: ResourceNotFoundException -> 404, BusinessRuleViolation -> 422, etc.
+- Override \`handleMethodArgumentNotValid\` to return field-level validation errors with 400 status
+- Catch-all \`@ExceptionHandler(Exception.class)\` returns generic 500 message — log the real error server-side
+- Never expose stack traces, SQL errors, or internal details to the client
+- Let exceptions propagate from controllers — never use try-catch in controllers for error formatting
 
 ## Custom Domain Exceptions
-
-\`\`\`java
-public class ResourceNotFoundException extends RuntimeException {
-    private final String resourceId;
-
-    public ResourceNotFoundException(String resourceType, Object id) {
-        super("%s with id '%s' not found".formatted(resourceType, id));
-        this.resourceId = String.valueOf(id);
-    }
-
-    public String getResourceId() { return resourceId; }
-}
-
-public class BusinessRuleViolationException extends RuntimeException {
-    private final String ruleCode;
-
-    public BusinessRuleViolationException(String ruleCode, String message) {
-        super(message);
-        this.ruleCode = ruleCode;
-    }
-
-    public String getRuleCode() { return ruleCode; }
-}
-\`\`\`
+- \`ResourceNotFoundException\` extends \`RuntimeException\` — carries resource type and ID
+- \`BusinessRuleViolationException\` extends \`RuntimeException\` — carries rule code
+- Use specific exception classes per error type — not generic RuntimeException with status codes
+- Domain exceptions are thrown by the service layer, mapped to HTTP by the advice class
 `,
       },
       {
@@ -401,141 +111,32 @@ public class BusinessRuleViolationException extends RuntimeException {
         content: `# Spring Security Configuration
 
 ## SecurityFilterChain Bean Pattern (Spring Security 6+)
+- Configure via \`SecurityFilterChain\` \`@Bean\` — \`WebSecurityConfigurerAdapter\` was removed in Spring Security 6
+- Enable \`@EnableMethodSecurity\` for \`@PreAuthorize\` support
+- Use \`BCryptPasswordEncoder\` or \`Argon2PasswordEncoder\` — never store plaintext passwords
 
-Configure security using \`SecurityFilterChain\` beans — the \`WebSecurityConfigurerAdapter\`
-was removed in Spring Security 6. Spring Boot auto-configures sensible defaults: CSRF
-protection, session fixation prevention, security headers (HSTS, X-Content-Type-Options,
-X-Frame-Options), and BCrypt password encoding.
+## REST API Security (Stateless)
+- Disable CSRF (no session, no CSRF needed for stateless APIs)
+- Set \`sessionCreationPolicy(STATELESS)\`
+- Configure \`oauth2ResourceServer\` with JWT decoder
+- Use deny-by-default: \`.anyRequest().authenticated()\` as the last rule
+- Permit public endpoints explicitly: health checks, auth endpoints
 
-### Correct — Stateless REST API Security
-\`\`\`java
-@Configuration
-@EnableMethodSecurity
-public class SecurityConfig {
-
-    @Bean
-    public SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
-        return http
-            .csrf(csrf -> csrf.disable()) // Stateless API — no session, no CSRF needed
-            .sessionManagement(sm -> sm.sessionCreationPolicy(STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/public/**", "/actuator/health").permitAll()
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .anyRequest().authenticated()
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
-            .build();
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-}
-\`\`\`
-
-### Correct — Session-Based Web App Security
-\`\`\`java
-@Configuration
-@EnableMethodSecurity
-public class WebSecurityConfig {
-
-    @Bean
-    public SecurityFilterChain webFilterChain(HttpSecurity http) throws Exception {
-        return http
-            .csrf(Customizer.withDefaults()) // CSRF enabled for session-based apps
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/login", "/css/**", "/js/**").permitAll()
-                .anyRequest().authenticated()
-            )
-            .formLogin(form -> form
-                .loginPage("/login")
-                .defaultSuccessUrl("/dashboard")
-            )
-            .logout(logout -> logout
-                .logoutSuccessUrl("/login?logout")
-                .invalidateHttpSession(true)
-                .deleteCookies("JSESSIONID")
-            )
-            .build();
-    }
-}
-\`\`\`
-
-### Anti-Pattern — Deprecated Approach
-\`\`\`java
-// Bad: WebSecurityConfigurerAdapter was removed in Spring Security 6
-@Configuration
-public class SecurityConfig extends WebSecurityConfigurerAdapter {
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http.authorizeRequests().anyRequest().authenticated();
-    }
-    // Fix: use SecurityFilterChain @Bean method as shown above
-}
-\`\`\`
+## Web App Security (Session-Based)
+- Keep CSRF enabled (default) for session-based apps
+- Configure form login with custom login page and success URL
+- Configure logout with session invalidation and cookie cleanup
+- Permit static resources (CSS, JS, images) explicitly
 
 ## Method-Level Security
+- \`@PreAuthorize\` on service methods for fine-grained access control
+- Use SpEL expressions for role checks and ownership verification
+- Combine role-based (\`hasRole\`) and attribute-based (\`#param == principal.id\`) authorization
 
-\`\`\`java
-@Service
-public class OrderService {
-
-    @PreAuthorize("hasRole('ADMIN') or #customerId == authentication.principal.id")
-    public List<OrderResponse> getOrdersByCustomer(UUID customerId) {
-        return orderRepository.findByCustomerId(customerId).stream()
-            .map(this::mapToResponse)
-            .toList();
-    }
-
-    @PreAuthorize("hasAuthority('ORDER_WRITE')")
-    public OrderResponse createOrder(CreateOrderRequest request) {
-        // Only users with ORDER_WRITE authority can create orders
-    }
-}
-\`\`\`
-
-## Password Storage
-
-\`\`\`java
-// Always use BCrypt or Argon2 — never store plaintext passwords
-@Service
-public class UserService {
-    private final PasswordEncoder passwordEncoder;
-
-    public User registerUser(RegistrationRequest request) {
-        User user = new User();
-        user.setEmail(request.email());
-        user.setPassword(passwordEncoder.encode(request.password())); // BCrypt hash
-        return userRepository.save(user);
-    }
-}
-\`\`\`
-
-## CORS Configuration at Security Level
-
-\`\`\`java
-@Bean
-public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-    return http
-        .cors(cors -> cors.configurationSource(corsConfigSource()))
-        .csrf(csrf -> csrf.disable())
-        // ... other config
-        .build();
-}
-
-@Bean
-public CorsConfigurationSource corsConfigSource() {
-    CorsConfiguration config = new CorsConfiguration();
-    config.setAllowedOrigins(List.of("https://app.example.com"));
-    config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
-    config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-    config.setMaxAge(3600L);
-    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/api/**", config);
-    return source;
-}
-\`\`\`
+## CORS
+- Configure CORS at the security level via \`CorsConfigurationSource\` bean
+- Use explicit allowed origins — never wildcard \`"*"\` in production
+- Set explicit allowed methods, headers, and \`maxAge\` for preflight caching
 `,
       },
       {
@@ -546,160 +147,32 @@ public CorsConfigurationSource corsConfigSource() {
         content: `# Spring Boot Testing Patterns
 
 ## Test Slices — Use the Narrowest Context
+- \`@WebMvcTest\`: Controller + filters + advice — REST endpoint behavior, validation, serialization
+- \`@DataJpaTest\`: JPA repos + Hibernate + embedded DB — repository queries, entity mappings
+- \`@RestClientTest\`: RestTemplate/WebClient + MockRestServiceServer — HTTP client behavior
+- \`@JsonTest\`: Jackson ObjectMapper — JSON serialization/deserialization
+- \`@SpringBootTest\`: Full context — integration tests, end-to-end flows only
 
-Spring Boot provides test slice annotations that load only the relevant parts
-of the application context, making tests faster and more focused.
+## Controller Tests (@WebMvcTest)
+- Inject \`MockMvc\` and mock service dependencies with \`@MockBean\`
+- Test success cases: correct status code, response body matches schema
+- Test validation errors: send invalid request body, verify 400 with field errors
+- Use \`@DisplayName\` for readable test names describing HTTP method, path, and expected outcome
 
-| Annotation | Scope | Use For |
-|-----------|-------|---------|
-| \`@WebMvcTest\` | Controller + filters + advice | REST endpoint behavior, validation, serialization |
-| \`@DataJpaTest\` | JPA repos + Hibernate + embedded DB | Repository queries, entity mappings |
-| \`@RestClientTest\` | RestTemplate/WebClient + MockRestServiceServer | HTTP client behavior |
-| \`@JsonTest\` | Jackson ObjectMapper | JSON serialization/deserialization |
-| \`@SpringBootTest\` | Full context | Integration tests, end-to-end flows |
+## Repository Tests (@DataJpaTest)
+- Use \`TestEntityManager\` for test data setup
+- Use \`@AutoConfigureTestDatabase(replace = Replace.NONE)\` with TestContainers for real DB
+- Test custom query methods, entity mappings, and cascade behavior
 
-### Controller Test with @WebMvcTest
-\`\`\`java
-@WebMvcTest(OrderController.class)
-class OrderControllerTest {
+## Integration Tests
+- Use \`@SpringBootTest(webEnvironment = RANDOM_PORT)\` with TestContainers (\`@ServiceConnection\`)
+- Use \`TestRestClient\` for full HTTP request/response cycle testing
+- Test complete lifecycle flows (create -> get -> list -> update -> delete)
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
-    private OrderService orderService;
-
-    @Test
-    @DisplayName("POST /api/v1/orders — 201 Created with valid request")
-    void createOrder_validRequest_returnsCreated() throws Exception {
-        var request = new CreateOrderRequest(UUID.randomUUID(), List.of(
-            new OrderItemRequest("SKU-001", 2)));
-        var response = new OrderResponse(UUID.randomUUID(), OrderStatus.CREATED, BigDecimal.TEN);
-
-        when(orderService.createOrder(any())).thenReturn(response);
-
-        mockMvc.perform(post("/api/v1/orders")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.status").value("CREATED"))
-            .andExpect(jsonPath("$.id").exists());
-    }
-
-    @Test
-    @DisplayName("POST /api/v1/orders — 400 when request body is invalid")
-    void createOrder_invalidRequest_returnsBadRequest() throws Exception {
-        mockMvc.perform(post("/api/v1/orders")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.fieldErrors").exists());
-    }
-}
-\`\`\`
-
-### Repository Test with @DataJpaTest
-\`\`\`java
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = Replace.NONE) // Use TestContainers DB
-class OrderRepositoryTest {
-
-    @Autowired
-    private OrderRepository orderRepository;
-
-    @Autowired
-    private TestEntityManager entityManager;
-
-    @Test
-    @DisplayName("findByCustomerIdAndStatus — returns only matching orders")
-    void findByCustomerIdAndStatus() {
-        Customer customer = entityManager.persist(new Customer("Jane"));
-        entityManager.persist(new Order(customer, OrderStatus.CREATED));
-        entityManager.persist(new Order(customer, OrderStatus.SHIPPED));
-        entityManager.flush();
-
-        List<Order> result = orderRepository
-            .findByCustomerIdAndStatus(customer.getId(), OrderStatus.CREATED);
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getStatus()).isEqualTo(OrderStatus.CREATED);
-    }
-}
-\`\`\`
-
-### Integration Test with TestContainers
-\`\`\`java
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
-@Testcontainers
-class OrderIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgres =
-        new PostgreSQLContainer<>("postgres:16-alpine");
-
-    @Autowired
-    private TestRestClient restClient;
-
-    @Test
-    @DisplayName("Full order lifecycle: create -> get -> list")
-    void orderLifecycle() {
-        var createRequest = new CreateOrderRequest(/*...*/);
-
-        var created = restClient.post().uri("/api/v1/orders")
-            .body(createRequest)
-            .exchange()
-            .expectStatus().isCreated()
-            .expectBody(OrderResponse.class)
-            .returnResult().getResponseBody();
-
-        restClient.get().uri("/api/v1/orders/{id}", created.id())
-            .exchange()
-            .expectStatus().isOk()
-            .expectBody()
-            .jsonPath("$.id").isEqualTo(created.id().toString());
-    }
-}
-\`\`\`
-
-### Security Test
-\`\`\`java
-@WebMvcTest(OrderController.class)
-@Import(SecurityConfig.class)
-class OrderControllerSecurityTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
-    private OrderService orderService;
-
-    @Test
-    @DisplayName("Unauthenticated request returns 401")
-    void unauthenticated_returns401() throws Exception {
-        mockMvc.perform(get("/api/v1/orders"))
-            .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @WithMockUser(roles = "USER")
-    @DisplayName("Authenticated user can access orders")
-    void authenticated_canAccess() throws Exception {
-        when(orderService.listOrders(any())).thenReturn(Page.empty());
-
-        mockMvc.perform(get("/api/v1/orders"))
-            .andExpect(status().isOk());
-    }
-
-    @Test
-    @WithMockUser(roles = "USER")
-    @DisplayName("Non-admin cannot access admin endpoints")
-    void nonAdmin_cannotAccessAdmin() throws Exception {
-        mockMvc.perform(get("/api/admin/reports"))
-            .andExpect(status().isForbidden());
-    }
-}
-\`\`\`
+## Security Tests
+- \`@WebMvcTest\` + \`@Import(SecurityConfig.class)\` for controller security tests
+- Test unauthenticated (401), unauthorized/forbidden (403), and authenticated access
+- Use \`@WithMockUser\` for simulating authenticated requests with specific roles
 `,
       },
       {
@@ -710,121 +183,27 @@ class OrderControllerSecurityTest {
         content: `# Spring Boot Actuator & Observability
 
 ## Actuator Configuration
-
-\`\`\`yaml
-# application.yml
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health, info, metrics, prometheus
-  endpoint:
-    health:
-      show-details: when-authorized
-      probes:
-        enabled: true          # Kubernetes liveness/readiness probes
-  health:
-    db:
-      enabled: true
-    diskSpace:
-      enabled: true
-  info:
-    env:
-      enabled: true
-    java:
-      enabled: true
-    os:
-      enabled: true
-\`\`\`
+- Expose only necessary endpoints: health, info, metrics, prometheus
+- Set \`show-details: when-authorized\` for health endpoint — never expose to unauthenticated users
+- Enable Kubernetes probes: \`management.endpoint.health.probes.enabled: true\`
+- Enable DB and disk space health checks
 
 ## Custom Health Indicators
-
-\`\`\`java
-@Component
-public class PaymentGatewayHealthIndicator implements HealthIndicator {
-
-    private final PaymentGateway paymentGateway;
-
-    public PaymentGatewayHealthIndicator(PaymentGateway paymentGateway) {
-        this.paymentGateway = paymentGateway;
-    }
-
-    @Override
-    public Health health() {
-        try {
-            paymentGateway.ping();
-            return Health.up()
-                .withDetail("provider", "stripe")
-                .build();
-        } catch (Exception ex) {
-            return Health.down()
-                .withDetail("provider", "stripe")
-                .withDetail("error", ex.getMessage())
-                .build();
-        }
-    }
-}
-\`\`\`
+- Implement \`HealthIndicator\` for external dependency checks (payment gateway, messaging, caches)
+- Return \`Health.up()\` or \`Health.down()\` with descriptive details
+- Use constructor injection for the dependency being monitored
 
 ## Custom Metrics with Micrometer
-
-\`\`\`java
-@Service
-public class OrderService {
-    private final Counter orderCounter;
-    private final Timer orderProcessingTimer;
-
-    public OrderService(MeterRegistry registry, OrderRepository orderRepository) {
-        this.orderCounter = Counter.builder("orders.created")
-            .description("Total orders created")
-            .tag("source", "api")
-            .register(registry);
-        this.orderProcessingTimer = Timer.builder("orders.processing.time")
-            .description("Order processing duration")
-            .register(registry);
-    }
-
-    @Transactional
-    public OrderResponse createOrder(CreateOrderRequest request) {
-        return orderProcessingTimer.record(() -> {
-            Order order = processOrder(request);
-            orderCounter.increment();
-            return mapToResponse(order);
-        });
-    }
-}
-\`\`\`
+- Inject \`MeterRegistry\` and create \`Counter\`, \`Timer\`, \`Gauge\` for business metrics
+- Use descriptive metric names: \`orders.created\`, \`orders.processing.time\`
+- Add tags for dimensions: source, type, status
+- Wrap operations with \`Timer.record()\` for latency measurement
 
 ## Structured Logging
-
-\`\`\`yaml
-# application.yml — Spring Boot 3.4+ structured logging
-logging:
-  structured:
-    format:
-      console: ecs    # Elastic Common Schema (or logstash, gelf)
-\`\`\`
-
-\`\`\`java
-// Use MDC for request-scoped tracing context
-@Component
-public class CorrelationIdFilter extends OncePerRequestFilter {
-    @Override
-    protected void doFilterInternal(HttpServletRequest request,
-            HttpServletResponse response, FilterChain chain) throws Exception {
-        String correlationId = Optional
-            .ofNullable(request.getHeader("X-Correlation-ID"))
-            .orElse(UUID.randomUUID().toString());
-        MDC.put("correlationId", correlationId);
-        response.setHeader("X-Correlation-ID", correlationId);
-        try {
-            chain.doFilter(request, response);
-        } finally {
-            MDC.remove("correlationId");
-        }
-    }
-}
-\`\`\`
+- Spring Boot 3.4+: use \`logging.structured.format.console: ecs\` for structured JSON output
+- Use MDC (\`Mapped Diagnostic Context\`) for request-scoped fields: correlation ID, user ID, tenant
+- Add a \`OncePerRequestFilter\` to inject correlation ID from request header or generate a new one
+- Always clean MDC in a \`finally\` block to prevent context leaking across requests
 `,
       },
     ],
@@ -925,6 +304,8 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
       {
         name: 'spring-boot-starter',
         description: 'Scaffold Spring Boot components with layered architecture and full test coverage',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Spring Boot Starter Skill
 
 ## Scaffold a Complete Feature Module
@@ -976,6 +357,8 @@ Given a domain entity name (e.g., "Product"), generate:
       {
         name: 'spring-boot-security-setup',
         description: 'Configure Spring Security for REST API or web app with modern patterns',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Spring Security Setup Skill
 
 ## REST API Security (Stateless + JWT)
@@ -1007,7 +390,7 @@ Given a domain entity name (e.g., "Product"), generate:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/@Autowired\\s+(?:private|protected|public)\\s/.test(c))issues.push(\'@Autowired field injection detected — use constructor injection for testability and immutability\');if(/extends\\s+WebSecurityConfigurerAdapter/.test(c))issues.push(\'WebSecurityConfigurerAdapter is removed in Spring Security 6 — use SecurityFilterChain @Bean\');if(/ddl-auto\\s*[:=]\\s*(update|create|create-drop)/.test(c)&&!/test|dev/.test(f))issues.push(\'hibernate.ddl-auto is not safe for production — use Flyway or Liquibase migrations\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/@Autowired\\s+(?:private|protected|public)\\s/.test(c))issues.push(\'@Autowired field injection detected — use constructor injection for testability and immutability\');if(/extends\\s+WebSecurityConfigurerAdapter/.test(c))issues.push(\'WebSecurityConfigurerAdapter is removed in Spring Security 6 — use SecurityFilterChain @Bean\');if(/ddl-auto\\s*[:=]\\s*(update|create|create-drop)/.test(c)&&!/test|dev/.test(f))issues.push(\'hibernate.ddl-auto is not safe for production — use Flyway or Liquibase migrations\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -1016,7 +399,7 @@ Given a domain entity name (e.g., "Product"), generate:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/@Entity/.test(c)&&/@RestController/.test(c))issues.push(\'Entity and Controller in the same file — separate into distinct files per layer\');if(/@Entity/.test(c)&&/FetchType\\.EAGER/.test(c))issues.push(\'FetchType.EAGER on entity relationship — use LAZY and JOIN FETCH in queries to avoid N+1\');if(/@RequestBody/.test(c)&&!/@Valid/.test(c)&&!/Map</.test(c))issues.push(\'@RequestBody without @Valid — add @Valid to trigger Bean Validation on request DTOs\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/@Entity/.test(c)&&/@RestController/.test(c))issues.push(\'Entity and Controller in the same file — separate into distinct files per layer\');if(/@Entity/.test(c)&&/FetchType\\.EAGER/.test(c))issues.push(\'FetchType.EAGER on entity relationship — use LAZY and JOIN FETCH in queries to avoid N+1\');if(/@RequestBody/.test(c)&&!/@Valid/.test(c)&&!/Map</.test(c))issues.push(\'@RequestBody without @Valid — add @Valid to trigger Bean Validation on request DTOs\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },

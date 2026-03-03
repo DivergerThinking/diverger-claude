@@ -47,276 +47,48 @@ Nuxt 3 with auto-imports, file-based routing, and \`useFetch\`/\`useAsyncData\` 
         content: `# Nuxt Architecture
 
 ## Directory Structure (Nuxt 4)
-
-Nuxt 4 introduced the \`app/\` directory as the application root, separating client-side
-application code from server code and shared utilities. Respect this boundary strictly.
-
-\`\`\`
-app/
-  pages/             # File-based routing — each .vue becomes a route
-  components/        # Auto-imported Vue components (supports subdirectories)
-  composables/       # Auto-imported composable functions (use* prefix)
-  layouts/           # Page layout wrappers (default.vue, admin.vue, etc.)
-  middleware/        # Route middleware (navigation guards)
-  plugins/           # Nuxt/Vue plugins (client, server, or universal)
-  app.vue            # Root component (or app.config.ts for app-level config)
-  error.vue          # Global error page
-  assets/            # Build-processed assets (CSS, SCSS, images)
-server/
-  api/               # Server API routes (Nitro h3 handlers)
-  routes/            # Non-API server routes
-  middleware/        # Server-side middleware (runs on every request)
-  plugins/           # Nitro lifecycle plugins (e.g., DB init)
-  utils/             # Server-only utilities (auto-imported in server context)
-  tsconfig.json      # Server-specific TypeScript config
-shared/
-  types/             # Types shared between app/ and server/
-  utils/             # Utilities shared between app/ and server/
-public/              # Static assets served at root URL (favicon, robots.txt)
-layers/              # Nuxt layers for shared configuration
-content/             # Markdown/YAML content (when using @nuxt/content)
-nuxt.config.ts       # Nuxt configuration
-\`\`\`
-
----
+- \`app/\` — client-side: \`pages/\`, \`components/\`, \`composables/\`, \`layouts/\`, \`middleware/\`, \`plugins/\`, \`app.vue\`, \`error.vue\`
+- \`server/\` — server-side: \`api/\` (Nitro handlers), \`routes/\`, \`middleware/\`, \`plugins/\`, \`utils/\`
+- \`shared/\` — types and utilities shared between app/ and server/
+- \`public/\` — static assets; \`layers/\` — shared configuration; \`nuxt.config.ts\`
 
 ## File-Based Routing
+- Every \`.vue\` in \`app/pages/\` becomes a route automatically
+- Dynamic: \`[id].vue\`, catch-all: \`[...slug].vue\`, optional: \`[[param]].vue\`
+- \`definePageMeta\` for layout, middleware, keepalive
 
-Every \`.vue\` file in \`app/pages/\` automatically becomes a route.
-
-\`\`\`typescript
-// Route mapping examples:
-// app/pages/index.vue          -> /
-// app/pages/about.vue          -> /about
-// app/pages/users/index.vue    -> /users
-// app/pages/users/[id].vue     -> /users/:id   (dynamic param)
-// app/pages/posts/[...slug].vue -> /posts/*     (catch-all)
-// app/pages/[[optional]].vue   -> /:optional?  (optional param)
-\`\`\`
-
-\`\`\`vue
-<!-- app/pages/users/[id].vue -->
-<script setup lang="ts">
-const route = useRoute()
-const userId = route.params.id as string
-
-definePageMeta({
-  layout: 'default',
-  middleware: ['auth'],
-  keepalive: true,
-})
-
-const { data: user, status } = await useFetch(\`/api/users/\${userId}\`)
-</script>
-
-<template>
-  <div v-if="status === 'pending'">Loading...</div>
-  <div v-else-if="user">
-    <h1>{{ user.name }}</h1>
-  </div>
-</template>
-\`\`\`
-
-### Route Middleware
-- Place global middleware in \`app/middleware/\` with a \`.global.ts\` suffix
-- Place named middleware in \`app/middleware/\` and reference via \`definePageMeta\`
-- Inline middleware is defined directly in \`definePageMeta\` for page-specific guards
-
-\`\`\`typescript
-// app/middleware/auth.ts
-export default defineNuxtRouteMiddleware((to, from) => {
-  const { loggedIn } = useUserSession()
-  if (!loggedIn.value) {
-    return navigateTo('/login')
-  }
-})
-\`\`\`
-
----
+## Route Middleware
+- Global: \`.global.ts\` suffix in \`app/middleware/\`
+- Named: reference via \`definePageMeta({ middleware: ['auth'] })\`
+- Use \`defineNuxtRouteMiddleware\` for type-safe middleware
 
 ## Auto-Imports
-
-Nuxt auto-imports from several sources. Never add manual imports for these:
-
-| Source | What is auto-imported |
-|--------|----------------------|
-| Vue | \`ref\`, \`computed\`, \`watch\`, \`reactive\`, \`onMounted\`, etc. |
-| Nuxt composables | \`useFetch\`, \`useAsyncData\`, \`useHead\`, \`useState\`, \`navigateTo\`, etc. |
-| \`app/composables/\` | All named exports (scans top-level files and \`index.ts\` in subdirs) |
-| \`app/utils/\` | All named exports |
-| \`server/utils/\` | All named exports (server context only) |
-| \`app/components/\` | All \`.vue\` components (prefix by subdirectory name) |
-
-Use \`#imports\` for explicit imports when auto-import is ambiguous or for type-only imports:
-
-\`\`\`typescript
-import type { Ref } from '#imports'
-\`\`\`
-
----
+- Vue APIs, Nuxt composables, \`app/composables/\`, \`app/utils/\`, \`app/components/\`, \`server/utils/\` are all auto-imported
+- Use \`#imports\` for explicit type-only imports when needed
+- Never add manual imports for auto-imported APIs
 
 ## Data Fetching
-
-### useFetch — for API calls in component setup
-\`\`\`vue
-<script setup lang="ts">
-// Simple GET with SSR support, caching, and deduplication
-const { data: posts, status, error, refresh } = await useFetch('/api/posts')
-
-// With query params, transform, and watch
-const page = ref(1)
-const { data: results } = await useFetch('/api/search', {
-  query: { page, q: 'nuxt' },
-  transform: (response) => response.items,
-  watch: [page],
-})
-\`\`\`
-
-### useAsyncData — for custom async logic
-\`\`\`vue
-<script setup lang="ts">
-// Wraps any async function with SSR support
-const { data: stats } = await useAsyncData('dashboard-stats', () => {
-  return Promise.all([
-    $fetch('/api/stats/users'),
-    $fetch('/api/stats/revenue'),
-  ])
-})
-\`\`\`
-
-### Anti-Patterns
-\`\`\`typescript
-// WRONG: $fetch in component setup — causes double fetch (server + client)
-const data = await $fetch('/api/posts')
-
-// WRONG: raw fetch — no SSR payload transfer, no caching
-const data = await fetch('/api/posts').then(r => r.json())
-
-// CORRECT: use $fetch only inside event handlers or server routes
-async function handleDelete(id: string) {
-  await $fetch(\`/api/posts/\${id}\`, { method: 'DELETE' })
-  await refreshNuxtData('posts')
-}
-\`\`\`
-
----
+- \`useFetch\` / \`useAsyncData\` in component setup (SSR-safe, caching, deduplication)
+- \`$fetch\` ONLY in event handlers or server routes — never in component setup (double fetch)
+- Never use raw \`fetch\` in components — no SSR payload transfer
 
 ## Server Routes (Nitro)
-
-### API Endpoints
-\`\`\`typescript
-// server/api/users/[id].get.ts — GET /api/users/:id
-export default defineEventHandler(async (event) => {
-  const id = getRouterParam(event, 'id')
-  if (!id) {
-    throw createError({ statusCode: 400, message: 'Missing user ID' })
-  }
-  const user = await getUserById(id)
-  if (!user) {
-    throw createError({ statusCode: 404, message: 'User not found' })
-  }
-  return user
-})
-\`\`\`
-
-\`\`\`typescript
-// server/api/users.post.ts — POST /api/users
-export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
-  // Always validate input in server routes
-  if (!body.email || !body.name) {
-    throw createError({ statusCode: 422, message: 'Name and email required' })
-  }
-  return await createUser(body)
-})
-\`\`\`
-
-### Method Suffixes
-Use file suffixes to scope handlers to HTTP methods:
-- \`users.get.ts\` — handles GET only
-- \`users.post.ts\` — handles POST only
-- \`users/[id].put.ts\` — handles PUT only
-- \`users/[id].delete.ts\` — handles DELETE only
-
-### Server Middleware
-\`\`\`typescript
-// server/middleware/log.ts — runs on EVERY server request
-export default defineEventHandler((event) => {
-  console.log(\`[\${event.method}] \${getRequestURL(event)}\`)
-  // Do NOT return a value — returning ends the request
-})
-\`\`\`
-
-### Server Utilities
-Place shared server logic in \`server/utils/\` — these are auto-imported in the server context:
-\`\`\`typescript
-// server/utils/db.ts
-export function getUserById(id: string) {
-  return db.select().from(users).where(eq(users.id, id)).get()
-}
-\`\`\`
-
----
+- \`defineEventHandler\` for all handlers
+- HTTP method suffixes: \`.get.ts\`, \`.post.ts\`, \`.put.ts\`, \`.delete.ts\`
+- Validate all input; use \`createError\` for error responses
+- Server middleware must NOT return values (returning ends the request)
+- Shared logic in \`server/utils/\` (auto-imported)
 
 ## State Management
-
-### useState — SSR-safe reactive state
-\`\`\`vue
-<script setup lang="ts">
-// SSR-safe — serialized from server, hydrated on client
-const counter = useState<number>('counter', () => 0)
-const user = useState<User | null>('current-user', () => null)
-\`\`\`
-
-### When to use what
-| Need | Solution |
-|------|----------|
-| Local component state | \`ref()\` / \`reactive()\` |
-| State shared across components (SSR-safe) | \`useState()\` |
-| Complex state with actions and getters | Pinia with \`@pinia/nuxt\` |
-| Environment values | \`useRuntimeConfig()\` |
-| Build-time values | \`useAppConfig()\` |
-
-### Anti-Pattern: Module-scope refs
-\`\`\`typescript
-// WRONG: Shared across ALL users in SSR — state leak vulnerability
-const count = ref(0)
-export function useCounter() { return { count } }
-
-// CORRECT: SSR-safe per-request state
-export function useCounter() {
-  const count = useState('counter', () => 0)
-  return { count }
-}
-\`\`\`
-
----
+- \`ref()\` / \`reactive()\` for local component state
+- \`useState()\` for SSR-safe shared state — NEVER use module-scope \`ref()\` (state leak in SSR)
+- Pinia with \`@pinia/nuxt\` for complex state with actions and getters
+- \`useRuntimeConfig()\` for env values; \`useAppConfig()\` for build-time values
 
 ## Layouts
-
-\`\`\`vue
-<!-- app/layouts/default.vue -->
-<template>
-  <div>
-    <AppHeader />
-    <main>
-      <slot />
-    </main>
-    <AppFooter />
-  </div>
-</template>
-\`\`\`
-
-\`\`\`vue
-<!-- Set layout per page -->
-<script setup lang="ts">
-definePageMeta({
-  layout: 'admin',
-})
-</script>
-\`\`\`
-
-Disable the default layout for a specific page with \`layout: false\`.
+- Define in \`app/layouts/\` (\`default.vue\`, \`admin.vue\`, etc.)
+- Set per page with \`definePageMeta({ layout: 'admin' })\`
+- Disable with \`layout: false\`
 `,
       },
       {
@@ -327,246 +99,46 @@ Disable the default layout for a specific page with \`layout: false\`.
         content: `# Nuxt Rendering, Deployment & Advanced Patterns
 
 ## Rendering Modes
-
-Nuxt supports hybrid rendering — configure per route with \`routeRules\`:
-
-\`\`\`typescript
-// nuxt.config.ts
-export default defineNuxtConfig({
-  routeRules: {
-    '/':           { prerender: true },           // SSG at build time
-    '/blog/**':    { isr: 3600 },                 // ISR: regenerate every hour
-    '/admin/**':   { ssr: false },                // SPA: client-only
-    '/api/**':     { cors: true, headers: { 'cache-control': 's-maxage=60' } },
-    '/dashboard':  { swr: 600 },                  // Stale-While-Revalidate
-  },
-})
-\`\`\`
-
-| Mode | When to use |
-|------|-------------|
-| \`ssr: true\` (default) | Dynamic content that needs SEO and fresh data |
-| \`prerender: true\` | Static pages known at build time (landing, blog posts) |
-| \`isr: seconds\` | Content that changes occasionally (product pages) |
-| \`swr: seconds\` | Serve stale while revalidating in background |
-| \`ssr: false\` | Client-only pages with no SEO need (admin dashboards) |
-
----
+- \`ssr: true\` (default) — dynamic content needing SEO and fresh data
+- \`prerender: true\` — static pages known at build time (landing, blog)
+- \`isr: seconds\` — content that changes occasionally (product pages)
+- \`swr: seconds\` — serve stale while revalidating in background
+- \`ssr: false\` — client-only pages with no SEO need (admin dashboards)
+- Configure per route with \`routeRules\` in \`nuxt.config.ts\`
 
 ## Nitro Deployment
-
-Configure the deployment target with Nitro presets:
-
-\`\`\`typescript
-// nuxt.config.ts
-export default defineNuxtConfig({
-  nitro: {
-    preset: 'node-server',  // Also: vercel, netlify, cloudflare-pages, bun, deno, etc.
-    storage: {
-      redis: { driver: 'redis', url: process.env.REDIS_URL },
-    },
-  },
-})
-\`\`\`
-
-### Nitro Features
-- **Storage**: \`useStorage()\` for KV storage with multiple drivers (fs, redis, cloudflare-kv)
-- **Caching**: \`defineCachedEventHandler\` and \`defineCachedFunction\` for server-side caching
-- **Tasks**: \`defineTask()\` for background processing and scheduled jobs
-- **Plugins**: \`defineNitroPlugin()\` for server lifecycle hooks (DB init, graceful shutdown)
-
-\`\`\`typescript
-// server/api/posts.get.ts — with Nitro caching
-export default defineCachedEventHandler(async (event) => {
-  return await db.select().from(posts).all()
-}, {
-  maxAge: 60 * 10,  // Cache for 10 minutes
-  swr: true,        // Serve stale while revalidating
-})
-\`\`\`
-
----
+- Configure with \`nitro.preset\`: \`node-server\`, \`vercel\`, \`netlify\`, \`cloudflare-pages\`, etc.
+- \`useStorage()\` for KV storage (fs, redis, cloudflare-kv drivers)
+- \`defineCachedEventHandler\` / \`defineCachedFunction\` for server-side caching
+- \`defineTask()\` for background/scheduled jobs
+- \`defineNitroPlugin()\` for server lifecycle hooks (DB init, shutdown)
 
 ## Modules
-
-Register modules in \`nuxt.config.ts\`. Prefer official and well-maintained community modules:
-
-\`\`\`typescript
-export default defineNuxtConfig({
-  modules: [
-    '@pinia/nuxt',          // State management
-    '@nuxt/image',          // Image optimization
-    '@nuxt/content',        // Markdown/YAML content
-    '@nuxt/fonts',          // Font optimization
-    '@nuxtjs/i18n',         // Internationalization
-    '@nuxt/test-utils/module', // Testing utilities
-    '@nuxt/eslint',         // ESLint integration
-  ],
-})
-\`\`\`
-
-### Custom Module Development
-\`\`\`typescript
-// modules/my-module.ts
-export default defineNuxtModule({
-  meta: { name: 'my-module', configKey: 'myModule' },
-  defaults: { enabled: true },
-  setup(options, nuxt) {
-    if (!options.enabled) return
-    addImports({ name: 'useMyHelper', from: resolve('./runtime/composables') })
-  },
-})
-\`\`\`
-
----
+- Register in \`nuxt.config.ts\` \`modules\` array
+- Prefer official: \`@pinia/nuxt\`, \`@nuxt/image\`, \`@nuxt/content\`, \`@nuxt/fonts\`, \`@nuxt/eslint\`
+- Custom: \`defineNuxtModule\` with meta, defaults, and setup function
 
 ## SEO & Head Management
-
-\`\`\`vue
-<script setup lang="ts">
-// Recommended: useSeoMeta for type-safe SEO tags
-useSeoMeta({
-  title: 'My Page Title',
-  ogTitle: 'My Page Title',
-  description: 'Page description for search engines',
-  ogDescription: 'Page description for social sharing',
-  ogImage: 'https://example.com/og-image.png',
-  twitterCard: 'summary_large_image',
-})
-
-// useHead for non-SEO head tags (scripts, links, etc.)
-useHead({
-  htmlAttrs: { lang: 'en' },
-  link: [{ rel: 'canonical', href: 'https://example.com/page' }],
-})
-</script>
-\`\`\`
-
-Use \`useServerSeoMeta\` in server routes or plugins for SEO tags that only need server rendering.
-Set global defaults in \`nuxt.config.ts\` with the \`app.head\` property.
-
----
+- \`useSeoMeta()\` for type-safe SEO tags (title, og, twitter)
+- \`useHead()\` for non-SEO head tags (scripts, links, htmlAttrs)
+- \`useServerSeoMeta()\` for server-only SEO tags
+- Global defaults in \`nuxt.config.ts\` \`app.head\`
 
 ## Error Handling
-
-### Application Errors
-\`\`\`vue
-<!-- app/error.vue — global error page -->
-<script setup lang="ts">
-const props = defineProps<{ error: { statusCode: number; message: string } }>()
-
-const handleClear = () => clearError({ redirect: '/' })
-</script>
-
-<template>
-  <div>
-    <h1>{{ error.statusCode }}</h1>
-    <p>{{ error.message }}</p>
-    <button @click="handleClear">Go Home</button>
-  </div>
-</template>
-\`\`\`
-
-### In-Page Error Handling
-\`\`\`vue
-<script setup lang="ts">
-const { data, error } = await useFetch('/api/data')
-
-// Use NuxtErrorBoundary for granular error isolation
-</script>
-
-<template>
-  <NuxtErrorBoundary>
-    <DataDisplay :data="data" />
-    <template #error="{ error, clearError }">
-      <p>Something went wrong: {{ error.message }}</p>
-      <button @click="clearError">Retry</button>
-    </template>
-  </NuxtErrorBoundary>
-</template>
-\`\`\`
-
-### Server Error Handling
-\`\`\`typescript
-// server/api/resource.get.ts
-export default defineEventHandler(async (event) => {
-  try {
-    return await fetchExternalService()
-  } catch (err) {
-    throw createError({
-      statusCode: 502,
-      message: 'External service unavailable',
-      // Never expose internal error details to clients
-    })
-  }
-})
-\`\`\`
-
----
+- \`app/error.vue\` for global error page with \`clearError()\`
+- \`<NuxtErrorBoundary>\` for granular in-page error isolation
+- Server: \`createError()\` with status code — never expose internal details
 
 ## Nuxt Layers
-
-Layers allow extending a Nuxt application with shared components, composables, pages, and config:
-
-\`\`\`typescript
-// nuxt.config.ts
-export default defineNuxtConfig({
-  extends: [
-    './layers/base',           // Local layer
-    'github:org/nuxt-layer',   // Remote layer from GitHub
-    '@company/shared-layer',   // npm package layer
-  ],
-})
-\`\`\`
-
-Use layers for: design systems, shared configs, multi-tenant apps, and monorepo shared code.
-
----
+- Extend with \`extends\` in config: local paths, GitHub repos, npm packages
+- Use for: design systems, shared configs, multi-tenant apps, monorepo shared code
 
 ## Environment & Configuration
-
-\`\`\`typescript
-// nuxt.config.ts
-export default defineNuxtConfig({
-  runtimeConfig: {
-    // Server-only (never exposed to client)
-    secretApiKey: '',           // Overridden by NUXT_SECRET_API_KEY env var
-    database: { url: '' },      // Overridden by NUXT_DATABASE_URL env var
-    // Client-exposed (use with caution)
-    public: {
-      apiBase: '/api',          // Overridden by NUXT_PUBLIC_API_BASE env var
-      siteUrl: '',              // Overridden by NUXT_PUBLIC_SITE_URL env var
-    },
-  },
-  appConfig: {
-    // Build-time config, does NOT change per environment
-    theme: { primaryColor: '#3B82F6' },
-  },
-})
-\`\`\`
-
-\`\`\`typescript
-// Access in app code
-const config = useRuntimeConfig()
-// Server: config.secretApiKey (available)
-// Client: config.public.apiBase (only public is available)
-
-// Access build-time config
-const appConfig = useAppConfig()
-\`\`\`
-
-### Anti-Pattern
-\`\`\`typescript
-// WRONG: hardcoded secrets in source code
-const apiKey = 'sk-1234567890'
-
-// WRONG: using process.env directly in app code
-const apiUrl = process.env.API_URL
-
-// CORRECT: use runtimeConfig with NUXT_ env var prefixes
-const { secretApiKey } = useRuntimeConfig()
-const { public: { apiBase } } = useRuntimeConfig()
-\`\`\`
+- \`runtimeConfig\` for server-only and public env values (overridden by \`NUXT_*\` env vars)
+- \`appConfig\` for build-time config that doesn't change per environment
+- Access via \`useRuntimeConfig()\` and \`useAppConfig()\`
+- NEVER use \`process.env\` directly in app code — always use \`useRuntimeConfig()\`
+- NEVER hardcode secrets in source code
 `,
       },
     ],
@@ -663,6 +235,8 @@ const { public: { apiBase } } = useRuntimeConfig()
       {
         name: 'nuxt-page-generator',
         description: 'Generate Nuxt pages with proper Nuxt 4 patterns',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Nuxt Page Generator
 
 Generate a Nuxt page following Nuxt 4 conventions:
@@ -748,6 +322,8 @@ describe('MyPage', () => {
       {
         name: 'nuxt-api-route-generator',
         description: 'Generate Nuxt server API routes with validation and error handling',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Nuxt API Route Generator
 
 Generate Nitro server API routes following Nuxt conventions:
@@ -808,7 +384,7 @@ export default defineEventHandler(async (event) => {
           {
             type: 'command' as const,
             command:
-              'node -e "const f=process.argv[1]||\'\';const c=require(\'fs\').readFileSync(f,\'utf8\');if(/composables[\\\\/]/.test(f)&&/^import\\s.*from\\s+[\'\\\"](vue|nuxt|#app)[\'\\\"]/m.test(c))console.log(\'Warning: composable has manual imports of Vue/Nuxt APIs — these are auto-imported in Nuxt, remove the import statements\')" -- "$CLAUDE_FILE_PATH"',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';const c=require(\'fs\').readFileSync(f,\'utf8\');if(/composables[\\\\/]/.test(f)&&/^import\\s.*from\\s+[\'\\\"](vue|nuxt|#app)[\'\\\"]/m.test(c))console.log(\'Warning: composable has manual imports of Vue/Nuxt APIs — these are auto-imported in Nuxt, remove the import statements\')" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -820,7 +396,7 @@ export default defineEventHandler(async (event) => {
           {
             type: 'command' as const,
             command:
-              'node -e "const f=process.argv[1]||\'\';if(!/pages[\\\\/]/.test(f)||!/\\.vue$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/await\\s+\\$fetch\\s*\\(/.test(c)&&/setup/.test(c)&&!/onMounted|onClick|onSubmit|handle[A-Z]/.test(c))console.log(\'Warning: $fetch used in page setup — use useFetch or useAsyncData instead to avoid double fetching\')" -- "$CLAUDE_FILE_PATH"',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/pages[\\\\/]/.test(f)||!/\\.vue$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/await\\s+\\$fetch\\s*\\(/.test(c)&&/setup/.test(c)&&!/onMounted|onClick|onSubmit|handle[A-Z]/.test(c))console.log(\'Warning: $fetch used in page setup — use useFetch or useAsyncData instead to avoid double fetching\')" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -832,7 +408,7 @@ export default defineEventHandler(async (event) => {
           {
             type: 'command' as const,
             command:
-              'node -e "const f=process.argv[1]||\'\';if(!/server[\\\\/]middleware[\\\\/]/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/return\\s+(?!void|undefined)/.test(c)&&!/createError|throw/.test(c))console.log(\'Warning: server middleware returns a value — this ends the request. Remove the return unless intentional.\')" -- "$CLAUDE_FILE_PATH"',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/server[\\\\/]middleware[\\\\/]/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/return\\s+(?!void|undefined)/.test(c)&&!/createError|throw/.test(c))console.log(\'Warning: server middleware returns a value — this ends the request. Remove the return unless intentional.\')" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

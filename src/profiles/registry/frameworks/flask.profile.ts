@@ -47,267 +47,43 @@ Micro-framework with explicit setup. Application factory pattern, Blueprints for
         description: 'Flask application factory, Blueprints, and project structure',
         content: `# Flask Architecture
 
-## Why This Matters
-Flask's micro-framework philosophy means architecture decisions are yours. The application
-factory pattern and Blueprints are the official recommendations from Flask's documentation
-for any non-trivial application. Ignoring them leads to circular imports, untestable code,
-and monolithic files that grow uncontrollably.
-
----
-
 ## Application Factory
-
-The factory pattern is the canonical way to create Flask applications. Extensions are
-instantiated at module level (without an app) and bound inside the factory with \`init_app()\`.
-
-### Correct
-\`\`\`python
-# app/extensions.py — extensions instantiated without app
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from flask_login import LoginManager
-from flask_caching import Cache
-
-db = SQLAlchemy()
-migrate = Migrate()
-login_manager = LoginManager()
-cache = Cache()
-\`\`\`
-
-\`\`\`python
-# app/__init__.py — the factory
-from flask import Flask
-from app.extensions import db, migrate, login_manager, cache
-
-def create_app(config_class: str = "config.ProductionConfig") -> Flask:
-    app = Flask(__name__)
-    app.config.from_object(config_class)
-    app.config.from_prefixed_env()  # FLASK_ env overrides
-
-    # Bind extensions inside factory
-    db.init_app(app)
-    migrate.init_app(app, db)
-    login_manager.init_app(app)
-    cache.init_app(app)
-
-    # Register Blueprints
-    from app.views.auth import auth_bp
-    from app.views.api import api_bp
-    from app.views.main import main_bp
-
-    app.register_blueprint(main_bp)
-    app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(api_bp, url_prefix="/api/v1")
-
-    # Register error handlers
-    from app.errors import register_error_handlers
-    register_error_handlers(app)
-
-    # Register CLI commands
-    from app.cli import register_cli_commands
-    register_cli_commands(app)
-
-    return app
-\`\`\`
-
-### Anti-Pattern
-\`\`\`python
-# Bad: global app object — prevents testing with different configs,
-# causes circular imports, blocks running multiple instances
-from flask import Flask
-app = Flask(__name__)
-db = SQLAlchemy(app)  # extension bound at import time
-
-from app.views import *  # circular import risk, wildcard import
-\`\`\`
-
----
+- Use \`create_app(config_class)\` factory function — never a global \`app = Flask(__name__)\`
+- Instantiate extensions at module level without app (\`db = SQLAlchemy()\`), bind inside factory with \`ext.init_app(app)\`
+- Load config with \`app.config.from_object(config_class)\` + \`app.config.from_prefixed_env()\` for env overrides
+- Register Blueprints, error handlers, and CLI commands inside the factory
+- Deferred extension binding avoids circular imports and enables testing with different configs
 
 ## Configuration Classes
-
-Use class-based config with inheritance. Load secrets from environment variables, never
-hardcode them.
-
-### Correct
-\`\`\`python
-# config.py
-import os
-
-class BaseConfig:
-    SECRET_KEY = os.environ["SECRET_KEY"]
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = "Lax"
-
-class DevelopmentConfig(BaseConfig):
-    DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL", "sqlite:///dev.db"
-    )
-
-class TestingConfig(BaseConfig):
-    TESTING = True
-    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
-    WTF_CSRF_ENABLED = False
-    SERVER_NAME = "localhost"
-
-class ProductionConfig(BaseConfig):
-    SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_SAMESITE = "Strict"
-    SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URL"]
-    PREFERRED_URL_SCHEME = "https"
-\`\`\`
-
-### Anti-Pattern
-\`\`\`python
-# Bad: secrets hardcoded, no environment separation
-app.config["SECRET_KEY"] = "super-secret-key-123"
-app.config["DATABASE_URL"] = "postgresql://admin:password@localhost/prod"
-\`\`\`
-
----
+- Use class-based config with inheritance: BaseConfig -> DevelopmentConfig / TestingConfig / ProductionConfig
+- Load secrets from environment variables (\`os.environ["SECRET_KEY"]\`) — never hardcode
+- TestingConfig: \`TESTING=True\`, \`WTF_CSRF_ENABLED=False\`, in-memory SQLite
+- ProductionConfig: \`SESSION_COOKIE_SECURE=True\`, \`SESSION_COOKIE_SAMESITE="Strict"\`
 
 ## Project Structure
-
-\`\`\`
-project/
-  pyproject.toml
-  config.py                 # Configuration classes
-  wsgi.py                   # WSGI entry point: app = create_app()
-  app/
-    __init__.py             # Application factory (create_app)
-    extensions.py           # Extension instances (db, migrate, login_manager)
-    errors.py               # Global error handlers
-    cli.py                  # Custom flask CLI commands
-    models/
-      __init__.py
-      user.py               # SQLAlchemy models
-      post.py
-    views/
-      __init__.py
-      auth.py               # auth_bp Blueprint
-      api.py                # api_bp Blueprint
-      main.py               # main_bp Blueprint
-    services/
-      __init__.py
-      user_service.py       # Business logic (framework-agnostic)
-      email_service.py
-    schemas/
-      __init__.py
-      user_schema.py        # Marshmallow/Pydantic schemas for serialization
-    templates/
-      base.html             # Jinja2 base template with template inheritance
-      auth/
-        login.html
-      main/
-        index.html
-    static/
-      css/
-      js/
-  migrations/               # Flask-Migrate (Alembic) migration scripts
-  tests/
-    conftest.py             # Shared pytest fixtures (app, client, db)
-    unit/
-    integration/
-\`\`\`
-
----
+- \`config.py\` — Configuration classes
+- \`wsgi.py\` — WSGI entry point: \`app = create_app()\`
+- \`app/__init__.py\` — Application factory
+- \`app/extensions.py\` — Extension instances (db, migrate, login_manager)
+- \`app/errors.py\` — Global error handlers
+- \`app/models/\` — SQLAlchemy models
+- \`app/views/\` — Blueprint modules (one per domain)
+- \`app/services/\` — Business logic (framework-agnostic)
+- \`app/schemas/\` — Marshmallow/Pydantic schemas
+- \`tests/conftest.py\` — Shared pytest fixtures (app, client, db)
 
 ## Blueprints
-
-Each Blueprint encapsulates a feature domain. Keep Blueprints self-contained: own
-templates subdirectory, own error handlers, own \`before_request\` hooks.
-
-### Correct
-\`\`\`python
-# app/views/auth.py
-from flask import Blueprint, request, jsonify, g
-from app.services.user_service import UserService
-
-auth_bp = Blueprint("auth", __name__, template_folder="templates")
-
-@auth_bp.before_request
-def load_current_user() -> None:
-    token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-    g.current_user = UserService.verify_token(token) if token else None
-
-@auth_bp.route("/login", methods=["POST"])
-def login():
-    data = request.get_json(force=False, silent=True)
-    if not data or "email" not in data or "password" not in data:
-        return jsonify({"error": "email and password required"}), 400
-
-    user = UserService.authenticate(data["email"], data["password"])
-    if not user:
-        return jsonify({"error": "Invalid credentials"}), 401
-
-    token = UserService.generate_token(user)
-    return jsonify({"token": token, "user_id": user.id}), 200
-
-@auth_bp.errorhandler(401)
-def unauthorized(error):
-    return jsonify({"error": "Authentication required"}), 401
-\`\`\`
-
-### Anti-Pattern
-\`\`\`python
-# Bad: monolithic routes file, no Blueprint, logic mixed with routing
-@app.route("/login", methods=["POST"])
-def login():
-    email = request.form["email"]      # no validation, KeyError on missing field
-    user = User.query.filter_by(email=email).first()
-    # ... business logic directly in route handler
-    # ... database queries mixed with HTTP handling
-\`\`\`
-
----
-
-## Extension Initialization Pattern
-
-### Correct: Deferred Binding
-\`\`\`python
-# extensions.py
-db = SQLAlchemy()  # no app yet
-
-# __init__.py (inside create_app)
-db.init_app(app)   # bind to this specific app instance
-\`\`\`
-
-### Why It Matters
-- Allows one extension to serve multiple app instances (testing, multi-tenant)
-- Avoids circular imports (extensions don't import app, app imports extensions)
-- Matches Flask's documentation recommendation exactly
-
----
+- One Blueprint per feature domain — self-contained with own error handlers and \`before_request\` hooks
+- Register with \`app.register_blueprint(bp, url_prefix="/...")\` inside factory
+- Use \`current_app\` inside request context — never import \`app\` directly at module level
+- Keep route handlers thin — delegate to services for business logic
 
 ## Database Patterns
-
-- Use Flask-SQLAlchemy's \`db.session\` which is scoped per-request automatically
+- Use Flask-SQLAlchemy's \`db.session\` (request-scoped automatically)
 - Use Flask-Migrate for all schema changes — never modify production DB manually
 - Define relationships with explicit \`back_populates\` (not implicit \`backref\`)
 - Keep models thin — business logic belongs in services, not in model methods
-
-### Correct
-\`\`\`python
-# app/models/user.py
-from app.extensions import db
-from datetime import datetime, timezone
-
-class User(db.Model):
-    __tablename__ = "users"
-
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(
-        db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
-    )
-
-    posts = db.relationship("Post", back_populates="author", lazy="dynamic")
-
-    def __repr__(self) -> str:
-        return f"<User {self.email}>"
-\`\`\`
+- Use \`url_for()\` for URL generation — never hardcode paths
 `,
       },
       {
@@ -317,156 +93,36 @@ class User(db.Model):
         description: 'Flask security: CSRF, sessions, secrets, and deployment hardening',
         content: `# Flask Security Best Practices
 
-## Why This Matters
-Flask gives you freedom — including the freedom to introduce security flaws. Unlike
-full-stack frameworks (Django), Flask does not enable CSRF protection, secure session
-cookies, or authentication out of the box. You must configure them explicitly.
-
----
-
 ## CSRF Protection
-
-### For Server-Rendered Forms
-\`\`\`python
-# Use Flask-WTF for automatic CSRF protection
-from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField
-from wtforms.validators import DataRequired, Email
-
-class LoginForm(FlaskForm):
-    email = StringField("Email", validators=[DataRequired(), Email()])
-    password = PasswordField("Password", validators=[DataRequired()])
-\`\`\`
-
-\`\`\`html
-<!-- In Jinja2 template: include hidden CSRF token -->
-<form method="post">
-    {{ form.hidden_tag() }}
-    {{ form.email.label }} {{ form.email() }}
-    {{ form.password.label }} {{ form.password() }}
-    <button type="submit">Login</button>
-</form>
-\`\`\`
-
-### For JSON APIs
-- Use token-based authentication (JWT, API keys) instead of session CSRF
-- If using sessions for API auth, send CSRF token via custom header (\`X-CSRFToken\`)
-- Validate \`Origin\` and \`Referer\` headers as additional defense
-
----
+- For server-rendered forms: use Flask-WTF (\`FlaskForm\`) with \`{{ form.hidden_tag() }}\` in templates
+- For JSON APIs: use token-based auth (JWT, API keys) — CSRF tokens not needed for stateless auth
+- If using sessions for API auth, send CSRF token via custom \`X-CSRFToken\` header
 
 ## Session Security
-
-### Correct: Production Session Configuration
-\`\`\`python
-class ProductionConfig:
-    SECRET_KEY = os.environ["SECRET_KEY"]         # strong, random, from env
-    SESSION_COOKIE_SECURE = True                  # HTTPS only
-    SESSION_COOKIE_HTTPONLY = True                 # no JavaScript access
-    SESSION_COOKIE_SAMESITE = "Lax"               # CSRF protection
-    PERMANENT_SESSION_LIFETIME = timedelta(hours=2)
-    SESSION_REFRESH_EACH_REQUEST = True
-\`\`\`
-
-### Anti-Pattern
-\`\`\`python
-# Bad: weak secret, insecure defaults
-app.secret_key = "dev"                            # predictable, in source code
-# Missing SESSION_COOKIE_SECURE — cookies sent over HTTP
-# Missing SESSION_COOKIE_HTTPONLY — XSS can steal session
-\`\`\`
-
-### Server-Side Sessions
-- Flask's default sessions are signed cookies (client-side) — the user can read (not tamper) the data
-- For sensitive session data, use Flask-Session with Redis or database backend
-- Never store PII, tokens, or secrets directly in client-side session cookies
-
----
+- \`SECRET_KEY\`: strong, random (>= 32 bytes), loaded from environment — never hardcoded
+- \`SESSION_COOKIE_SECURE=True\` (HTTPS only), \`SESSION_COOKIE_HTTPONLY=True\` (no JS access)
+- \`SESSION_COOKIE_SAMESITE="Lax"\` or \`"Strict"\` for CSRF mitigation
+- For sensitive data, use Flask-Session with Redis/DB backend — default sessions are signed client-side cookies
+- Never store PII, tokens, or secrets in client-side session cookies
 
 ## Input Validation
-
-### Correct: Validate Before Use
-\`\`\`python
-from marshmallow import Schema, fields, validate, ValidationError
-
-class CreateUserSchema(Schema):
-    email = fields.Email(required=True)
-    name = fields.String(required=True, validate=validate.Length(min=1, max=100))
-    age = fields.Integer(validate=validate.Range(min=0, max=150))
-
-@api_bp.route("/users", methods=["POST"])
-def create_user():
-    schema = CreateUserSchema()
-    try:
-        data = schema.load(request.get_json())
-    except ValidationError as err:
-        return jsonify({"errors": err.messages}), 422
-
-    user = UserService.create(data)
-    return jsonify(UserResponseSchema().dump(user)), 201
-\`\`\`
-
-### Anti-Pattern
-\`\`\`python
-# Bad: trusting raw request data without validation
-@app.route("/users", methods=["POST"])
-def create_user():
-    data = request.json               # could be None, could be malformed
-    user = User(
-        name=data["name"],            # KeyError if missing
-        email=data["email"],          # no format validation
-    )
-    db.session.add(user)
-    db.session.commit()               # SQL error on constraint violation = 500
-\`\`\`
-
----
+- Validate all request input (\`request.json\`, \`request.form\`, \`request.args\`) before use
+- Use Marshmallow schemas or Pydantic models for structured validation
+- Return 422 with field-level errors on validation failure
+- Never trust raw request data — always check for missing fields and invalid formats
 
 ## Blueprint-Level Security
-
-\`\`\`python
-# Isolate admin routes with strict auth
-admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
-
-@admin_bp.before_request
-def require_admin():
-    if not g.get("current_user") or not g.current_user.is_admin:
-        abort(403)
-
-# Rate-limit authentication Blueprint independently
-from flask_limiter import Limiter
-limiter = Limiter(key_func=get_remote_address)
-
-@auth_bp.route("/login", methods=["POST"])
-@limiter.limit("5 per minute")
-def login():
-    ...
-\`\`\`
-
----
+- Isolate admin routes with \`@admin_bp.before_request\` requiring admin role
+- Rate-limit authentication endpoints independently (e.g., 5 per minute with Flask-Limiter)
+- Use generic error messages for auth failures ("Invalid credentials")
 
 ## Deployment Hardening
-
-### ProxyFix for Reverse Proxy
-\`\`\`python
-# wsgi.py — when behind nginx/Apache
-from werkzeug.middleware.proxy_fix import ProxyFix
-from app import create_app
-
-app = create_app()
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-\`\`\`
-
-### Production Checklist
-- [ ] \`FLASK_DEBUG=0\` and \`TESTING=False\`
-- [ ] Strong \`SECRET_KEY\` from environment (>= 32 random bytes)
-- [ ] \`SESSION_COOKIE_SECURE=True\` (requires HTTPS)
-- [ ] WSGI server (Gunicorn/uWSGI/Waitress) — NOT \`flask run\`
-- [ ] Reverse proxy (nginx/Apache) in front of WSGI server
-- [ ] \`ProxyFix\` configured to match proxy headers
-- [ ] CORS restricted to specific origins — never \`*\` in production
-- [ ] Security headers set (CSP, HSTS, X-Content-Type-Options)
-- [ ] Static files served by reverse proxy, not Flask
+- \`FLASK_DEBUG=0\` and \`TESTING=False\` in production
+- WSGI server (Gunicorn/uWSGI/Waitress) — never \`flask run\` in production
+- Apply \`ProxyFix\` middleware when behind a reverse proxy (nginx/Apache)
+- CORS restricted to specific origins — never \`"*"\` in production
+- Security headers: CSP, HSTS, X-Content-Type-Options
+- Static files served by reverse proxy, not Flask
 `,
       },
       {
@@ -476,223 +132,33 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
         description: 'Flask patterns: view decorators, Celery background tasks, streaming, error handling',
         content: `# Flask Patterns
 
-## Why This Matters
-Flask's "Patterns for Flask" documentation provides battle-tested solutions to common
-problems. These patterns have evolved over a decade of community use and form the
-de facto standard for Flask applications.
-
----
-
 ## View Decorators
-
-Use \`functools.wraps\` to preserve function metadata. Stack decorators with \`@route\`
-outermost.
-
-### Login Required
-\`\`\`python
-from functools import wraps
-from flask import g, request, redirect, url_for, abort
-
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if g.get("current_user") is None:
-            if request.is_json:
-                abort(401)
-            return redirect(url_for("auth.login", next=request.url))
-        return f(*args, **kwargs)
-    return decorated_function
-
-@main_bp.route("/dashboard")
-@login_required
-def dashboard():
-    return render_template("dashboard.html")
-\`\`\`
-
-### Role Required
-\`\`\`python
-def role_required(role: str):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not g.get("current_user") or role not in g.current_user.roles:
-                abort(403)
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-@admin_bp.route("/settings")
-@login_required
-@role_required("admin")
-def admin_settings():
-    ...
-\`\`\`
-
-### Caching Decorator
-\`\`\`python
-def cached(timeout: int = 300, key_prefix: str = "view"):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            cache_key = f"{key_prefix}/{request.path}"
-            rv = cache.get(cache_key)
-            if rv is not None:
-                return rv
-            rv = f(*args, **kwargs)
-            cache.set(cache_key, rv, timeout=timeout)
-            return rv
-        return decorated_function
-    return decorator
-\`\`\`
-
----
+- Use \`functools.wraps\` to preserve function metadata in all decorators
+- Stack decorators with \`@route\` outermost
+- \`login_required\`: check \`g.current_user\`, return 401 for JSON or redirect for HTML
+- \`role_required(role)\`: check user roles, abort(403) on insufficient permissions
+- Custom caching decorators: use \`cache.get()/cache.set()\` with request-based keys
 
 ## Background Tasks with Celery
+- Integrate via application factory: create \`FlaskTask\` subclass that wraps \`run()\` in \`app.app_context()\`
+- Use \`@shared_task\` decorator (not \`@celery_app.task\`) for factory-compatible tasks
+- Pass simple, serializable args to tasks (IDs, strings) — never ORM objects
+- Call with \`.delay()\` for fire-and-forget from route handlers
+- Configure via \`app.config["CELERY"]\` dictionary
 
-### Integration with Application Factory
-\`\`\`python
-# app/celery_init.py
-from celery import Celery, Task
-from flask import Flask
+## Error Responses
+- Register centralized error handlers on the app via \`register_error_handlers(app)\`
+- Handle \`HTTPException\`: return JSON for API routes, default HTML for web routes
+- Handle 422: return structured validation errors with \`{"error": ..., "details": ...}\`
+- Handle 500: log the real error server-side, return generic "An unexpected error occurred"
+- Consistent JSON shape: \`{"error": "...", "message": "...", "status": code}\`
+- Never expose internal error details, stack traces, or file paths
 
-def celery_init_app(app: Flask) -> Celery:
-    class FlaskTask(Task):
-        def __call__(self, *args, **kwargs):
-            with app.app_context():
-                return self.run(*args, **kwargs)
-
-    celery_app = Celery(app.name, task_cls=FlaskTask)
-    celery_app.config_from_object(app.config["CELERY"])
-    celery_app.set_default()
-    app.extensions["celery"] = celery_app
-    return celery_app
-\`\`\`
-
-### Defining Tasks
-\`\`\`python
-# app/tasks.py — use @shared_task, not @celery_app.task
-from celery import shared_task
-
-@shared_task(ignore_result=False)
-def send_welcome_email(user_id: int) -> bool:
-    """Tasks receive simple, serializable args — not ORM objects."""
-    from app.models.user import User
-    from app.extensions import db
-
-    user = db.session.get(User, user_id)
-    if not user:
-        return False
-    # ... send email ...
-    return True
-\`\`\`
-
-### Calling Tasks from Views
-\`\`\`python
-@auth_bp.route("/register", methods=["POST"])
-def register():
-    user = UserService.create(validated_data)
-    send_welcome_email.delay(user.id)  # fire-and-forget, returns immediately
-    return jsonify({"user_id": user.id}), 201
-\`\`\`
-
----
-
-## Consistent Error Responses
-
-### Centralized Error Handlers
-\`\`\`python
-# app/errors.py
-from flask import Flask, jsonify, request
-from werkzeug.exceptions import HTTPException
-
-def register_error_handlers(app: Flask) -> None:
-
-    @app.errorhandler(HTTPException)
-    def handle_http_error(error: HTTPException):
-        if request.is_json or request.path.startswith("/api"):
-            return jsonify({
-                "error": error.name,
-                "message": error.description,
-                "status": error.code,
-            }), error.code
-        return error.get_response()
-
-    @app.errorhandler(422)
-    def handle_validation_error(error):
-        return jsonify({
-            "error": "Validation Error",
-            "message": "Invalid input data",
-            "details": getattr(error, "description", {}),
-        }), 422
-
-    @app.errorhandler(500)
-    def handle_internal_error(error):
-        app.logger.error("Internal error: %s", error, exc_info=True)
-        return jsonify({
-            "error": "Internal Server Error",
-            "message": "An unexpected error occurred",
-        }), 500
-\`\`\`
-
----
-
-## Streaming Large Responses
-
-\`\`\`python
-from flask import Response, stream_with_context
-
-@api_bp.route("/export/csv")
-@login_required
-def export_csv():
-    def generate():
-        yield "id,name,email\\n"
-        for user in User.query.yield_per(100):
-            yield f"{user.id},{user.name},{user.email}\\n"
-
-    return Response(
-        stream_with_context(generate()),
-        mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=users.csv"},
-    )
-\`\`\`
-
----
-
-## Template Inheritance (Jinja2)
-
-\`\`\`html
-<!-- templates/base.html -->
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{% block title %}App{% endblock %}</title>
-    {% block head %}{% endblock %}
-</head>
-<body>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for category, message in messages %}
-            <div class="flash flash-{{ category }}">{{ message }}</div>
-        {% endfor %}
-    {% endwith %}
-
-    {% block content %}{% endblock %}
-</body>
-</html>
-\`\`\`
-
-\`\`\`html
-<!-- templates/auth/login.html -->
-{% extends "base.html" %}
-{% block title %}Login{% endblock %}
-{% block content %}
-<form method="post">
-    {{ form.hidden_tag() }}
-    {{ form.email.label }} {{ form.email(class="input") }}
-    {{ form.password.label }} {{ form.password(class="input") }}
-    <button type="submit">Login</button>
-</form>
-{% endblock %}
-\`\`\`
+## Streaming & Templates
+- Use \`Response(stream_with_context(generate()), mimetype=...)\` for large data exports
+- Use \`yield_per()\` for memory-efficient database iteration in generators
+- Jinja2 template inheritance: base template with \`{% block %}\` slots, child templates extend
+- Use \`get_flashed_messages(with_categories=true)\` for flash message rendering
 `,
       },
     ],
@@ -786,6 +252,8 @@ def export_csv():
       {
         name: 'flask-blueprint-generator',
         description: 'Generate Flask Blueprints with routes, validation, error handling, and tests',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Flask Blueprint Generator
 
 ## What It Generates
@@ -852,6 +320,8 @@ app.register_blueprint({resource}_bp, url_prefix="/{resource}s")
       {
         name: 'flask-migration-generator',
         description: 'Generate and manage Flask-Migrate (Alembic) database migrations',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Flask-Migrate Migration Generator
 
 ## Initial Setup
@@ -893,8 +363,9 @@ op.alter_column("users", "name", new_column_name="full_name")
         hooks: [
           {
             type: 'command',
+            statusMessage: 'Checking for Flask debug mode enabled in code',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.py$" && grep -nE "app\\.run\\(.*debug\\s*=\\s*True" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:1:Flask debug mode enabled in code — use FLASK_DEBUG env var instead, never app.run(debug=True) in production" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null) && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "app\\.run\\(.*debug\\s*=\\s*True" "$FILE_PATH" && { echo "Flask debug mode enabled in code — use FLASK_DEBUG env var instead, never app.run(debug=True) in production" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -905,8 +376,9 @@ op.alter_column("users", "name", new_column_name="full_name")
         hooks: [
           {
             type: 'command',
+            statusMessage: 'Checking for hardcoded SECRET_KEY in Flask code',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.py$" && grep -nE "(SECRET_KEY|secret_key)\\s*=\\s*[\"\\x27][^\"\\x27]{0,20}[\"\\x27]" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:1:Hardcoded SECRET_KEY detected — load from environment variable: os.environ[\\\"SECRET_KEY\\\"]" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null) && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "(SECRET_KEY|secret_key)\\s*=\\s*[\"\\x27][^\"\\x27]{0,20}[\"\\x27]" "$FILE_PATH" && { echo "Hardcoded SECRET_KEY detected — load from environment variable: os.environ[\\\"SECRET_KEY\\\"]" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -917,8 +389,9 @@ op.alter_column("users", "name", new_column_name="full_name")
         hooks: [
           {
             type: 'command',
+            statusMessage: 'Checking for send_file() with user input in Flask code',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.py$" && grep -nE "send_file\\(.*request\\." "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:0:Warning: send_file() with user input detected — verify path traversal protection, prefer send_from_directory()" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null) && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "send_file\\(.*request\\." "$FILE_PATH" && { echo "Warning: send_file() with user input detected — verify path traversal protection, prefer send_from_directory()" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],

@@ -247,6 +247,51 @@ describe('generateAgents', () => {
     expect(result[0]!.content).not.toMatch(/\r[^"]/);
   });
 
+  it('should include memory in frontmatter when specified', () => {
+    const agents: AgentDefinition[] = [
+      {
+        name: 'reviewer',
+        prompt: 'Review.',
+        skills: [],
+        description: 'Reviewer',
+        memory: 'project',
+      },
+    ];
+    const config = makeConfig(agents);
+    const result = generateAgents(config, projectRoot);
+
+    expect(result[0]!.content).toContain('memory: project');
+  });
+
+  it('should not include memory when not specified', () => {
+    const agents: AgentDefinition[] = [
+      { name: 'reviewer', prompt: 'Review.', skills: [], description: 'Reviewer' },
+    ];
+    const config = makeConfig(agents);
+    const result = generateAgents(config, projectRoot);
+
+    expect(result[0]!.content).not.toContain('memory:');
+  });
+
+  it('should use custom tools when agent.tools is provided', () => {
+    const agents: AgentDefinition[] = [
+      {
+        name: 'reviewer',
+        prompt: 'Review.',
+        skills: [],
+        description: 'Reviewer',
+        tools: ['Read', 'Grep', 'Glob'],
+      },
+    ];
+    const config = makeConfig(agents);
+    const result = generateAgents(config, projectRoot);
+
+    expect(result[0]!.content).toContain('  - Read');
+    expect(result[0]!.content).toContain('  - Grep');
+    expect(result[0]!.content).toContain('  - Glob');
+    expect(result[0]!.content).not.toContain('  - Bash');
+  });
+
   it('should generate multiple agent files with correct content', () => {
     const agents: AgentDefinition[] = [
       {

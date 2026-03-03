@@ -56,173 +56,37 @@ Edge-first deployment. Serverless/edge functions, environment-based configuratio
         description: 'Vercel deployment configuration, functions, routing, and caching best practices',
         content: `# Vercel Deployment Conventions
 
-## Why This Matters
-Vercel deployments are immutable and globally distributed. Proper configuration ensures
-fast builds, correct routing, secure headers, and optimal function performance. Mistakes
-in vercel.json or function configuration can cause downtime, security vulnerabilities,
-or excessive costs from misconfigured function regions and timeouts.
-
----
-
-## Project Configuration
-
-### vercel.json Structure
-\`\`\`json
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "regions": ["iad1"],
-  "functions": {
-    "api/**/*.ts": {
-      "memory": 1024,
-      "maxDuration": 30
-    }
-  },
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
-      ]
-    }
-  ],
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/:path*" }
-  ],
-  "redirects": [
-    { "source": "/old-page", "destination": "/new-page", "permanent": true }
-  ],
-  "crons": [
-    { "path": "/api/cron/cleanup", "schedule": "0 3 * * *" }
-  ]
-}
-\`\`\`
-
-### Anti-Pattern — missing security headers
-\`\`\`json
-{
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
-\`\`\`
-Problem: no security headers configured — vulnerable to XSS, clickjacking, and protocol downgrade attacks.
-
----
+## Project Configuration (vercel.json)
+- Always include \`$schema\` reference for IDE autocomplete
+- Set \`framework\` to match the actual project framework
+- Configure \`regions\` to match your data source location (default: \`iad1\`)
+- Configure \`functions\` with appropriate \`memory\` and \`maxDuration\`
+- Add security headers: HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy
+- Configure rewrites, redirects, and crons as needed
 
 ## Function Design
-
-### Correct — Web Standard function with error handling
-\`\`\`typescript
-// api/users.ts
-import { geolocation } from '@vercel/functions';
-
-export async function GET(request: Request) {
-  try {
-    const { country } = geolocation(request);
-    const data = await fetchUsers(country);
-
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 's-maxage=60, stale-while-revalidate=300',
-      },
-    });
-  } catch (error) {
-    console.error('Failed to fetch users:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-}
-\`\`\`
-
-### Anti-Pattern — leaking secrets and no error handling
-\`\`\`typescript
-export async function GET(request: Request) {
-  const apiKey = 'sk-1234567890abcdef'; // Hardcoded secret
-  const data = await fetch(\`https://api.example.com?key=\${apiKey}\`);
-  return new Response(JSON.stringify(await data.json()));
-  // Problem: hardcoded API key, no error handling, no cache headers, no content-type
-}
-\`\`\`
-
----
+- Use Web Standard Request/Response APIs
+- Include proper error handling with appropriate HTTP status codes
+- Set \`Cache-Control\` headers on all API responses
+- Never hardcode secrets in function code — use environment variables
+- Set \`Content-Type\` headers on all responses
 
 ## Edge Functions
-
-### When to Use Edge Functions
-- Authentication and session validation at the edge
-- Geolocation-based routing and content personalization
-- A/B testing and feature flag evaluation
-- Bot detection and rate limiting
-- Request/response header manipulation
-
-### When NOT to Use Edge Functions
-- Heavy computation or long-running tasks (use Node.js runtime)
-- Operations requiring Node.js APIs (fs, child_process, net, crypto.subtle differences)
-- Database connections requiring persistent TCP connections (use Node.js with connection pooling)
-- Operations exceeding Edge Function size or execution limits
-
-### Correct — Edge middleware for auth
-\`\`\`typescript
-// middleware.ts
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-
-export function middleware(request: NextRequest) {
-  const token = request.cookies.get('session-token');
-
-  if (!token && request.nextUrl.pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
-  return NextResponse.next();
-}
-
-export const config = {
-  matcher: ['/dashboard/:path*', '/api/protected/:path*'],
-};
-\`\`\`
-
----
+- **Use for**: auth/session validation, geolocation routing, A/B testing, bot detection, header manipulation
+- **Do NOT use for**: heavy computation, Node.js-specific APIs (fs, child_process), persistent TCP connections, long-running tasks
+- Configure middleware matchers to be specific — avoid matching all routes
 
 ## Caching Strategy
-
-### CDN Cache Headers
-\`\`\`typescript
-// Static data — cache aggressively
-headers: { 'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800' }
-
-// Dynamic data — short cache with background revalidation
-headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' }
-
-// User-specific data — no CDN cache
-headers: { 'Cache-Control': 'private, no-store' }
-
-// ISR pages — use revalidate
-export const revalidate = 3600; // Revalidate every hour
-\`\`\`
-
-### Anti-Pattern — unbounded cache
-\`\`\`typescript
-headers: { 'Cache-Control': 'public, max-age=31536000, immutable' }
-// Problem: caching API responses forever — stale data served to users with no way to purge
-// Only use immutable for versioned static assets (CSS, JS bundles with content hashes)
-\`\`\`
-
----
+- Static data: \`s-maxage=86400, stale-while-revalidate=604800\`
+- Dynamic data: \`s-maxage=60, stale-while-revalidate=300\`
+- User-specific data: \`private, no-store\`
+- Use ISR with \`revalidate\` for pages that change periodically
+- Only use \`immutable\` for versioned static assets with content hashes
 
 ## Region Configuration
-
-- Set \`regions\` in vercel.json to match your data source location to minimize function latency
-- Default region is \`iad1\` (Washington, D.C.) — change if your database is elsewhere
-- Use \`functionFailoverRegions\` for high-availability critical functions
-- Edge Functions run globally at all edge locations — no region configuration needed
-- For globally replicated databases, configure multiple regions for functions
+- Set \`regions\` to match your data source location for minimal latency
+- Use \`functionFailoverRegions\` for HA on critical functions
+- Edge Functions run globally — no region config needed
 `,
       },
       {
@@ -232,144 +96,38 @@ headers: { 'Cache-Control': 'public, max-age=31536000, immutable' }
         description: 'Vercel security: environment variables, headers, deployment protection, and secrets management',
         content: `# Vercel Security Best Practices
 
-## Why This Matters
-Vercel deployments are publicly accessible by default. Without proper security configuration,
-preview deployments can leak unreleased features, API routes can be exploited without
-authentication, and secrets can be exposed through client-side code or misconfigured
-environment variables.
-
----
-
 ## Environment Variable Security
-
-### Correct — environment scoping
 - Store all secrets in Vercel Environment Variables with appropriate scope (Development, Preview, Production)
 - Use \`NEXT_PUBLIC_\` prefix ONLY for values safe to expose to the browser (analytics IDs, public API URLs)
-- Use Vercel's Sensitive Environment Variables to mask values from logs and the dashboard UI
-- Rotate secrets regularly and use different values per environment
+- NEVER use \`NEXT_PUBLIC_\` on secret values — they are exposed in the client bundle
+- Use Sensitive Environment Variables to mask values from logs and dashboard
+- Rotate secrets regularly; use different values per environment
+- Never commit \`.env\` files with real values to Git
 
-### Anti-Pattern — secret exposure
-\`\`\`typescript
-// BAD: secret in client-accessible code
-const API_KEY = process.env.NEXT_PUBLIC_SECRET_API_KEY;
-// Problem: NEXT_PUBLIC_ prefix exposes this value in the client bundle
-
-// BAD: committed .env with real values
-// .env.local
-DATABASE_URL=postgres://admin:realpassword@db.example.com:5432/prod
-// Problem: committed to Git, visible to all repository collaborators
-\`\`\`
-
-### Correct
-\`\`\`typescript
-// Server-only environment variable (no NEXT_PUBLIC_ prefix)
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error('DATABASE_URL is not configured');
-
-// Client-safe public values
-const analyticsId = process.env.NEXT_PUBLIC_ANALYTICS_ID;
-\`\`\`
-
----
-
-## Security Headers
-
-All production deployments MUST include these security headers in vercel.json:
-
-\`\`\`json
-{
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-XSS-Protection", "value": "0" },
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
-        {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; font-src 'self' https:; frame-ancestors 'none'"
-        }
-      ]
-    }
-  ]
-}
-\`\`\`
-
-Adjust Content-Security-Policy directives based on your application's needs (third-party scripts, CDNs, etc.).
-
----
+## Security Headers (MANDATORY)
+- X-Content-Type-Options: nosniff
+- X-Frame-Options: DENY
+- Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+- Referrer-Policy: strict-origin-when-cross-origin
+- Permissions-Policy: restrict unnecessary browser APIs
+- Content-Security-Policy: configure per app needs (default-src 'self' as baseline)
 
 ## Deployment Protection
-
-- Enable **Deployment Protection** in project settings for preview deployments
-- Use Vercel Authentication or password protection for staging environments
-- Configure **Trusted IPs** to restrict access to preview deployments by IP range
-- Set up **Protection Bypass** headers only for automated testing (CI/CD)
-- Use \`x-vercel-protection-bypass\` header with a secret for programmatic access to protected deployments
-
----
+- Enable Deployment Protection for preview environments
+- Use Vercel Authentication or password protection for staging
+- Configure Trusted IPs to restrict preview access by IP range
+- Use \`x-vercel-protection-bypass\` only for automated testing (CI/CD)
 
 ## API Route Security
-
-### Correct — authenticated API route
-\`\`\`typescript
-export async function POST(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const token = authHeader.slice(7);
-  const user = await verifyToken(token);
-  if (!user) {
-    return new Response(JSON.stringify({ error: 'Invalid token' }), {
-      status: 403,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Process authenticated request...
-}
-\`\`\`
-
-### Anti-Pattern — unprotected API route
-\`\`\`typescript
-export async function POST(request: Request) {
-  const body = await request.json();
-  await db.users.delete(body.userId);
-  return new Response('Deleted');
-  // Problem: no authentication, no authorization, no input validation
-  // Any user can delete any account
-}
-\`\`\`
-
----
+- All mutating routes (POST, PUT, DELETE) MUST have authentication and authorization
+- Validate all request parameters and body
+- Implement rate limiting for public-facing API routes
+- Verify \`CRON_SECRET\` on cron job endpoints
+- Never leak sensitive data in error responses
 
 ## CORS Configuration
-
-\`\`\`json
-{
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "https://yourdomain.com" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" },
-        { "key": "Access-Control-Max-Age", "value": "86400" }
-      ]
-    }
-  ]
-}
-\`\`\`
-
-Never set \`Access-Control-Allow-Origin: *\` on API routes that handle authenticated requests or sensitive data.
+- Set \`Access-Control-Allow-Origin\` to specific domain — never \`*\` on authenticated endpoints
+- Configure allowed methods, headers, and max-age per API route group
 `,
       },
       {
@@ -379,129 +137,40 @@ Never set \`Access-Control-Allow-Origin: *\` on API routes that handle authentic
         description: 'Vercel function patterns: streaming, Edge Config, cron jobs, and performance optimization',
         content: `# Vercel Function Patterns
 
-## Why This Matters
-Vercel Functions are the compute backbone of modern web applications on the platform.
-Understanding function patterns, runtime selection, streaming, and caching strategies
-is essential for building performant, cost-efficient applications.
-
----
-
 ## Streaming Responses
-
-Use streaming for AI responses, large data sets, and real-time updates:
-
-\`\`\`typescript
-// api/stream.ts
-export async function GET(request: Request) {
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      for (const chunk of await generateChunks()) {
-        controller.enqueue(encoder.encode(chunk));
-      }
-      controller.close();
-    },
-  });
-
-  return new Response(stream, {
-    headers: { 'Content-Type': 'text/event-stream' },
-  });
-}
-\`\`\`
-
----
+- Use \`ReadableStream\` for AI responses, large data sets, and real-time updates
+- Set \`Content-Type: text/event-stream\` for SSE patterns
+- Use \`TextEncoder\` to encode chunks
 
 ## Edge Config for Feature Flags
-
-\`\`\`typescript
-// middleware.ts
-import { get } from '@vercel/edge-config';
-
-export async function middleware(request: Request) {
-  const maintenanceMode = await get('maintenance_mode');
-
-  if (maintenanceMode) {
-    return new Response('Service under maintenance', { status: 503 });
-  }
-
-  const betaEnabled = await get('beta_features_enabled');
-  // Use for A/B testing, feature flags, IP blocking, etc.
-}
-\`\`\`
-
----
+- Use \`@vercel/edge-config\` for low-latency feature flags and A/B testing
+- Read config in middleware for maintenance mode, beta features, IP blocking
+- Edge Config reads are globally fast (no cold start)
 
 ## Background Work with waitUntil
-
-Use \`waitUntil()\` for tasks that should not block the response:
-
-\`\`\`typescript
-import { waitUntil } from '@vercel/functions';
-
-export async function POST(request: Request) {
-  const data = await request.json();
-  const result = processData(data);
-
-  // Send response immediately
-  const response = new Response(JSON.stringify(result), { status: 200 });
-
-  // Log analytics and send notifications in the background
-  waitUntil(logAnalytics(data));
-  waitUntil(sendNotification(result));
-
-  return response;
-}
-\`\`\`
-
----
+- Use \`waitUntil()\` from \`@vercel/functions\` for tasks that should not block the response
+- Send response immediately, then run analytics, notifications, and logging in background
+- Do NOT extend \`maxDuration\` for background tasks — use \`waitUntil()\` instead
 
 ## Cron Job Functions
+- Verify requests are from Vercel Cron using \`CRON_SECRET\` authorization header
+- Configure schedules in vercel.json \`crons\` array
+- Return structured JSON responses with status information
 
-\`\`\`typescript
-// api/cron/cleanup.ts
-export async function GET(request: Request) {
-  // Verify the request is from Vercel Cron
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== \`Bearer \${process.env.CRON_SECRET}\`) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  const deletedCount = await cleanupExpiredSessions();
-  return new Response(JSON.stringify({ deletedCount }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
-\`\`\`
-
-Configure in vercel.json:
-\`\`\`json
-{
-  "crons": [
-    { "path": "/api/cron/cleanup", "schedule": "0 3 * * *" }
-  ]
-}
-\`\`\`
-
----
-
-## Function Performance Guidelines
-
-### Cold Start Minimization
+## Cold Start Minimization
 - Keep function bundles small — tree-shake unused imports
-- Use dynamic imports for heavy dependencies that are not always needed
-- Enable fluid compute for I/O-bound functions to reuse warm instances
+- Use dynamic imports for heavy dependencies not always needed
+- Enable fluid compute for I/O-bound functions
 - Place functions in the region closest to your data source
 
-### Memory and Duration
-- Start with the default memory (1024 MB) and increase only if functions fail or timeout
-- Set \`maxDuration\` to the minimum necessary — shorter limits prevent runaway costs
-- Monitor function execution times in Vercel Observability and optimize hot paths
-- Use \`waitUntil()\` for background tasks instead of extending function duration
+## Memory and Duration
+- Start with default memory (1024 MB), increase only if needed
+- Set \`maxDuration\` to the minimum necessary — prevents runaway costs
+- Monitor execution times in Vercel Observability
 
-### Connection Management
-- Never create database connections inside the request handler — use module-level singletons
-- Use connection pooling services (PgBouncer, Prisma Accelerate, Neon serverless driver)
+## Connection Management
+- Never create DB connections inside the request handler — use module-level singletons
+- Use connection pooling (PgBouncer, Prisma Accelerate, Neon serverless driver)
 - Design functions as stateless — no shared mutable state between invocations
 `,
       },
@@ -628,6 +297,8 @@ Configure in vercel.json:
       {
         name: 'vercel-scaffold',
         description: 'Generate production-ready Vercel configuration for a project',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Vercel Scaffold
 
 Generate a complete, production-ready Vercel configuration including:
@@ -702,7 +373,7 @@ Generate a sample API route using Web Standard APIs:
           {
             type: 'command',
             command:
-              'node -e "const f=process.argv[1]||\'\';if(!/vercel\\.json$/.test(f)&&!/vercel\\.ts$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/\\.json$/.test(f)){try{const j=JSON.parse(c);if(!j.headers||!j.headers.some(h=>h.headers&&h.headers.some(hh=>hh.key===\'Strict-Transport-Security\')))issues.push(\'WARNING: No HSTS header configured in vercel.json — add Strict-Transport-Security\');if(!j.headers||!j.headers.some(h=>h.headers&&h.headers.some(hh=>hh.key===\'X-Content-Type-Options\')))issues.push(\'WARNING: No X-Content-Type-Options header — add nosniff\');if(!j.headers||!j.headers.some(h=>h.headers&&h.headers.some(hh=>hh.key===\'X-Frame-Options\')))issues.push(\'WARNING: No X-Frame-Options header — add DENY or SAMEORIGIN\');if(j.functions){for(const[p,cfg]of Object.entries(j.functions)){if(cfg.maxDuration&&cfg.maxDuration>60)issues.push(\'INFO: Function \'+p+\' has maxDuration>\'+cfg.maxDuration+\'s — verify this is intentional\')}}if(!j.regions)issues.push(\'INFO: No regions configured — functions default to iad1 (Washington D.C.)\');}catch(e){issues.push(\'CRITICAL: Invalid JSON in vercel config file\')}}issues.forEach(i=>console.log(i))" -- "$CLAUDE_FILE_PATH"',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/vercel\\.json$/.test(f)&&!/vercel\\.ts$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/\\.json$/.test(f)){try{const j=JSON.parse(c);if(!j.headers||!j.headers.some(h=>h.headers&&h.headers.some(hh=>hh.key===\'Strict-Transport-Security\')))issues.push(\'WARNING: No HSTS header configured in vercel.json — add Strict-Transport-Security\');if(!j.headers||!j.headers.some(h=>h.headers&&h.headers.some(hh=>hh.key===\'X-Content-Type-Options\')))issues.push(\'WARNING: No X-Content-Type-Options header — add nosniff\');if(!j.headers||!j.headers.some(h=>h.headers&&h.headers.some(hh=>hh.key===\'X-Frame-Options\')))issues.push(\'WARNING: No X-Frame-Options header — add DENY or SAMEORIGIN\');if(j.functions){for(const[p,cfg]of Object.entries(j.functions)){if(cfg.maxDuration&&cfg.maxDuration>60)issues.push(\'INFO: Function \'+p+\' has maxDuration>\'+cfg.maxDuration+\'s — verify this is intentional\')}}if(!j.regions)issues.push(\'INFO: No regions configured — functions default to iad1 (Washington D.C.)\');}catch(e){issues.push(\'CRITICAL: Invalid JSON in vercel config file\')}}issues.forEach(i=>console.log(i))" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -714,7 +385,7 @@ Generate a sample API route using Web Standard APIs:
           {
             type: 'command',
             command:
-              'node -e "const f=process.argv[1]||\'\';if(!/middleware\\.(ts|js)$/.test(f)&&!/api\\//.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/NEXT_PUBLIC_.*(?:SECRET|KEY|TOKEN|PASSWORD)/i.test(c))issues.push(\'CRITICAL: NEXT_PUBLIC_ prefix on a secret variable — this value is exposed to the browser\');if(/[\"\\x27](sk-|ghp_|gho_|AKIA|AIza)[a-zA-Z0-9]/.test(c))issues.push(\'CRITICAL: Potential hardcoded API key detected in function code\');if(/headers\\.get\\([\"\\x27]authorization/.test(c)===false&&/api\\//.test(f)&&/(POST|PUT|DELETE|PATCH)/.test(c))issues.push(\'INFO: Mutating API route without apparent authorization check — verify authentication is handled\');issues.forEach(i=>console.log(i))" -- "$CLAUDE_FILE_PATH"',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/middleware\\.(ts|js)$/.test(f)&&!/api\\//.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/NEXT_PUBLIC_.*(?:SECRET|KEY|TOKEN|PASSWORD)/i.test(c))issues.push(\'CRITICAL: NEXT_PUBLIC_ prefix on a secret variable — this value is exposed to the browser\');if(/[\"\\x27](sk-|ghp_|gho_|AKIA|AIza)[a-zA-Z0-9]/.test(c))issues.push(\'CRITICAL: Potential hardcoded API key detected in function code\');if(/headers\\.get\\([\"\\x27]authorization/.test(c)===false&&/api\\//.test(f)&&/(POST|PUT|DELETE|PATCH)/.test(c))issues.push(\'INFO: Mutating API route without apparent authorization check — verify authentication is handled\');issues.forEach(i=>console.log(i))" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

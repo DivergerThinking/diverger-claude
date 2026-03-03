@@ -70,150 +70,47 @@ Cloud-native AWS patterns. IAM least-privilege, infrastructure as code, observab
         description: 'AWS IAM security, encryption, network isolation, and secret management best practices',
         content: `# AWS Security Best Practices
 
-## Why This Matters
-AWS misconfigurations are the leading cause of cloud security breaches. These rules follow the
-AWS Well-Architected Security Pillar and IAM best practices documentation to ensure defense in
-depth across all AWS resources.
-
----
-
 ## IAM — Identity and Access Management
-
-### Least Privilege (MANDATORY)
-Every IAM policy MUST grant only the minimum permissions needed for the task.
-
-### Correct — scoped policy
-\`\`\`json
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Action": [
-      "s3:GetObject",
-      "s3:PutObject"
-    ],
-    "Resource": "arn:aws:s3:::my-app-uploads/*",
-    "Condition": {
-      "StringEquals": {
-        "aws:PrincipalOrgID": "o-1234567890"
-      }
-    }
-  }]
-}
-\`\`\`
-
-### Anti-Pattern — overly permissive policy
-\`\`\`json
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Action": "s3:*",
-    "Resource": "*"
-  }]
-}
-\`\`\`
-
-### IAM Rules
+- Every IAM policy MUST grant only the minimum permissions needed
 - Use IAM roles for ALL service-to-service communication — NEVER create long-lived access keys
 - Use IAM Identity Center (SSO) for human access — never create IAM users with passwords
-- Enable MFA on all human accounts — hardware MFA tokens for root account
+- Enable MFA on all human accounts — hardware MFA for root account
 - Never use the root account for daily operations
-- Use IAM Access Analyzer to identify unused permissions, public access, and cross-account access
+- Use IAM Access Analyzer to identify unused permissions and public access
 - Use Service Control Policies (SCPs) for organization-level guardrails
 - Use permission boundaries to safely delegate IAM management
-- Review and audit IAM policies quarterly using access last-used information
-- Remove unused IAM users, roles, and access keys promptly
-- Use IAM policy conditions to restrict by source IP, region, organization, or TLS version
-
----
+- Review and audit IAM policies quarterly; remove unused users, roles, and keys
+- Use policy conditions to restrict by source IP, region, organization, or TLS version
 
 ## Encryption
-
-### At Rest
-- Enable SSE-S3 or SSE-KMS on all S3 buckets — use bucket policies to deny unencrypted uploads
-- Enable encryption on RDS, DynamoDB, EBS volumes, EFS, and Kinesis streams
-- Use AWS KMS customer-managed keys (CMKs) for fine-grained key rotation and access control
+- **At Rest**: Enable SSE-S3 or SSE-KMS on all S3 buckets; encrypt RDS, DynamoDB, EBS, EFS, Kinesis
+- Use KMS customer-managed keys for fine-grained rotation and access control
 - Enable automatic key rotation on KMS keys (every 365 days)
-
-### In Transit
-- Enforce TLS 1.2+ on all endpoints — use \`aws:SecureTransport\` condition in S3 bucket policies
-- Use ACM (AWS Certificate Manager) for TLS certificates — auto-renewal, free for AWS services
-- Enable HTTPS-only on CloudFront distributions and API Gateway stages
-- Use VPC endpoints to keep traffic within the AWS network (no internet traversal)
-
-### Anti-Pattern
-\`\`\`json
-{
-  "Effect": "Allow",
-  "Action": "s3:PutObject",
-  "Resource": "arn:aws:s3:::my-bucket/*"
-}
-// Problem: allows unencrypted uploads — add condition:
-// "Condition": { "StringEquals": { "s3:x-amz-server-side-encryption": "aws:kms" } }
-\`\`\`
-
----
+- **In Transit**: Enforce TLS 1.2+ on all endpoints; use \`aws:SecureTransport\` condition on S3
+- Use ACM for TLS certificates; enable HTTPS-only on CloudFront and API Gateway
+- Use VPC endpoints to keep traffic within the AWS network
 
 ## Network Security
-
 - Use private subnets for databases, application servers, and Lambda functions
-- Use VPC endpoints (Gateway for S3/DynamoDB, Interface for other services) for private access
-- Scope security groups to specific ports and specific source security groups or CIDRs
-- Use NACLs as a secondary defense layer at the subnet boundary — security groups are primary
-- Enable VPC Flow Logs for network monitoring and security investigation
-- Never use \`0.0.0.0/0\` as source in security groups for production workloads (except ALB port 443)
-- Use AWS WAF on CloudFront and ALB for web application protection (SQL injection, XSS, rate limiting)
-
----
+- Use VPC endpoints (Gateway for S3/DynamoDB, Interface for other services)
+- Scope security groups to specific ports and source security groups or CIDRs
+- Enable VPC Flow Logs for monitoring and security investigation
+- Never use \`0.0.0.0/0\` for production workloads (except ALB port 443)
+- Use AWS WAF on CloudFront and ALB for web application protection
 
 ## Secret Management
-
-- Use AWS Secrets Manager for database credentials, API keys, and third-party tokens
-- Use SSM Parameter Store (SecureString) for configuration values and non-rotating secrets
-- Enable automatic rotation on Secrets Manager secrets (Lambda-based rotation functions)
-- Never store secrets in environment variables for Lambda — use Secrets Manager with caching layer
+- Use AWS Secrets Manager for DB credentials, API keys, and tokens
+- Use SSM Parameter Store (SecureString) for config values and non-rotating secrets
+- Enable automatic rotation on Secrets Manager secrets
+- Never store secrets in Lambda environment variables — use Secrets Manager with caching
 - Never store secrets in S3, DynamoDB, or source code
-- Use IAM policies to restrict secret access to specific roles and functions
+- Initialize SDK clients outside the handler for connection reuse
 
-### Correct — Lambda retrieving secret
-\`\`\`typescript
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
-
-// Initialize outside handler for connection reuse
-const client = new SecretsManagerClient({});
-let cachedSecret: string | undefined;
-
-export async function handler() {
-  if (!cachedSecret) {
-    const response = await client.send(
-      new GetSecretValueCommand({ SecretId: 'my-app/db-credentials' })
-    );
-    cachedSecret = response.SecretString;
-  }
-  const credentials = JSON.parse(cachedSecret!);
-  // Use credentials...
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`typescript
-// BAD: secret in environment variable — visible in Lambda console and CloudTrail
-export async function handler() {
-  const dbPassword = process.env.DB_PASSWORD; // Never do this for sensitive secrets
-}
-\`\`\`
-
----
-
-## Logging & Monitoring
-
-- Enable CloudTrail in all regions for API activity auditing — send to centralized S3 bucket with MFA delete
-- Enable CloudTrail data events for S3 and Lambda on sensitive resources
-- Enable AWS Config for configuration compliance monitoring and drift detection
-- Enable GuardDuty for threat detection (cryptocurrency mining, compromised credentials, unusual API calls)
-- Enable Security Hub for centralized security findings across Config, GuardDuty, IAM Access Analyzer, and Inspector
-- Enable AWS Config rules for CIS Benchmarks and PCI DSS compliance (if applicable)
+## Logging and Monitoring
+- Enable CloudTrail in all regions — send to centralized S3 bucket
+- Enable AWS Config for compliance monitoring and drift detection
+- Enable GuardDuty for threat detection
+- Enable Security Hub for centralized security findings
 - Never log sensitive data: access keys, passwords, tokens, PII
 `,
       },
@@ -224,57 +121,32 @@ export async function handler() {
         description: 'AWS resource tagging strategy for cost allocation, ownership, and automated operations',
         content: `# AWS Resource Tagging Strategy
 
-## Why This Matters
-Consistent tagging enables cost allocation, ownership tracking, automated operations (auto-shutdown
-of dev resources), compliance auditing, and incident response. AWS cost reports are useless without
-proper tagging. These conventions follow AWS tagging best practices.
-
----
-
 ## Required Tags (MANDATORY on all resources)
-
-| Tag Key | Description | Example Values |
-|---------|-------------|----------------|
-| \`Environment\` | Deployment environment | \`dev\`, \`staging\`, \`production\` |
-| \`Project\` | Application or project name | \`payment-service\`, \`user-api\` |
-| \`Owner\` | Team or individual responsible | \`platform-team\`, \`backend\` |
-| \`CostCenter\` | Billing allocation identifier | \`eng-100\`, \`marketing-200\` |
-| \`ManagedBy\` | How the resource is managed | \`cdk\`, \`terraform\`, \`cloudformation\`, \`manual\` |
+- **Environment**: Deployment environment (\`dev\`, \`staging\`, \`production\`)
+- **Project**: Application or project name (\`payment-service\`, \`user-api\`)
+- **Owner**: Team or individual responsible (\`platform-team\`, \`backend\`)
+- **CostCenter**: Billing allocation identifier (\`eng-100\`, \`marketing-200\`)
+- **ManagedBy**: How the resource is managed (\`cdk\`, \`terraform\`, \`cloudformation\`, \`manual\`)
 
 ## Optional Tags
+- **Version**: Application version deployed (\`v2.3.1\`)
+- **Compliance**: Regulatory requirements (\`hipaa\`, \`soc2\`, \`pci-dss\`, \`gdpr\`)
+- **DataClassification**: Sensitivity level (\`public\`, \`internal\`, \`confidential\`, \`restricted\`)
+- **AutoShutdown**: Scheduled shutdown eligibility (\`true\`, \`false\`)
+- **BackupSchedule**: Backup frequency (\`daily\`, \`weekly\`, \`none\`)
 
-| Tag Key | Description | Example Values |
-|---------|-------------|----------------|
-| \`Version\` | Application version deployed | \`v2.3.1\`, \`1.0.0\` |
-| \`Compliance\` | Regulatory requirements | \`hipaa\`, \`soc2\`, \`pci-dss\`, \`gdpr\` |
-| \`DataClassification\` | Data sensitivity level | \`public\`, \`internal\`, \`confidential\`, \`restricted\` |
-| \`AutoShutdown\` | Scheduled shutdown eligibility | \`true\`, \`false\` |
-| \`BackupSchedule\` | Backup frequency requirement | \`daily\`, \`weekly\`, \`none\` |
-
----
+## Implementation
+- Use CDK \`Tags.of(app).add()\` or provider-level \`default_tags\` for automatic tagging
+- Use PascalCase for tag keys (AWS convention)
+- Keep tag values lowercase and consistent
 
 ## Enforcement
-
-### CDK — default tags at stack level
-\`\`\`typescript
-import { Tags } from 'aws-cdk-lib';
-
-Tags.of(app).add('Project', 'payment-service');
-Tags.of(app).add('ManagedBy', 'cdk');
-Tags.of(app).add('Owner', 'platform-team');
-\`\`\`
-
-### AWS Organizations — tag policies
 - Use AWS Organizations tag policies to enforce required tags and allowed values
 - Use AWS Config rule \`required-tags\` to detect non-compliant resources
 - Use SCPs to deny \`CreateStack\` / \`RunInstances\` without required tags
-
-### Guidelines
-- Use PascalCase for tag keys (AWS convention)
-- Keep tag values lowercase and consistent
 - Automate tag compliance checks in CI/CD pipelines
-- Use Cost Allocation Tags in AWS Billing for cost reports by project/team/environment
-- Review tag compliance monthly with AWS Config or custom reporting
+- Use Cost Allocation Tags in AWS Billing for cost reports
+- Review tag compliance monthly
 `,
       },
       {
@@ -284,122 +156,41 @@ Tags.of(app).add('Owner', 'platform-team');
         description: 'AWS CDK construct design, stack organization, and deployment patterns',
         content: `# AWS CDK Conventions
 
-## Why This Matters
-AWS CDK enables infrastructure as code using general-purpose programming languages. Well-structured
-CDK code is testable, reusable, and safe to deploy. These conventions follow the official AWS CDK
-best practices (docs.aws.amazon.com/cdk/v2/guide/best-practices.html).
-
----
-
 ## Application Structure
+- Constructs compose resources, stacks deploy them
+- Create reusable constructs in \`lib/constructs/\` — each focused on a single concern
+- Stacks in \`lib/stacks/\` instantiate constructs with environment-specific config
+- Do NOT put all resources directly in a Stack — extract to Constructs for reuse and testability
 
-### Correct — constructs compose resources, stacks deploy them
-\`\`\`typescript
-// constructs/api-service.ts — reusable construct
-import { Construct } from 'constructs';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as apigateway from 'aws-cdk-lib/aws-apigateway';
-import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+## Names and References
+- Let CDK generate resource names — do NOT hardcode \`bucketName\`, \`functionName\`, etc.
+- Pass references between constructs via properties, not env vars or SSM lookups during synth
+- Use \`cdk.CfnOutput\` for values external systems need (API URL, queue ARN)
 
-interface ApiServiceProps {
-  tableName?: string;
-  memorySize?: number;
-}
+## Stack Organization
+- Separate stateful (DynamoDB, S3, RDS) and stateless (Lambda, API Gateway) into different stacks
+- Enable \`terminationProtection: true\` on stateful stacks
+- Model all environments as separate stack instances with environment-specific props
+- Use \`removalPolicy: RETAIN\` on stateful resources (databases, buckets)
 
-export class ApiService extends Construct {
-  public readonly table: dynamodb.Table;
-  public readonly api: apigateway.RestApi;
+## Security
+- Use \`grant*\` methods for IAM — never write raw IAM policies in CDK
+- Enable encryption on all data stores (DynamoDB, S3, RDS)
+- Enable point-in-time recovery on DynamoDB tables
+- Enable X-Ray tracing on Lambda and API Gateway
+- Set Lambda reserved concurrency to prevent runaway costs
+- Use VPC endpoints for AWS service access from private subnets
 
-  constructor(scope: Construct, id: string, props: ApiServiceProps = {}) {
-    super(scope, id);
-
-    this.table = new dynamodb.Table(this, 'Table', {
-      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      pointInTimeRecovery: true,
-      encryption: dynamodb.TableEncryption.AWS_MANAGED,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-    });
-
-    const handler = new lambda.Function(this, 'Handler', {
-      runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'index.handler',
-      code: lambda.Code.fromAsset('lambda/api'),
-      memorySize: props.memorySize ?? 256,
-      timeout: cdk.Duration.seconds(15),
-      environment: {
-        TABLE_NAME: this.table.tableName,
-      },
-      tracing: lambda.Tracing.ACTIVE,
-    });
-
-    this.table.grantReadWriteData(handler); // Least-privilege IAM
-
-    this.api = new apigateway.RestApi(this, 'Api', {
-      deployOptions: { tracingEnabled: true },
-    });
-    this.api.root.addMethod('ANY', new apigateway.LambdaIntegration(handler));
-  }
-}
-\`\`\`
-
-### Anti-Pattern — everything directly in a stack
-\`\`\`typescript
-// BAD: all resources in a single stack class — not reusable, hard to test
-export class MyStack extends Stack {
-  constructor(scope: Construct, id: string) {
-    super(scope, id);
-    // 200 lines of interleaved resource definitions...
-    // Problem: cannot reuse, cannot test in isolation, hard to understand
-  }
-}
-\`\`\`
-
----
-
-## Key Conventions
-
-### Names and References
-- Let CDK generate resource names — do not hardcode \`bucketName\`, \`functionName\`, etc.
-- Pass references between constructs via properties, not environment variables or SSM lookups during synth
-- Use \`cdk.CfnOutput\` for values that external systems need (API URL, queue ARN)
-
-### Stacks
-- Separate stateful (DynamoDB, S3, RDS) and stateless (Lambda, API Gateway, Step Functions) resources into different stacks
-- Enable termination protection on stateful stacks: \`terminationProtection: true\`
-- Model all environments as separate stack instances:
-\`\`\`typescript
-new ApiStack(app, 'Api-Dev', { env: devEnv, stage: 'dev' });
-new ApiStack(app, 'Api-Prod', { env: prodEnv, stage: 'production' });
-\`\`\`
-
-### Synthesis Hygiene
+## Synthesis Hygiene
 - Commit \`cdk.context.json\` to version control for deterministic builds
 - Never perform side effects (API calls, file writes) during synthesis
 - Use \`if\`/\`for\` in TypeScript instead of CloudFormation Conditions or Parameters
 
-### Testing
-\`\`\`typescript
-import { Template } from 'aws-cdk-lib/assertions';
-
-test('creates DynamoDB table with PITR enabled', () => {
-  const app = new cdk.App();
-  const stack = new DataStack(app, 'TestStack');
-  const template = Template.fromStack(stack);
-  template.hasResourceProperties('AWS::DynamoDB::Table', {
-    PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true },
-  });
-});
-
-test('Lambda function has appropriate timeout', () => {
-  const template = Template.fromStack(stack);
-  template.hasResourceProperties('AWS::Lambda::Function', {
-    Timeout: 15,
-    MemorySize: 256,
-  });
-});
-\`\`\`
+## Testing
+- Write unit tests with \`Template.fromStack()\` and \`assertions\` library
+- Assert encryption is enabled on all data stores
+- Assert IAM policies follow least privilege
+- Assert stateful resource logical IDs remain stable
 `,
       },
     ],
@@ -560,6 +351,8 @@ test('Lambda function has appropriate timeout', () => {
       {
         name: 'aws-cdk-scaffold',
         description: 'Generate production-ready AWS CDK infrastructure with proper security, tagging, and best practices',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# AWS CDK Scaffold
 
 ## Purpose
@@ -649,7 +442,7 @@ Tags.of(app).add('CostCenter', costCenter);
         hooks: [
           {
             type: 'command',
-            command: 'node -e "const f=process.argv[1]||\'\';const ext=f.split(\'.\').pop()||\'\';if(!/^(ts|js|json|ya?ml|py|java|go|rs|cs)$/.test(ext))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/AKIA[0-9A-Z]{16}/.test(c))issues.push(\'CRITICAL: AWS access key ID detected (AKIA...) — use IAM roles or environment variables\');if(/[\\x27\\x22][A-Za-z0-9\\/+=]{40}[\\x27\\x22]/.test(c)&&/aws|secret|key/i.test(c))issues.push(\'WARNING: Possible AWS secret access key detected — use IAM roles or Secrets Manager\');if(/(Action|action)[\\x27\\x22:\\s]+[\\x27\\x22]\\*[\\x27\\x22]/.test(c)&&/(Resource|resource)[\\x27\\x22:\\s]+[\\x27\\x22]\\*[\\x27\\x22]/.test(c))issues.push(\'WARNING: IAM policy with Action:* and Resource:* detected — scope to specific actions and resources\');if(/0\\.0\\.0\\.0\\/0/.test(c)&&/(ingress|inbound|security.?group|sg)/i.test(c))issues.push(\'WARNING: Security group with 0.0.0.0/0 ingress — restrict to specific CIDRs\');issues.forEach(i=>console.log(i))" -- "$CLAUDE_FILE_PATH"',
+            command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';const ext=f.split(\'.\').pop()||\'\';if(!/^(ts|js|json|ya?ml|py|java|go|rs|cs)$/.test(ext))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/AKIA[0-9A-Z]{16}/.test(c))issues.push(\'CRITICAL: AWS access key ID detected (AKIA...) — use IAM roles or environment variables\');if(/[\\x27\\x22][A-Za-z0-9\\/+=]{40}[\\x27\\x22]/.test(c)&&/aws|secret|key/i.test(c))issues.push(\'WARNING: Possible AWS secret access key detected — use IAM roles or Secrets Manager\');if(/(Action|action)[\\x27\\x22:\\s]+[\\x27\\x22]\\*[\\x27\\x22]/.test(c)&&/(Resource|resource)[\\x27\\x22:\\s]+[\\x27\\x22]\\*[\\x27\\x22]/.test(c))issues.push(\'WARNING: IAM policy with Action:* and Resource:* detected — scope to specific actions and resources\');if(/0\\.0\\.0\\.0\\/0/.test(c)&&/(ingress|inbound|security.?group|sg)/i.test(c))issues.push(\'WARNING: Security group with 0.0.0.0/0 ingress — restrict to specific CIDRs\');issues.forEach(i=>console.log(i))" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -660,7 +453,7 @@ Tags.of(app).add('CostCenter', costCenter);
         hooks: [
           {
             type: 'command',
-            command: 'node -e "const f=process.argv[1]||\'\';if(!/cdk.*\\.ts$|stack.*\\.ts$|construct.*\\.ts$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/bucketName\\s*:/i.test(c)||/functionName\\s*:/i.test(c)||/tableName\\s*:/i.test(c))issues.push(\'INFO: Hardcoded resource name detected — let CDK generate names for safer deployments\');if(/RemovalPolicy\\.DESTROY/.test(c)&&!/test|dev|staging/i.test(f))issues.push(\'WARNING: RemovalPolicy.DESTROY on non-dev file — use RETAIN for production stateful resources\');if(/(new.*Table|new.*Bucket|new.*DatabaseInstance)/.test(c)&&!/encryption|encrypted/i.test(c))issues.push(\'INFO: Stateful resource without explicit encryption configuration — verify encryption is enabled\');issues.forEach(i=>console.log(i))" -- "$CLAUDE_FILE_PATH"',
+            command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/cdk.*\\.ts$|stack.*\\.ts$|construct.*\\.ts$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/bucketName\\s*:/i.test(c)||/functionName\\s*:/i.test(c)||/tableName\\s*:/i.test(c))issues.push(\'INFO: Hardcoded resource name detected — let CDK generate names for safer deployments\');if(/RemovalPolicy\\.DESTROY/.test(c)&&!/test|dev|staging/i.test(f))issues.push(\'WARNING: RemovalPolicy.DESTROY on non-dev file — use RETAIN for production stateful resources\');if(/(new.*Table|new.*Bucket|new.*DatabaseInstance)/.test(c)&&!/encryption|encrypted/i.test(c))issues.push(\'INFO: Stateful resource without explicit encryption configuration — verify encryption is enabled\');issues.forEach(i=>console.log(i))" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

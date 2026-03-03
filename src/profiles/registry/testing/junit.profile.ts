@@ -51,81 +51,38 @@ Modern Java testing platform. Jupiter API with extensions, parameterized tests, 
 - Use \`@Test\` from \`org.junit.jupiter.api\`, never from \`org.junit.Test\` (JUnit 4)
 - Use \`@DisplayName\` on every test method and \`@Nested\` class for clear test reports
 - Use \`@Nested\` inner classes to group tests by method under test or scenario
-- Follow Given-When-Then / Arrange-Act-Assert pattern in every test method
-- One test class per production class — mirror the package structure in \`src/test/java/\`
-- Use descriptive test method names: \`shouldReturnUserWhenValidIdIsProvided()\`
+- Follow Arrange-Act-Assert pattern — one test class per production class
+- Use descriptive method names: \`shouldReturnUserWhenValidIdIsProvided()\`
 
-## Assertions with AssertJ
-- Prefer AssertJ fluent assertions for all new tests:
-  \`\`\`java
-  assertThat(result).isEqualTo(expected);
-  assertThat(users).hasSize(3).extracting("name").contains("Alice", "Bob");
-  assertThatThrownBy(() -> service.process(null))
-      .isInstanceOf(IllegalArgumentException.class)
-      .hasMessageContaining("must not be null");
-  \`\`\`
-- Use \`SoftAssertions.assertSoftly()\` for grouped assertions that should all evaluate:
-  \`\`\`java
-  SoftAssertions.assertSoftly(softly -> {
-      softly.assertThat(user.getName()).isEqualTo("Alice");
-      softly.assertThat(user.getAge()).isEqualTo(30);
-      softly.assertThat(user.isActive()).isTrue();
-  });
-  \`\`\`
-- Use \`assertThat(optional).isPresent().hasValue(expected)\` for Optional assertions
-- Use \`assertThat(result).satisfies(r -> { ... })\` for complex multi-field assertions
-- Use \`as("description")\` BEFORE the assertion to label assertions in failure messages
-
-## JUnit Built-in Assertions (when AssertJ is not available)
-- Use \`assertAll()\` for grouped assertions that should all be evaluated
-- Use \`assertThrows(ExceptionType.class, () -> ...)\` with message verification
-- Use \`assertTimeout(Duration.ofSeconds(5), () -> ...)\` for performance bounds
-- Use \`assertDoesNotThrow(() -> ...)\` to verify no exception is thrown
+## Assertions
+- Prefer AssertJ fluent assertions: \`assertThat(result).isEqualTo(expected)\`
+- Use \`SoftAssertions.assertSoftly()\` for grouped assertions that should all evaluate
+- Use \`assertThatThrownBy(() -> ...)\` for exception testing with type and message checks
+- Use \`as("description")\` before assertions for meaningful failure messages
+- When AssertJ unavailable: use \`assertAll()\`, \`assertThrows()\`, \`assertTimeout()\`
 
 ## Lifecycle Management
-- Use \`@BeforeEach\` for common per-test setup — keep it minimal and focused
-- Use \`@AfterEach\` for cleanup: closing resources, resetting external state
-- Use \`@BeforeAll\` / \`@AfterAll\` only for expensive one-time resources (Testcontainers, embedded servers)
-- Use \`@TempDir Path tempDir\` for temporary filesystem operations — auto-cleaned after test
-- Use \`@Timeout\` to prevent hanging tests — configure default with \`junit.jupiter.execution.timeout.default\`
-- Avoid \`@TestInstance(Lifecycle.PER_CLASS)\` unless sharing expensive resources across methods
+- Use \`@BeforeEach\` for per-test setup, \`@AfterEach\` for cleanup
+- Use \`@BeforeAll\`/\`@AfterAll\` only for expensive one-time resources
+- Use \`@TempDir\` for filesystem operations, \`@Timeout\` to prevent hangs
+- Avoid \`@TestInstance(PER_CLASS)\` unless sharing expensive resources
 
 ## Parameterized Tests
-- Use \`@ParameterizedTest(name = "{index}: {0} should produce {1}")\` with descriptive name attribute
-- Use \`@ValueSource\` for single-argument primitive/string tests
-- Use \`@CsvSource\` for multi-argument inline tabular data
-- Use \`@MethodSource("provideArguments")\` for complex argument generation — method must be static
-- Use \`@EnumSource\` for testing all or subset of enum values
-- Use \`@NullAndEmptySource\` for null and empty edge cases
-- Use \`@ArgumentsSource(CustomProvider.class)\` for reusable argument providers across tests
+- Use \`@ParameterizedTest\` with descriptive \`name\` attribute
+- Use \`@ValueSource\` for single-argument, \`@CsvSource\` for multi-argument
+- Use \`@MethodSource\` for complex argument generation (static method)
+- Use \`@EnumSource\` for enum values, \`@NullAndEmptySource\` for edge cases
 
 ## Mocking with Mockito
-- Always use \`@ExtendWith(MockitoExtension.class)\` — never call \`MockitoAnnotations.openMocks()\` manually
-- Use \`@Mock\` for dependencies, \`@InjectMocks\` for the subject under test
-- Prefer constructor injection in production code — it works best with Mockito
-- Use \`@Spy\` for partial mocks when you need real behavior for some methods
-- Verify interactions with \`verify(mock)\` — avoid verifying implementation details
-- Use \`ArgumentCaptor<T>\` with \`@Captor\` annotation to capture and assert on arguments:
-  \`\`\`java
-  @Captor ArgumentCaptor<Order> orderCaptor;
-
-  verify(repository).save(orderCaptor.capture());
-  assertThat(orderCaptor.getValue().getStatus()).isEqualTo(Status.COMPLETED);
-  \`\`\`
-- Use BDDMockito (\`given/willReturn\`) for BDD-style tests for consistency with Given-When-Then
-- Use strict stubbing (default) — only use \`lenient()\` when justified with a code comment
-- Never stub methods that are not called — strict stubbing will flag this as an error
+- Always use \`@ExtendWith(MockitoExtension.class)\` — never \`MockitoAnnotations.openMocks()\`
+- Use \`@Mock\` for dependencies, \`@InjectMocks\` for subject under test
+- Use \`@Captor\` with \`ArgumentCaptor\` to capture and assert on arguments
+- Use strict stubbing (default) — only \`lenient()\` when justified with comment
+- Verify only meaningful interactions — avoid verifying implementation details
 
 ## Test Tags & Filtering
-- Use \`@Tag("unit")\`, \`@Tag("integration")\`, \`@Tag("slow")\` for test categorization
-- Create custom composed annotations for frequently used tag combinations:
-  \`\`\`java
-  @Target(ElementType.METHOD)
-  @Retention(RetentionPolicy.RUNTIME)
-  @Tag("integration")
-  @Test
-  public @interface IntegrationTest {}
-  \`\`\`
+- Use \`@Tag("unit")\`, \`@Tag("integration")\`, \`@Tag("slow")\` for categorization
+- Create custom composed annotations for frequent tag combinations
 - Configure tag-based filtering in Maven Surefire/Failsafe or Gradle test tasks
 `,
       },
@@ -138,105 +95,26 @@ Modern Java testing platform. Jupiter API with extensions, parameterized tests, 
         content: `# JUnit 5 Project Structure & Configuration
 
 ## Directory Layout
-\`\`\`
-src/
-  main/java/          # Production code
-  test/java/          # Unit tests (mirror main package structure)
-  test/resources/     # Test fixtures, data files
-\`\`\`
+- \`src/main/java/\` — production code
+- \`src/test/java/\` — unit tests (mirror main package structure)
+- \`src/test/resources/\` — test fixtures and data files
 
-## Maven Configuration (pom.xml)
-\`\`\`xml
-<dependencies>
-  <!-- JUnit 5 Jupiter API and Engine -->
-  <dependency>
-    <groupId>org.junit.jupiter</groupId>
-    <artifactId>junit-jupiter</artifactId>
-    <version>5.10.2</version>
-    <scope>test</scope>
-  </dependency>
-  <!-- AssertJ for fluent assertions -->
-  <dependency>
-    <groupId>org.assertj</groupId>
-    <artifactId>assertj-core</artifactId>
-    <version>3.25.3</version>
-    <scope>test</scope>
-  </dependency>
-  <!-- Mockito with JUnit 5 extension -->
-  <dependency>
-    <groupId>org.mockito</groupId>
-    <artifactId>mockito-junit-jupiter</artifactId>
-    <version>5.11.0</version>
-    <scope>test</scope>
-  </dependency>
-</dependencies>
+## Maven Configuration
+- Add \`junit-jupiter\`, \`assertj-core\`, \`mockito-junit-jupiter\` as test dependencies
+- Configure \`maven-surefire-plugin\` (3.2+) with tag-based groups: \`<groups>unit</groups>\`
+- Configure \`maven-failsafe-plugin\` for integration tests: \`<groups>integration</groups>\`
 
-<build>
-  <plugins>
-    <plugin>
-      <groupId>org.apache.maven.plugins</groupId>
-      <artifactId>maven-surefire-plugin</artifactId>
-      <version>3.2.5</version>
-      <configuration>
-        <groups>unit</groups>
-        <excludedGroups>slow</excludedGroups>
-      </configuration>
-    </plugin>
-    <plugin>
-      <groupId>org.apache.maven.plugins</groupId>
-      <artifactId>maven-failsafe-plugin</artifactId>
-      <version>3.2.5</version>
-      <configuration>
-        <groups>integration</groups>
-      </configuration>
-    </plugin>
-  </plugins>
-</build>
-\`\`\`
+## Gradle Configuration
+- Add same test dependencies with \`testImplementation\`
+- Configure \`tasks.test\` with \`useJUnitPlatform { includeTags("unit"); excludeTags("slow") }\`
+- Register separate \`integrationTest\` task with \`includeTags("integration")\`
+- Enable test logging: \`events("passed", "skipped", "failed")\`
 
-## Gradle Configuration (build.gradle.kts)
-\`\`\`kotlin
-dependencies {
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
-    testImplementation("org.assertj:assertj-core:3.25.3")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.11.0")
-}
-
-tasks.test {
-    useJUnitPlatform {
-        includeTags("unit")
-        excludeTags("slow")
-    }
-    testLogging {
-        events("passed", "skipped", "failed")
-        showStandardStreams = true
-    }
-}
-
-// Integration tests as a separate task
-tasks.register<Test>("integrationTest") {
-    useJUnitPlatform {
-        includeTags("integration")
-    }
-}
-\`\`\`
-
-## JUnit Platform Configuration
-Create \`src/test/resources/junit-platform.properties\`:
-\`\`\`properties
-# Parallel execution
-junit.jupiter.execution.parallel.enabled=true
-junit.jupiter.execution.parallel.mode.default=concurrent
-junit.jupiter.execution.parallel.mode.classes.default=concurrent
-
-# Timeout defaults
-junit.jupiter.execution.timeout.default=10s
-junit.jupiter.execution.timeout.testable.method.default=5s
-
-# Display name generator
-junit.jupiter.displayname.generator.default=\\
-    org.junit.jupiter.api.DisplayNameGenerator$ReplaceUnderscores
-\`\`\`
+## JUnit Platform Properties
+- Create \`src/test/resources/junit-platform.properties\` for shared configuration
+- Enable parallel execution: \`junit.jupiter.execution.parallel.enabled=true\`
+- Set default timeout: \`junit.jupiter.execution.timeout.default=10s\`
+- Configure display name generator for readable test names
 `,
       },
     ],
@@ -334,6 +212,8 @@ Available skills: junit-test-generator
         name: 'junit-test-generator',
         description:
           'Generate comprehensive JUnit 5 test classes with AssertJ assertions and Mockito mocking for Java classes',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# JUnit 5 Test Generator
 
 ## Purpose
@@ -483,8 +363,9 @@ void shouldReturnCompleteUserProfile() {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "import\\s+org\\.junit\\.Test;|import\\s+org\\.junit\\.Before;|import\\s+org\\.junit\\.After;|import\\s+org\\.junit\\.BeforeClass;|import\\s+org\\.junit\\.AfterClass;|@RunWith\\(" "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:1:JUnit 4 imports or annotations detected — migrate to JUnit 5 Jupiter (org.junit.jupiter.api)" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "import\\s+org\\.junit\\.Test;|import\\s+org\\.junit\\.Before;|import\\s+org\\.junit\\.After;|import\\s+org\\.junit\\.BeforeClass;|import\\s+org\\.junit\\.AfterClass;|@RunWith\\(" "$FILE_PATH" | head -5 | grep -q "." && { echo "JUnit 4 imports or annotations detected — migrate to JUnit 5 Jupiter (org.junit.jupiter.api)" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for JUnit 4 imports in test files',
           },
         ],
       },
@@ -495,8 +376,9 @@ void shouldReturnCompleteUserProfile() {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "assertEquals\\(|assertTrue\\(|assertFalse\\(|assertNull\\(|assertNotNull\\(" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: JUnit built-in assertions detected — prefer AssertJ fluent assertions (assertThat) for better readability" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "assertEquals\\(|assertTrue\\(|assertFalse\\(|assertNull\\(|assertNotNull\\(" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: JUnit built-in assertions detected — prefer AssertJ fluent assertions (assertThat) for better readability" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for JUnit built-in assertions vs AssertJ',
           },
         ],
       },
@@ -507,8 +389,9 @@ void shouldReturnCompleteUserProfile() {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "MockitoAnnotations\\.openMocks|MockitoAnnotations\\.initMocks" "$CLAUDE_FILE_PATH" | head -1 | grep -q "." && echo "HOOK_EXIT:0:Warning: Manual Mockito initialization detected — use @ExtendWith(MockitoExtension.class) instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "MockitoAnnotations\\.openMocks|MockitoAnnotations\\.initMocks" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: Manual Mockito initialization detected — use @ExtendWith(MockitoExtension.class) instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for manual Mockito initialization',
           },
         ],
       },
@@ -519,8 +402,9 @@ void shouldReturnCompleteUserProfile() {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "Thread\\.sleep\\(" "$CLAUDE_FILE_PATH" | head -1 | grep -q "." && echo "HOOK_EXIT:0:Warning: Thread.sleep() detected in test — use @Timeout, Awaitility, or CountDownLatch instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "Thread\\.sleep\\(" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: Thread.sleep() detected in test — use @Timeout, Awaitility, or CountDownLatch instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for Thread.sleep() in JUnit tests',
           },
         ],
       },

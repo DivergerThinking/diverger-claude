@@ -47,176 +47,31 @@ Middleware-based architecture. Route → validate → handle → respond pattern
         content: `# Express Middleware & Error Handling
 
 ## Middleware Chain Order
-Global middleware must be registered in this order for correct behavior:
-1. **CORS** — \`cors()\` with explicit allowed origins (never \`*\` in production)
-2. **Security headers** — \`helmet()\`
-3. **Compression** — \`compression()\`
-4. **Body parsing** — \`express.json({ limit: '100kb' })\`, \`express.urlencoded({ extended: false })\`
-5. **Request logging** — pino-http, morgan, or custom
-6. **Authentication** — JWT verification, session hydration
-7. **Routes** — resource routers
-8. **404 handler** — catch-all for unmatched routes
-9. **Error handler** — centralized \`(err, req, res, next)\` middleware
-
-### Correct
-
-\`\`\`typescript
-import express from 'express';
-import helmet from 'helmet';
-import cors from 'cors';
-import compression from 'compression';
-import { pinoHttp } from 'pino-http';
-import { authMiddleware } from './middleware/auth.js';
-import { userRouter } from './routes/users.js';
-import { errorHandler, notFoundHandler } from './middleware/errors.js';
-
-const app = express();
-
-// 1-5: Global middleware in correct order
-app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') }));
-app.use(helmet());
-app.use(compression());
-app.use(express.json({ limit: '100kb' }));
-app.use(express.urlencoded({ extended: false }));
-app.use(pinoHttp());
-
-// 6-7: Auth + routes
-app.use('/api', authMiddleware);
-app.use('/api/users', userRouter);
-
-// 8-9: Error handling (MUST be last)
-app.use(notFoundHandler);
-app.use(errorHandler);
-\`\`\`
+Register global middleware in this order:
+1. CORS — \`cors()\` with explicit allowed origins (never \`*\` in production)
+2. Security headers — \`helmet()\`
+3. Compression — \`compression()\`
+4. Body parsing — \`express.json({ limit: '100kb' })\`, \`express.urlencoded({ extended: false })\`
+5. Request logging — pino-http, morgan, or custom
+6. Authentication — JWT verification, session hydration
+7. Routes — resource routers
+8. 404 handler — catch-all for unmatched routes
+9. Error handler — centralized \`(err, req, res, next)\` middleware (MUST be last)
 
 ## Error Handling Middleware
-The error handler MUST have exactly four parameters: \`(err, req, res, next)\`. Express uses the arity to identify it.
-
-### Correct
-
-\`\`\`typescript
-import type { Request, Response, NextFunction } from 'express';
-
-interface AppError extends Error {
-  statusCode?: number;
-  code?: string;
-  isOperational?: boolean;
-}
-
-function errorHandler(
-  err: AppError,
-  req: Request,
-  res: Response,
-  _next: NextFunction,
-): void {
-  // Delegate to default handler if headers already sent
-  if (res.headersSent) {
-    return _next(err);
-  }
-
-  const statusCode = err.statusCode ?? 500;
-  const isProduction = process.env.NODE_ENV === 'production';
-
-  // Log full error server-side with context
-  req.log?.error({ err, requestId: req.id, path: req.path }, 'Request failed');
-
-  // Send safe response to client
-  res.status(statusCode).json({
-    error: {
-      message: statusCode >= 500 && isProduction
-        ? 'Internal server error'
-        : err.message,
-      code: err.code ?? 'INTERNAL_ERROR',
-      ...(isProduction ? {} : { stack: err.stack }),
-    },
-  });
-}
-\`\`\`
-
-### Anti-Pattern
-
-\`\`\`typescript
-// WRONG: Missing 4th parameter — Express will NOT recognize this as an error handler
-app.use((err: Error, req: Request, res: Response) => {
-  res.status(500).json({ error: err.stack }); // Leaks stack trace to client
-});
-\`\`\`
+- MUST have exactly 4 parameters: \`(err, req, res, next)\` — Express uses arity to identify it
+- Check \`res.headersSent\` before sending a response
+- Log full error server-side; send safe message to client (no stack traces in production)
+- Distinguish operational errors (safe to expose) from programmer errors (generic 500)
 
 ## Async Error Handling
-
-### Express 5 (recommended)
-Rejected promises and thrown errors in async handlers are automatically caught and forwarded to the error handler:
-
-\`\`\`typescript
-// Express 5: no wrapper needed — rejected promise goes to error handler
-app.get('/users/:id', async (req, res) => {
-  const user = await userService.findById(req.params.id);
-  if (!user) {
-    throw new NotFoundError('User not found');  // Automatically caught
-  }
-  res.json(user);
-});
-\`\`\`
-
-### Express 4 (legacy)
-Wrap async handlers or use \`express-async-errors\`:
-
-\`\`\`typescript
-// Express 4: errors in async handlers require explicit forwarding
-import 'express-async-errors'; // Monkey-patches Express to catch async errors
-
-// OR wrap manually:
-const asyncHandler = (fn: Function) =>
-  (req: Request, res: Response, next: NextFunction) =>
-    Promise.resolve(fn(req, res, next)).catch(next);
-
-app.get('/users/:id', asyncHandler(async (req, res) => {
-  const user = await userService.findById(req.params.id);
-  res.json(user);
-}));
-\`\`\`
+- Express 5: async errors auto-forwarded to error handler (no wrapper needed)
+- Express 4: use \`express-async-errors\` package or manual async wrapper with \`.catch(next)\`
 
 ## Custom Error Classes
-Define typed errors with HTTP status codes for the error handler:
-
-\`\`\`typescript
-export class AppError extends Error {
-  constructor(
-    message: string,
-    public readonly statusCode: number = 500,
-    public readonly code: string = 'INTERNAL_ERROR',
-    public readonly isOperational: boolean = true,
-  ) {
-    super(message);
-    this.name = this.constructor.name;
-    Error.captureStackTrace(this, this.constructor);
-  }
-}
-
-export class NotFoundError extends AppError {
-  constructor(message = 'Resource not found') {
-    super(message, 404, 'NOT_FOUND');
-  }
-}
-
-export class ValidationError extends AppError {
-  constructor(message: string, public readonly details?: Record<string, string>) {
-    super(message, 422, 'VALIDATION_ERROR');
-  }
-}
-
-export class UnauthorizedError extends AppError {
-  constructor(message = 'Authentication required') {
-    super(message, 401, 'UNAUTHORIZED');
-  }
-}
-
-export class ForbiddenError extends AppError {
-  constructor(message = 'Insufficient permissions') {
-    super(message, 403, 'FORBIDDEN');
-  }
-}
-\`\`\`
+- Base \`AppError\` extends \`Error\` with \`statusCode\`, \`code\`, \`isOperational\`
+- Subclasses: \`NotFoundError\` (404), \`ValidationError\` (422), \`UnauthorizedError\` (401), \`ForbiddenError\` (403)
+- Services throw typed errors; error handler maps them to HTTP responses
 `,
       },
       {
@@ -226,144 +81,41 @@ export class ForbiddenError extends AppError {
         description: 'Express security patterns from official best practices',
         content: `# Express Security
 
-> Based on the official Express.js Security Best Practices guide.
-
 ## Helmet — Security Headers
-Always use \`helmet\` as the first middleware after CORS. It sets these headers by default:
-- \`Content-Security-Policy\` — allowlist for page content sources
-- \`Strict-Transport-Security\` — enforce HTTPS (HSTS)
-- \`X-Content-Type-Options: nosniff\` — prevent MIME sniffing
-- \`X-Frame-Options: SAMEORIGIN\` — clickjacking protection
-- \`Cross-Origin-Opener-Policy\` — process isolation
-- \`Referrer-Policy\` — control Referer header leakage
-
-\`\`\`typescript
-import helmet from 'helmet';
-app.use(helmet());
-\`\`\`
+- Always use \`helmet()\` as first middleware after CORS
+- Sets CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy
 
 ## Rate Limiting
-Protect authentication and public endpoints against brute-force attacks:
-
-\`\`\`typescript
-import rateLimit from 'express-rate-limit';
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,                   // 10 attempts per window
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: { message: 'Too many attempts, try again later', code: 'RATE_LIMITED' } },
-});
-
-app.use('/api/auth/login', authLimiter);
-
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 100,            // 100 requests per minute
-});
-
-app.use('/api/', apiLimiter);
-\`\`\`
+- Protect auth endpoints: \`express-rate-limit\` with strict limits (10 attempts / 15 min)
+- Protect API: general limiter (100 req / min)
+- Use \`standardHeaders: true\`, \`legacyHeaders: false\`
 
 ## Cookie & Session Security
-- Never use the default session cookie name — rename it to reduce fingerprinting
-- Set cookie flags: \`secure: true\`, \`httpOnly: true\`, \`sameSite: 'strict'\`
-- Set reasonable expiration — do not create permanent sessions
-- Use a production-grade session store (Redis, PostgreSQL) — never the default in-memory store
-
-\`\`\`typescript
-import session from 'express-session';
-import RedisStore from 'connect-redis';
-
-app.use(session({
-  name: 'sid',                   // Custom name, not 'connect.sid'
-  secret: process.env.SESSION_SECRET!,
-  resave: false,
-  saveUninitialized: false,
-  store: new RedisStore({ client: redisClient }),
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: 'strict',
-    maxAge: 60 * 60 * 1000,     // 1 hour
-  },
-}));
-\`\`\`
+- Rename default session cookie (not \`connect.sid\`)
+- Cookie flags: \`secure: true\`, \`httpOnly: true\`, \`sameSite: 'strict'\`
+- Reasonable expiration — no permanent sessions
+- Production session store (Redis, PostgreSQL) — never in-memory MemoryStore
 
 ## CORS Configuration
-Never use wildcard \`*\` in production. Specify exact allowed origins:
-
-\`\`\`typescript
-import cors from 'cors';
-
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') ?? [],
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  maxAge: 86400, // 24h preflight cache
-}));
-\`\`\`
+- Never wildcard \`*\` in production — explicit origin allowlist
+- Set \`credentials: true\` only with specific origins
+- Configure \`methods\`, \`allowedHeaders\`, \`maxAge\`
 
 ## Input Validation
-Validate all user input (params, query, body) using a schema library before processing:
-
-\`\`\`typescript
-import { z } from 'zod';
-
-const createUserSchema = z.object({
-  email: z.string().email().max(255),
-  name: z.string().min(1).max(100),
-  role: z.enum(['user', 'admin']).default('user'),
-});
-
-function validate<T>(schema: z.ZodSchema<T>) {
-  return (req: Request, _res: Response, next: NextFunction) => {
-    const result = schema.safeParse(req.body);
-    if (!result.success) {
-      throw new ValidationError('Invalid input', formatZodErrors(result.error));
-    }
-    req.body = result.data;  // Replace body with parsed + coerced data
-    next();
-  };
-}
-
-router.post('/users', validate(createUserSchema), userController.create);
-\`\`\`
-
-## Dependency Auditing
-Regularly check for known vulnerabilities:
-\`\`\`bash
-npm audit
-npx snyk test
-\`\`\`
+- Validate all input (params, query, body) with schema library (Zod, Joi) before processing
+- Validation middleware replaces body with parsed + coerced data
+- Apply on all POST/PUT/PATCH routes
 
 ## Trust Proxy
-When behind a reverse proxy (Nginx, AWS ALB), configure trust proxy so \`req.ip\`, \`req.protocol\`, and \`req.hostname\` reflect the real client:
-
-\`\`\`typescript
-// Trust first proxy (e.g., Nginx on the same machine)
-app.set('trust proxy', 1);
-\`\`\`
+- Configure \`app.set('trust proxy', 1)\` when behind reverse proxy (Nginx, ALB)
+- Ensures correct \`req.ip\`, \`req.protocol\`, \`req.hostname\`
 
 ## Open Redirect Prevention
-Never redirect to unvalidated user-supplied URLs:
+- Never redirect to unvalidated user-supplied URLs
+- Validate hostname before \`res.redirect()\`
 
-\`\`\`typescript
-app.get('/redirect', (req, res) => {
-  const target = req.query.url as string;
-  try {
-    const parsed = new URL(target);
-    if (parsed.hostname !== 'example.com') {
-      return res.status(400).json({ error: { message: 'Invalid redirect target' } });
-    }
-    res.redirect(target);
-  } catch {
-    res.status(400).json({ error: { message: 'Invalid URL' } });
-  }
-});
-\`\`\`
+## Dependency Auditing
+- Regular \`npm audit\` and \`npx snyk test\`
 `,
       },
       {
@@ -373,123 +125,33 @@ app.get('/redirect', (req, res) => {
         description: 'Express route organization, project structure, and architecture',
         content: `# Express Route Organization & Architecture
 
-## Recommended Project Structure
-\`\`\`
-src/
-  app.ts                    # Express app setup (middleware, routes, error handling)
-  server.ts                 # HTTP server, graceful shutdown, cluster setup
-  config/
-    index.ts                # Environment-based configuration (validated with Zod)
-  routes/
-    index.ts                # Route registration (mounts all routers)
-    users.router.ts         # /api/users routes
-    orders.router.ts        # /api/orders routes
-  controllers/
-    users.controller.ts     # Request handling — calls services, sends response
-    orders.controller.ts
-  services/
-    users.service.ts        # Business logic — framework-agnostic, no req/res
-    orders.service.ts
-  middleware/
-    auth.ts                 # JWT verification, session hydration
-    validate.ts             # Zod/Joi validation middleware factory
-    errors.ts               # Error handler + 404 handler
-    request-id.ts           # Attach unique ID to each request
-  errors/
-    app-error.ts            # Base AppError class + typed subclasses
-  types/
-    express.d.ts            # Module augmentation for Request (user, id, log)
-\`\`\`
+## Project Structure
+- \`app.ts\` — Express setup (middleware, routes, error handling)
+- \`server.ts\` — HTTP server, graceful shutdown, cluster
+- \`routes/\` — Router files per resource, validation middleware on mutating routes
+- \`controllers/\` — Request extraction + response formatting, no business logic
+- \`services/\` — Business logic, framework-agnostic (no req/res imports)
+- \`middleware/\` — auth, validation, error handler, request-id
+- \`errors/\` — AppError base class + typed subclasses
+- \`types/express.d.ts\` — module augmentation for Request (user, id, log)
 
-## Router Pattern
-Use \`express.Router()\` to group routes by resource. Keep route files thin — delegate to controllers.
-
-\`\`\`typescript
-import { Router } from 'express';
-import { validate } from '../middleware/validate.js';
-import { createUserSchema, updateUserSchema } from './users.schemas.js';
-import * as usersController from '../controllers/users.controller.js';
-
-export const userRouter = Router();
-
-userRouter
-  .route('/')
-  .get(usersController.list)
-  .post(validate(createUserSchema), usersController.create);
-
-userRouter
-  .route('/:id')
-  .get(usersController.getById)
-  .patch(validate(updateUserSchema), usersController.update)
-  .delete(usersController.remove);
-\`\`\`
-
-## Controller Pattern
-Controllers extract data from the request, invoke the service, and format the response. No business logic.
-
-\`\`\`typescript
-import type { Request, Response } from 'express';
-import * as userService from '../services/users.service.js';
-
-export async function create(req: Request, res: Response): Promise<void> {
-  const user = await userService.create(req.body);
-  res.status(201).json({ data: user });
-}
-
-export async function getById(req: Request, res: Response): Promise<void> {
-  const user = await userService.findById(req.params.id);
-  res.json({ data: user });
-}
-\`\`\`
-
-## Service Layer
-Services contain all business logic and are framework-agnostic — they never import \`express\` or touch \`req\`/\`res\`.
-
-\`\`\`typescript
-import { NotFoundError } from '../errors/app-error.js';
-import { userRepository } from '../repositories/users.repository.js';
-
-export async function findById(id: string) {
-  const user = await userRepository.findById(id);
-  if (!user) throw new NotFoundError(\`User \${id} not found\`);
-  return user;
-}
-\`\`\`
+## Separation of Concerns
+- Routes: thin, delegate to controllers, apply validation middleware
+- Controllers: extract from request, call service, format response. No business logic.
+- Services: all business logic, throw typed errors. Never import Express types.
+- Correct HTTP status codes: 201 (create), 204 (delete), 422 (validation), 404 (not found)
 
 ## Graceful Shutdown
-Handle SIGTERM/SIGINT so in-flight requests complete before the process exits:
+- Handle SIGTERM/SIGINT — close server, drain connections, close DB pool
+- Force exit after timeout (30s) as safety net
 
-\`\`\`typescript
-const server = app.listen(port, () => {
-  console.log(\`Listening on port \${port}\`);
-});
-
-function gracefulShutdown(signal: string) {
-  console.log(\`\${signal} received — shutting down gracefully\`);
-  server.close(async () => {
-    await closeDatabasePool();
-    process.exit(0);
-  });
-  // Force exit after 30s
-  setTimeout(() => process.exit(1), 30_000);
-}
-
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-\`\`\`
-
-## Express 5 Migration Checklist
-When upgrading from Express 4 to 5:
-- Replace \`req.param(name)\` with \`req.params.name\`, \`req.body.name\`, or \`req.query.name\`
-- Rename \`res.sendfile()\` to \`res.sendFile()\`
-- Use \`res.status(code).json(body)\` instead of \`res.json(body, code)\`
-- Name wildcard routes: \`/*splat\` instead of \`/*\` (use \`/{*splat}\` to also match root)
-- Optional params use brace syntax: \`/:file{.:ext}\` instead of \`/:file.:ext?\`
-- \`req.query\` is read-only (getter) — do not mutate it
-- \`req.body\` is \`undefined\` when no body parser matches (was \`{}\` in v4)
-- Remove \`express-async-errors\` — Express 5 catches rejected promises natively
-- Escape reserved characters in route paths: \`( ) [ ] ? + !\` must be preceded by \`\\\`
-- \`app.listen\` callback receives an error argument: \`(err) => { if (err) throw err; }\`
+## Express 5 Migration
+- Async errors auto-caught — remove \`express-async-errors\`
+- \`req.param()\` removed — use \`req.params\`, \`req.body\`, \`req.query\`
+- Wildcard routes must be named: \`/*splat\` (not \`/*\`)
+- Optional params: \`/:file{.:ext}\` (not \`/:file.:ext?\`)
+- \`req.query\` is read-only; \`req.body\` is \`undefined\` without body parser
+- \`app.listen\` callback receives error argument
 `,
       },
       {
@@ -499,74 +161,19 @@ When upgrading from Express 4 to 5:
         description: 'Express performance patterns from official best practices',
         content: `# Express Performance
 
-> Based on the official Express.js Performance Best Practices guide.
-
 ## Code-Level
-
-### Avoid Synchronous Functions
-Never use synchronous variants of Node.js APIs in request handlers (\`fs.readFileSync\`, \`crypto.pbkdf2Sync\`). They block the entire event loop.
-Use \`--trace-sync-io\` during development to detect synchronous calls:
-\`\`\`bash
-node --trace-sync-io server.js
-\`\`\`
-
-### Use Proper Logging
-- Use \`pino\` (fastest structured JSON logger) or \`winston\` — never \`console.log\` in production
-- \`console.log\` and \`console.error\` are synchronous when writing to a terminal — they block the event loop
-- Use the \`debug\` module for development-only diagnostics
-
-### Response Compression
-Use gzip/Brotli compression to reduce response size:
-\`\`\`typescript
-import compression from 'compression';
-app.use(compression());
-\`\`\`
-For high-traffic production, offload compression to the reverse proxy (Nginx).
-
-### Handle Exceptions
-- Never leave rejected promises unhandled — they crash the process in Node.js 16+
-- Never listen for \`uncaughtException\` as a recovery strategy — it is unreliable
+- Never use synchronous Node.js APIs in handlers (\`readFileSync\`, \`execSync\`) — blocks event loop
+- Use \`--trace-sync-io\` during development to detect sync calls
+- Use \`pino\` or \`winston\` for logging — never \`console.log\` in production (synchronous on terminals)
+- Use \`compression()\` middleware or offload to reverse proxy (Nginx) for high traffic
+- Never leave rejected promises unhandled — crashes in Node.js 16+
 - Use \`process.on('unhandledRejection', ...)\` only for logging, then exit
 
 ## Infrastructure-Level
-
-### Set NODE_ENV=production
-Performance improves up to 3x in production mode. Set via environment, not code:
-\`\`\`bash
-NODE_ENV=production node server.js
-\`\`\`
-
-### Run in a Cluster
-Spawn one worker per CPU core to utilize multi-core systems:
-\`\`\`typescript
-import cluster from 'node:cluster';
-import os from 'node:os';
-
-if (cluster.isPrimary) {
-  const cpuCount = os.availableParallelism?.() ?? os.cpus().length;
-  for (let i = 0; i < cpuCount; i++) cluster.fork();
-  cluster.on('exit', (worker) => {
-    console.log(\`Worker \${worker.process.pid} exited — forking replacement\`);
-    cluster.fork();
-  });
-} else {
-  app.listen(port);
-}
-\`\`\`
-Cluster instances do NOT share memory — use Redis for sessions and shared state.
-
-### Use a Reverse Proxy
-Place Nginx or a cloud load balancer in front of Express to handle:
-- TLS termination
-- Static file serving
-- Response compression
-- Request caching
-- Load balancing
-
-### Cache Responses
-- Use \`Cache-Control\` headers for static and semi-static resources
-- Use Redis or Varnish for application-level response caching
-- Consider \`apicache\` or \`express-cache-controller\` for route-level caching
+- Set \`NODE_ENV=production\` — up to 3x performance improvement
+- Run in cluster: one worker per CPU core, Redis for shared state
+- Reverse proxy (Nginx, ALB) for TLS, static files, compression, caching, load balancing
+- \`Cache-Control\` headers for static resources; Redis/Varnish for application-level caching
 `,
       },
     ],
@@ -734,6 +341,8 @@ describe('POST /api/users', () => {
       {
         name: 'express-middleware-generator',
         description: 'Generate Express middleware with proper patterns and TypeScript types',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Express Middleware Generator
 
 Generate Express middleware following official best practices:
@@ -764,6 +373,8 @@ Generate Express middleware following official best practices:
       {
         name: 'express-router-generator',
         description: 'Generate Express resource routers with controller, service, and validation',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Express Router Generator
 
 Generate a complete Express resource module:
@@ -799,7 +410,7 @@ Generate a complete Express resource module:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/route|controller|router/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/router\\.(post|put|patch)\\s*\\(/.test(c)&&!/valid|schema|zod|joi|celebrate/.test(c.toLowerCase()))console.log(\'WARNING: Route with POST/PUT/PATCH but no validation middleware detected. Add input validation before the handler.\')" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/route|controller|router/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/router\\.(post|put|patch)\\s*\\(/.test(c)&&!/valid|schema|zod|joi|celebrate/.test(c.toLowerCase()))console.log(\'WARNING: Route with POST/PUT/PATCH but no validation middleware detected. Add input validation before the handler.\')" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -808,7 +419,7 @@ Generate a complete Express resource module:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/middleware|error|handler/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/err\\s*,\\s*req\\s*,\\s*res\\s*[^,)]*\\)/.test(c)&&!/next/.test(c.split(/err\\s*,\\s*req\\s*,\\s*res/)[1]||\'next\'))console.log(\'WARNING: Error-handling middleware MUST have 4 parameters (err, req, res, next). Missing next parameter.\')" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/middleware|error|handler/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/err\\s*,\\s*req\\s*,\\s*res\\s*[^,)]*\\)/.test(c)&&!/next/.test(c.split(/err\\s*,\\s*req\\s*,\\s*res/)[1]||\'next\'))console.log(\'WARNING: Error-handling middleware MUST have 4 parameters (err, req, res, next). Missing next parameter.\')" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -817,7 +428,7 @@ Generate a complete Express resource module:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/\\.ts$|\\.js$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/res\\.redirect\\s*\\(/.test(c)&&!/new\\s+URL|hostname|host/.test(c))console.log(\'WARNING: res.redirect() detected without URL validation. Validate the redirect target to prevent open redirect vulnerabilities.\')" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.ts$|\\.js$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/res\\.redirect\\s*\\(/.test(c)&&!/new\\s+URL|hostname|host/.test(c))console.log(\'WARNING: res.redirect() detected without URL validation. Validate the redirect target to prevent open redirect vulnerabilities.\')" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },

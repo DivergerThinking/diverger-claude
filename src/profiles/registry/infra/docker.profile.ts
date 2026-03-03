@@ -49,235 +49,31 @@ Multi-stage builds, minimal images, security-first container design.
         description: 'Dockerfile construction, multi-stage builds, layer caching, and image optimization',
         content: `# Dockerfile Best Practices
 
-## Why This Matters
-A well-constructed Dockerfile produces small, secure, reproducible images that build fast
-and deploy reliably. Poor Dockerfiles lead to bloated images, slow builds, security
-vulnerabilities, and cache invalidation nightmares. These rules follow the official Docker
-documentation best practices (docs.docker.com/build/building/best-practices).
-
----
-
 ## Multi-Stage Builds
-
-Every production Dockerfile MUST use multi-stage builds to separate build-time dependencies
-from the runtime image.
-
-### Correct — Node.js multi-stage build
-\`\`\`dockerfile
-# Stage 1: Install dependencies and build
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
-COPY tsconfig.json ./
-COPY src/ ./src/
-RUN npm run build
-
-# Stage 2: Production runtime
-FROM node:20-alpine AS runtime
-WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app
-COPY --from=builder --chown=app:app /app/dist ./dist
-COPY --from=builder --chown=app:app /app/node_modules ./node_modules
-COPY --from=builder --chown=app:app /app/package.json ./
-USER app
-EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \\
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
-CMD ["node", "dist/index.js"]
-\`\`\`
-
-### Correct — Go multi-stage build with scratch
-\`\`\`dockerfile
-FROM golang:1.22-alpine AS builder
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/server ./cmd/server
-
-FROM scratch
-COPY --from=builder /app/server /server
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-EXPOSE 8080
-ENTRYPOINT ["/server"]
-\`\`\`
-
-### Correct — Python multi-stage build
-\`\`\`dockerfile
-FROM python:3.12-slim AS builder
-WORKDIR /app
-RUN pip install --no-cache-dir poetry
-COPY pyproject.toml poetry.lock ./
-RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
-
-FROM python:3.12-slim AS runtime
-WORKDIR /app
-RUN groupadd -r app && useradd -r -g app app
-COPY --from=builder /install /usr/local
-COPY --chown=app:app . .
-USER app
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-\`\`\`
-
-### Anti-Pattern — single stage, fat image
-\`\`\`dockerfile
-# BAD: build tools, dev dependencies, and source code all in the final image
-FROM node:20
-WORKDIR /app
-COPY . .
-RUN npm install
-RUN npm run build
-CMD ["node", "dist/index.js"]
-# Problem: image contains devDependencies, TypeScript source, .git, tests
-# Results in 1GB+ image instead of ~150MB
-\`\`\`
-
----
+- Every production Dockerfile MUST use multi-stage builds
+- Separate build-time dependencies from runtime image
+- Copy only artifacts needed at runtime with \`COPY --from=builder\`
+- Use \`--chown=app:app\` on COPY to set correct ownership
 
 ## Layer Caching
-
-Dockerfile instructions are cached by Docker's layer system. Maximize cache hits by
-ordering instructions from least-changing to most-changing.
-
-### Correct — optimal layer ordering
-\`\`\`dockerfile
-FROM node:20-alpine
-WORKDIR /app
-
-# Layer 1: Rarely changes — system dependencies
-RUN apk add --no-cache curl
-
-# Layer 2: Changes when dependencies change — manifests first
-COPY package.json package-lock.json ./
-
-# Layer 3: Changes when dependencies change — install separately
-RUN npm ci --ignore-scripts
-
-# Layer 4: Changes frequently — source code last
-COPY . .
-
-RUN npm run build
-\`\`\`
-
-### Anti-Pattern — cache-busting order
-\`\`\`dockerfile
-# BAD: COPY . . before npm install — any source change invalidates dependency cache
-FROM node:20-alpine
-WORKDIR /app
-COPY . .
-RUN npm install
-RUN npm run build
-# Problem: editing a single .ts file forces a full npm install
-\`\`\`
-
-### BuildKit Cache Mounts
-Use cache mounts to persist package manager caches across builds:
-\`\`\`dockerfile
-# npm cache mount
-RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts
-
-# pip cache mount
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
-
-# Go module cache mount
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
-\`\`\`
-
----
+- Order instructions from least-changing to most-changing
+- Copy dependency manifests (package.json, go.mod) BEFORE source code
+- Install dependencies in a separate layer from source code copy
+- Use BuildKit cache mounts for package manager caches: \`--mount=type=cache\`
 
 ## Instruction Best Practices
-
-### FROM
-- Always pin to a specific tag: \`FROM node:20.11-alpine3.19\`, never \`FROM node:latest\`
-- Use \`AS\` to name stages for clarity and \`--from=\` references
-
-### RUN
-- Combine related commands with \`&&\` to reduce layers
-- Clean up caches in the same layer to keep image size small
-- Use \`set -e\` in shell form commands (or prefer exec form)
-
-\`\`\`dockerfile
-# Correct: install + cleanup in one layer
-RUN apt-get update && \\
-    apt-get install -y --no-install-recommends curl ca-certificates && \\
-    rm -rf /var/lib/apt/lists/*
-
-# Anti-pattern: separate layers — cleanup does not reduce image size
-RUN apt-get update
-RUN apt-get install -y curl
-RUN rm -rf /var/lib/apt/lists/*
-\`\`\`
-
-### COPY vs ADD
-- Use \`COPY\` for all local file copying (explicit, predictable)
-- Use \`ADD\` only for: auto-extracting local tar archives, or fetching URLs (rare)
-- Never use \`ADD\` for simple file copies
-
-### CMD vs ENTRYPOINT
-- Use \`ENTRYPOINT\` for the main executable, \`CMD\` for default arguments
-- Prefer exec form \`["executable", "arg"]\` over shell form \`executable arg\`
-- Exec form: PID 1, receives signals correctly, no shell overhead
-- Shell form: PID 1 is /bin/sh, signals not forwarded to the process
-
-### USER
-- Always set a non-root user AFTER installing system packages and BEFORE COPY of app code
-- Create a dedicated system user: \`addgroup\`/\`adduser\` on Alpine, \`groupadd\`/\`useradd\` on Debian
-
-### HEALTHCHECK
-- Always define HEALTHCHECK for production images
-- Use lightweight checks (wget, curl, or a dedicated /health endpoint)
-- Configure appropriate intervals, timeouts, and retries
-
----
+- **FROM**: Pin to specific tag (\`node:20.11-alpine3.19\`), never use \`:latest\`
+- **RUN**: Combine related commands with \`&&\`, clean caches in the same layer
+- **COPY vs ADD**: Use COPY for all local files — ADD only for tar extraction
+- **CMD vs ENTRYPOINT**: ENTRYPOINT for executable, CMD for default args; prefer exec form
+- **USER**: Set non-root user after installing packages, before COPY of app code
+- **HEALTHCHECK**: Always define for production images with appropriate intervals
 
 ## .dockerignore
-
-Always create a \`.dockerignore\` to minimize the build context. A large build context slows
-every build, even cached ones.
-
-\`\`\`
-# Version control
-.git
-.gitignore
-
-# Dependencies (installed inside container)
-node_modules
-__pycache__
-.venv
-
-# Build artifacts
-dist
-build
-*.egg-info
-
-# Environment and secrets
-.env
-.env.*
-
-# IDE and OS
-.vscode
-.idea
-.DS_Store
-Thumbs.db
-
-# Testing and docs
-tests
-__tests__
-coverage
-.nyc_output
-*.md
-LICENSE
-
-# Docker files (prevent recursive context)
-Dockerfile*
-compose*.yaml
-.dockerignore
-
-# Claude/AI config
-.claude
-\`\`\`
+- Always create a \`.dockerignore\` to minimize build context
+- Exclude: \`.git\`, \`node_modules\`, \`__pycache__\`, \`.venv\`, \`.env\`, \`.env.*\`
+- Exclude: \`dist\`, \`build\`, IDE configs, test files, Docker files themselves
+- A large build context slows every build, even cached ones
 `,
       },
       {
@@ -287,117 +83,31 @@ compose*.yaml
         description: 'Docker container security hardening and secret management',
         content: `# Docker Security
 
-## Why This Matters
-Containers share the host kernel — a misconfigured container can expose the host system,
-leak secrets, or serve as an attack vector. These rules follow Docker Engine security
-documentation (docs.docker.com/engine/security) and CIS Docker Benchmark.
-
----
-
 ## Non-Root Execution (MANDATORY)
-
-Every production container MUST run as a non-root user.
-
-### Correct
-\`\`\`dockerfile
-# Alpine
-RUN addgroup -S app && adduser -S app -G app
-COPY --chown=app:app . .
-USER app
-
-# Debian/Ubuntu
-RUN groupadd -r app && useradd -r -g app -s /sbin/nologin app
-COPY --chown=app:app . .
-USER app
-\`\`\`
-
-### Anti-Pattern
-\`\`\`dockerfile
-# BAD: no USER directive — container runs as root
-FROM node:20-alpine
-WORKDIR /app
-COPY . .
-CMD ["node", "index.js"]
-# Problem: if the app has an RCE vulnerability, attacker gets root in the container
-\`\`\`
-
----
+- Every production container MUST run as a non-root user
+- Create a dedicated system user before COPY of app code
+- Alpine: \`addgroup -S app && adduser -S app -G app\`
+- Debian: \`groupadd -r app && useradd -r -g app -s /sbin/nologin app\`
+- Set \`USER app\` after system package installs
 
 ## Secret Management
-
-### Build-Time Secrets
-\`\`\`dockerfile
-# Correct: BuildKit secrets (never persisted in image layers)
-RUN --mount=type=secret,id=npmrc,target=/root/.npmrc npm ci
-
-# Build command:
-# docker build --secret id=npmrc,src=$HOME/.npmrc .
-\`\`\`
-
-### Runtime Secrets
-- Use Docker secrets (Swarm) or orchestrator-managed secrets (Kubernetes)
-- Use environment variables via \`env_file\` in Compose (NOT inline in compose.yaml)
-- Use volume-mounted secret files at a known path (/run/secrets/)
-- Never use \`ENV\` or \`ARG\` for secrets — they persist in image layer metadata
-
-### Anti-Pattern
-\`\`\`dockerfile
-# BAD: secret in ENV — visible in docker inspect and image history
-ENV DATABASE_URL=postgres://user:password@db:5432/mydb
-
-# BAD: secret in ARG — visible in image history
-ARG NPM_TOKEN
-RUN echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc && npm ci
-
-# BAD: COPY of credential file
-COPY .env /app/.env
-\`\`\`
-
----
+- Use BuildKit secrets for build-time credentials: \`--mount=type=secret,id=...\`
+- Runtime: use Docker secrets, \`env_file\` in Compose, or volume-mounted secret files
+- NEVER use \`ENV\` or \`ARG\` for secrets — they persist in image layer metadata
+- NEVER COPY credential files into the image
 
 ## Image Hardening
-
-### Minimal Base Images
-| Use Case | Recommended Base |
-|----------|------------------|
-| Node.js | \`node:20-alpine\` or \`node:20-slim\` |
-| Python | \`python:3.12-slim\` |
-| Go (static binary) | \`scratch\` or \`gcr.io/distroless/static\` |
-| Java | \`eclipse-temurin:21-jre-alpine\` |
-| Rust (static binary) | \`scratch\` or \`gcr.io/distroless/static\` |
-| General purpose | \`gcr.io/distroless/base-debian12\` |
-
-### Capabilities and Privileges
-\`\`\`yaml
-# compose.yaml — drop all caps, add only what is needed
-services:
-  app:
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-\`\`\`
-
-### Image Scanning
-- Run \`docker scout cves <image>\` or \`trivy image <image>\` in CI before pushing
-- Set a vulnerability threshold: fail CI on critical/high CVEs
-- Rebuild images regularly to pick up base image security patches
-- Use Docker Scout or Snyk to monitor deployed images for new CVEs
-
----
+- Use minimal base images: Alpine, slim, distroless, or scratch
+- Drop all capabilities (\`cap_drop: ALL\`), add only needed ones
+- Set \`no-new-privileges:true\` in security_opt
+- Use \`read_only: true\` with explicit \`tmpfs\` for writable directories
+- Run \`docker scout cves\` or \`trivy image\` in CI — fail on critical CVEs
+- Rebuild images regularly for base image security patches
 
 ## Compose Security
-
-- Never use \`privileged: true\` unless absolutely required (and document why)
-- Use \`read_only: true\` with explicit \`tmpfs\` mounts for writable directories
-- Set \`no-new-privileges:true\` in security_opt to prevent privilege escalation
+- Never use \`privileged: true\` unless required with documented justification
 - Use internal networks for backend services not needing external access
-- Set resource limits to prevent resource exhaustion attacks
+- Set resource limits (memory, CPU) to prevent exhaustion attacks
 - Use \`env_file\` for secrets, add \`.env\` to \`.gitignore\`
 `,
       },
@@ -408,184 +118,32 @@ services:
         description: 'Docker Compose service orchestration, networking, and development workflow patterns',
         content: `# Docker Compose Patterns
 
-## Why This Matters
-Docker Compose orchestrates multi-service development environments and provides a consistent
-interface for local development, testing, and CI. Well-structured Compose files reduce
-onboarding friction and prevent environment drift.
-
----
-
 ## Service Definition
+- Define health checks for every service using \`healthcheck:\`
+- Use \`depends_on\` with \`condition: service_healthy\` (not just service name)
+- Set resource limits: \`deploy.resources.limits\` for memory and CPUs
+- Use \`restart: unless-stopped\` for production services
+- Use named volumes for persistent data (not bind mounts in production)
+- Use \`env_file\` for secrets instead of inline environment values
 
-### Correct — complete service with health check and resource limits
-\`\`\`yaml
-# compose.yaml
-services:
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runtime
-    ports:
-      - "3000:3000"
-    environment:
-      NODE_ENV: production
-    env_file:
-      - .env
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '1.0'
-    restart: unless-stopped
-
-  db:
-    image: postgres:16-alpine
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: myapp
-    env_file:
-      - .env.db
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-
-volumes:
-  pgdata:
-  redisdata:
-\`\`\`
-
----
-
-## Override Files for Development
-
-\`\`\`yaml
-# compose.override.yaml — automatically loaded for local dev
-services:
-  api:
-    build:
-      target: builder
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      NODE_ENV: development
-    command: ["npm", "run", "dev"]
-    ports:
-      - "9229:9229"  # Node.js debugger
-\`\`\`
-
-Use \`docker compose -f compose.yaml -f compose.prod.yaml up\` for production overrides.
-
----
+## Override Files
+- \`compose.override.yaml\` auto-loads for local dev — add volumes, dev commands, debug ports
+- Use \`docker compose -f compose.yaml -f compose.prod.yaml up\` for production overrides
 
 ## Profiles for Optional Services
+- Use \`profiles: ["debug"]\` for optional services (debug tools, monitoring)
+- Start with \`docker compose --profile debug up\`
+- Default services (no profile) always start
 
-\`\`\`yaml
-services:
-  app:
-    # ... always starts
-
-  debug-tools:
-    image: nicolaka/netshoot
-    profiles: ["debug"]
-    network_mode: "service:app"
-
-  monitoring:
-    image: prom/prometheus
-    profiles: ["monitoring"]
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-\`\`\`
-
-Start optional services with: \`docker compose --profile debug up\`
-
----
-
-## Extension Fields for DRY Configuration
-
-\`\`\`yaml
-x-common: &common
-  restart: unless-stopped
-  logging:
-    driver: json-file
-    options:
-      max-size: "10m"
-      max-file: "3"
-
-services:
-  api:
-    <<: *common
-    build: .
-    ports: ["3000:3000"]
-
-  worker:
-    <<: *common
-    build: .
-    command: ["node", "dist/worker.js"]
-\`\`\`
-
----
+## Extension Fields for DRY Config
+- Define shared config with \`x-common: &common\` and merge with \`<<: *common\`
+- Common fields: restart policy, logging driver, resource limits
 
 ## Networking
-
-### Correct — isolated networks
-\`\`\`yaml
-services:
-  web:
-    networks:
-      - frontend
-      - backend
-  api:
-    networks:
-      - backend
-  db:
-    networks:
-      - backend
-
-networks:
-  frontend:
-  backend:
-    internal: true  # no external access
-\`\`\`
-
-### Anti-Pattern
-\`\`\`yaml
-# BAD: all services on default network, database exposed to frontend
-services:
-  web:
-    ports: ["80:80"]
-  api:
-    ports: ["3000:3000"]
-  db:
-    ports: ["5432:5432"]  # database port exposed to host
-\`\`\`
+- Use separate networks for frontend and backend isolation
+- Set \`internal: true\` on backend networks to prevent external access
+- Never expose database/cache ports to the host in production
+- Connect services only to the networks they need
 `,
       },
     ],
@@ -710,6 +268,8 @@ services:
       {
         name: 'docker-scaffold',
         description: 'Generate production-ready Dockerfile and Compose configuration for a project',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Docker Scaffold
 
 Generate a complete, production-ready Docker setup for a project including:
@@ -784,7 +344,7 @@ Generate a template with all required environment variables (placeholder values 
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/Dockerfile/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const lines=c.split(\'\\n\');const issues=[];for(const l of lines){if(/^FROM\\s+/.test(l)){const img=(l.split(/\\s+/)[1]||\'\');if(/:latest/.test(img))issues.push(\'CRITICAL: Uses :latest tag: \'+l.trim());else if(!/:/.test(img)&&!/^scratch$/.test(img)&&!/\\$/.test(img))issues.push(\'WARNING: Untagged base image: \'+l.trim())}}if(!/^USER\\s+/m.test(c)&&!/FROM\\s+scratch/m.test(c))issues.push(\'WARNING: No USER directive — container will run as root\');if(!/HEALTHCHECK/m.test(c)&&!/FROM\\s+scratch/m.test(c))issues.push(\'INFO: No HEALTHCHECK defined — consider adding one for production\');if(/^(ENV|ARG)\\s+.*(PASSWORD|SECRET|TOKEN|API_KEY|PRIVATE_KEY)/mi.test(c))issues.push(\'CRITICAL: Potential secret in ENV/ARG — use BuildKit secrets instead\');if(/^ADD\\s+(?!https?:)[^*]*\\s/m.test(c)&&!/\\.tar/.test(c))issues.push(\'INFO: ADD used for local file — prefer COPY unless extracting an archive\');issues.forEach(i=>console.log(i))" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/Dockerfile/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const lines=c.split(\'\\n\');const issues=[];for(const l of lines){if(/^FROM\\s+/.test(l)){const img=(l.split(/\\s+/)[1]||\'\');if(/:latest/.test(img))issues.push(\'CRITICAL: Uses :latest tag: \'+l.trim());else if(!/:/.test(img)&&!/^scratch$/.test(img)&&!/\\$/.test(img))issues.push(\'WARNING: Untagged base image: \'+l.trim())}}if(!/^USER\\s+/m.test(c)&&!/FROM\\s+scratch/m.test(c))issues.push(\'WARNING: No USER directive — container will run as root\');if(!/HEALTHCHECK/m.test(c)&&!/FROM\\s+scratch/m.test(c))issues.push(\'INFO: No HEALTHCHECK defined — consider adding one for production\');if(/^(ENV|ARG)\\s+.*(PASSWORD|SECRET|TOKEN|API_KEY|PRIVATE_KEY)/mi.test(c))issues.push(\'CRITICAL: Potential secret in ENV/ARG — use BuildKit secrets instead\');if(/^ADD\\s+(?!https?:)[^*]*\\s/m.test(c)&&!/\\.tar/.test(c))issues.push(\'INFO: ADD used for local file — prefer COPY unless extracting an archive\');issues.forEach(i=>console.log(i))" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -793,7 +353,7 @@ Generate a template with all required environment variables (placeholder values 
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/compose.*\\.ya?ml$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/privileged:\\s*true/.test(c))issues.push(\'CRITICAL: privileged: true found — almost never needed, provides full host access\');if(/network_mode:\\s*[\"\\x27]?host/.test(c))issues.push(\'WARNING: network_mode: host breaks container network isolation\');if(/(PASSWORD|SECRET|TOKEN|API_KEY)\\s*[:=]\\s*[\"\\x27]?[a-zA-Z0-9]/.test(c)&&!/\\$\\{/.test(c))issues.push(\'WARNING: Possible hardcoded secret — use env_file or Docker secrets\');if(/ports:/.test(c)&&/(5432|3306|6379|27017):[0-9]/.test(c))issues.push(\'INFO: Database/cache port exposed to host — consider using internal networks only\');issues.forEach(i=>console.log(i))" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/compose.*\\.ya?ml$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/privileged:\\s*true/.test(c))issues.push(\'CRITICAL: privileged: true found — almost never needed, provides full host access\');if(/network_mode:\\s*[\"\\x27]?host/.test(c))issues.push(\'WARNING: network_mode: host breaks container network isolation\');if(/(PASSWORD|SECRET|TOKEN|API_KEY)\\s*[:=]\\s*[\"\\x27]?[a-zA-Z0-9]/.test(c)&&!/\\$\\{/.test(c))issues.push(\'WARNING: Possible hardcoded secret — use env_file or Docker secrets\');if(/ports:/.test(c)&&/(5432|3306|6379|27017):[0-9]/.test(c))issues.push(\'INFO: Database/cache port exposed to host — consider using internal networks only\');issues.forEach(i=>console.log(i))" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },

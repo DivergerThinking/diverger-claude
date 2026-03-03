@@ -51,102 +51,44 @@ E2E and component testing. Automatic waiting, time-travel debugging.
         content: `# Cypress Testing Conventions
 
 ## Selector Strategy
-- ALWAYS use \`data-cy\` attributes for element selection: \`cy.get('[data-cy="submit-button"]')\`
+- ALWAYS use \`data-cy\` attributes for element selection — never CSS classes, IDs, or tag names
 - Use \`cy.contains()\` as a complement when element text is stable and user-visible
-- NEVER use CSS classes, IDs tied to styling, tag names, or structural selectors — they break when markup changes
-- Define selector constants for shared use across tests and custom commands:
-  \`\`\`typescript
-  const SELECTORS = {
-    submitButton: '[data-cy="submit-button"]',
-    errorMessage: '[data-cy="error-message"]',
-    userNameInput: '[data-cy="user-name-input"]',
-  } as const;
-  \`\`\`
+- Define selector constants for shared use across tests and custom commands
 
 ## Network Interception
 - Use \`cy.intercept()\` to stub all network requests for deterministic test data
-- ALWAYS alias intercepted routes with \`.as()\` and wait with \`cy.wait('@alias')\`:
-  \`\`\`typescript
-  cy.intercept('GET', '/api/users', { fixture: 'users.json' }).as('getUsers');
-  cy.visit('/users');
-  cy.wait('@getUsers');
-  \`\`\`
-- Use \`req.reply()\` to dynamically control responses, \`req.continue()\` to intercept real responses
-- Verify outgoing request payloads:
-  \`\`\`typescript
-  cy.wait('@createUser').its('request.body').should('deep.include', { email: 'test@example.com' });
-  \`\`\`
-- Test error states by intercepting with error responses:
-  \`\`\`typescript
-  cy.intercept('POST', '/api/checkout', { statusCode: 500, body: { error: 'Server error' } }).as('checkoutFail');
-  \`\`\`
-- NEVER use \`cy.wait(milliseconds)\` with arbitrary timeouts — always wait on intercept aliases or assertions
+- ALWAYS alias intercepted routes with \`.as()\` and wait with \`cy.wait('@alias')\`
+- Use \`req.reply()\` to dynamically control responses, \`req.continue()\` for real responses
+- Verify outgoing request payloads via \`cy.wait('@alias').its('request.body')\`
+- Test error states by intercepting with error status codes
+- NEVER use \`cy.wait(milliseconds)\` with arbitrary timeouts
 
 ## Authentication & Session Caching
-- Use \`cy.session()\` to cache authentication state across tests:
-  \`\`\`typescript
-  Cypress.Commands.add('loginAs', (username: string, password: string) => {
-    cy.session([username, password], () => {
-      cy.request('POST', '/api/auth/login', { username, password })
-        .its('body.token')
-        .then((token) => {
-          window.localStorage.setItem('auth_token', token);
-        });
-    }, {
-      validate() {
-        cy.request({ url: '/api/me', failOnStatusCode: false }).its('status').should('eq', 200);
-      },
-    });
-  });
-  \`\`\`
-- Seed test data through API calls (\`cy.request()\`) in \`beforeEach\`, never through UI interactions
-- Use different session IDs per user to cache multiple user sessions in the same spec
+- Use \`cy.session()\` to cache authentication state across tests
+- Seed test data via \`cy.request()\` in \`beforeEach\`, never through UI interactions
+- Use different session IDs per user to cache multiple sessions in the same spec
 
 ## Custom Commands
-- Define commands in \`cypress/support/commands.ts\` and import in \`cypress/support/e2e.ts\`
-- ALWAYS add TypeScript type declarations for custom commands:
-  \`\`\`typescript
-  // cypress.d.ts
-  declare namespace Cypress {
-    interface Chainable {
-      /** Login as a specific user via API and cache the session */
-      loginAs(username: string, password: string): Chainable<void>;
-      /** Get element by data-cy attribute */
-      dataCy(value: string): Chainable<JQuery<HTMLElement>>;
-    }
-  }
-  \`\`\`
-- Prefix commands with domain context: \`cy.loginAs()\`, \`cy.createProject()\`, \`cy.seedDatabase()\`
-- Keep each command focused on one action — return Cypress chainable for composability
-- Let calling code choose assertions — do not assert inside commands unless checking preconditions
+- Define in \`cypress/support/commands.ts\`, import in \`cypress/support/e2e.ts\`
+- ALWAYS add TypeScript type declarations in a \`.d.ts\` file
+- Prefix with domain context: \`cy.loginAs()\`, \`cy.createProject()\`, \`cy.seedDatabase()\`
+- Keep each command focused on one action — return chainable for composability
 
 ## Test Isolation
-- Keep \`testIsolation: true\` (the default since Cypress 12) — Cypress automatically clears cookies, localStorage, and sessionStorage before each test
-- Never rely on state from a previous test — each \`it()\` block must be independently runnable
-- Use \`cy.session()\` for authentication caching instead of sharing login state across tests
-- Clean up external side effects (database records, file uploads) in \`afterEach\` when needed
+- Keep \`testIsolation: true\` (default since Cypress 12) — auto-clears cookies/storage per test
+- Each \`it()\` block must be independently runnable — no shared state between tests
+- Clean up external side effects (database records, file uploads) in \`afterEach\`
 
 ## Component Testing
-- Use \`cy.mount()\` to render components in isolation
-- Test component behavior through user interactions, not implementation details
-- Wrap \`cy.mount()\` with global providers (theme, router, store) in \`cypress/support/component.ts\`
-- Use \`cy.intercept()\` within component tests for API calls the component makes
+- Use \`cy.mount()\` with global providers in \`cypress/support/component.ts\`
+- Test behavior through user interactions, not implementation details
 - Test all interactive states: default, hover, focus, disabled, error, loading, empty
 
 ## Retry-ability & Assertions
-- Rely on built-in retry-ability: \`cy.get()\`, \`cy.find()\`, \`cy.contains()\` automatically retry until timeout
-- Use \`.should()\` for auto-retrying assertions: \`cy.get('[data-cy="status"]').should('have.text', 'Active')\`
-- Chain assertions with \`.and()\`: \`.should('be.visible').and('not.be.disabled')\`
-- Use \`{ timeout: N }\` on specific commands for known-slow operations instead of global timeout increase
-- Use \`cy.get().should('not.exist')\` to assert element removal — Cypress retries until true or timeout
-
-## Patterns to Avoid
-- \`cy.wait(2000)\` or any arbitrary numeric timeout — always use intercept aliases or assertions
-- \`Cypress.config('defaultCommandTimeout', 30000)\` globally — fix the root cause of slow operations
-- Conditional testing based on DOM state (\`if element exists, do X\`) — this leads to flaky tests
-- Assigning Cypress command return values to variables: \`const el = cy.get()\` — use \`.then()\` instead
-- Using \`cy.get().click({ force: true })\` to bypass visibility checks — fix the UI state instead
-- Using \`test.only\` or \`describe.only\` in committed code — use only for local debugging
+- Rely on built-in retry-ability — \`cy.get()\`, \`cy.find()\`, \`cy.contains()\` auto-retry
+- Use \`.should()\` for auto-retrying assertions, chain with \`.and()\`
+- Use \`{ timeout: N }\` on specific commands instead of global timeout increase
+- Use \`cy.get().should('not.exist')\` to assert element removal
 `,
       },
       {
@@ -156,78 +98,34 @@ E2E and component testing. Automatic waiting, time-travel debugging.
         description: 'Cypress configuration best practices for cypress.config.ts and environment setup',
         content: `# Cypress Configuration Best Practices
 
-## Recommended cypress.config.ts
-\`\`\`typescript
-import { defineConfig } from 'cypress';
-
-export default defineConfig({
-  // E2E Testing Configuration
-  e2e: {
-    baseUrl: 'http://localhost:3000',
-    specPattern: 'cypress/e2e/**/*.cy.{ts,tsx}',
-    supportFile: 'cypress/support/e2e.ts',
-    viewportWidth: 1280,
-    viewportHeight: 720,
-    defaultCommandTimeout: 6000,
-    requestTimeout: 10000,
-    responseTimeout: 30000,
-    retries: {
-      runMode: 2,   // retry failed tests in CI
-      openMode: 0,  // no retries in interactive mode
-    },
-    video: false,               // disable video by default — enable in CI if needed
-    screenshotOnRunFailure: true,
-    testIsolation: true,        // default since Cypress 12
-  },
-
-  // Component Testing Configuration
-  component: {
-    devServer: {
-      framework: 'react',       // or 'vue', 'angular', 'svelte'
-      bundler: 'vite',          // or 'webpack'
-    },
-    specPattern: 'cypress/component/**/*.cy.{ts,tsx}',
-    supportFile: 'cypress/support/component.ts',
-  },
-});
-\`\`\`
+## cypress.config.ts
+- Configure \`baseUrl\`, \`specPattern\`, \`supportFile\` for both E2E and component testing
+- Set \`viewportWidth: 1280\`, \`viewportHeight: 720\` for consistent rendering
+- Configure timeouts: \`defaultCommandTimeout: 6000\`, \`requestTimeout: 10000\`
+- Set \`retries: { runMode: 2, openMode: 0 }\` for CI resilience
+- Keep \`video: false\` by default — enable in CI if needed
+- Keep \`testIsolation: true\` (default since Cypress 12)
+- Configure component \`devServer\` with correct framework and bundler
 
 ## Directory Structure
-\`\`\`
-cypress/
-  e2e/                    # E2E test specs organized by feature
-    auth/
-      login.cy.ts
-      registration.cy.ts
-    dashboard/
-      dashboard.cy.ts
-  component/              # Component test specs
-    Button.cy.tsx
-    LoginForm.cy.tsx
-  fixtures/               # Static test data (JSON)
-    users.json
-    products.json
-  support/
-    commands.ts           # Custom commands
-    e2e.ts                # E2E support file (imports commands)
-    component.ts          # Component support file (mount customization)
-    index.d.ts            # TypeScript declarations for custom commands
-cypress.config.ts         # Main configuration file
-cypress.env.json          # Environment-specific variables (gitignored)
-\`\`\`
+- \`cypress/e2e/\` — E2E specs organized by feature
+- \`cypress/component/\` — Component test specs
+- \`cypress/fixtures/\` — Static test data (JSON)
+- \`cypress/support/commands.ts\` — Custom commands
+- \`cypress/support/e2e.ts\` — E2E support file (imports commands)
+- \`cypress/support/component.ts\` — Component support (mount customization)
+- \`cypress.env.json\` — Environment-specific variables (gitignored)
 
 ## Environment Variables
-- Store environment-specific values in \`cypress.env.json\` (gitignored) or CI environment variables
-- Access in tests with \`Cypress.env('API_KEY')\`
-- Never hardcode production URLs, API keys, or credentials in test files
-- Use \`CYPRESS_\` prefix for system environment variables: \`CYPRESS_BASE_URL=https://staging.example.com\`
+- Store values in \`cypress.env.json\` (gitignored) or CI environment variables
+- Access with \`Cypress.env('KEY')\` — never hardcode production URLs or credentials
+- Use \`CYPRESS_\` prefix for system environment variables
 
 ## CI Configuration
-- Use \`--record\` flag to send results to Cypress Cloud for flaky test tracking
-- Set \`--browser chrome\` (or \`electron\`) explicitly in CI for reproducibility
-- Use \`--spec\` flag to run specific specs for faster feedback in PR checks
-- Configure \`retries.runMode: 2\` to handle intermittent CI failures gracefully
-- Separate E2E and component test CI jobs for faster parallel execution
+- Use \`--record\` flag for Cypress Cloud flaky test tracking
+- Set \`--browser chrome\` explicitly in CI for reproducibility
+- Use \`--spec\` flag to run specific specs for faster PR feedback
+- Separate E2E and component test CI jobs for parallel execution
 `,
       },
     ],
@@ -314,6 +212,8 @@ Available skills: cypress-e2e-generator
       {
         name: 'cypress-e2e-generator',
         description: 'Generate comprehensive Cypress E2E test suites for feature flows',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Cypress E2E Test Generator
 
 ## Purpose
@@ -411,8 +311,9 @@ Cypress.Commands.add('loginAs', (username: string, password: string) => {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -cE "\\b(it\\.only|describe\\.only|context\\.only)\\b" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:1:Focused test detected (.only) in Cypress spec — remove before committing to avoid skipping other tests" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -cE "\\b(it\\.only|describe\\.only|context\\.only)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test detected (.only) in Cypress spec — remove before committing to avoid skipping other tests" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for .only in Cypress specs',
           },
         ],
       },
@@ -423,8 +324,9 @@ Cypress.Commands.add('loginAs', (username: string, password: string) => {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -nE "cy\\.wait\\(\\s*[0-9]" "$CLAUDE_FILE_PATH" | head -1 | grep -q "." && echo "HOOK_EXIT:1:cy.wait() with numeric timeout detected in Cypress spec — use cy.intercept() aliases or .should() assertions instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -nE "cy\\.wait\\(\\s*[0-9]" "$FILE_PATH" | head -1 | grep -q "." && { echo "cy.wait() with numeric timeout detected in Cypress spec — use cy.intercept() aliases or .should() assertions instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for cy.wait() with numeric timeout',
           },
         ],
       },
@@ -435,8 +337,9 @@ Cypress.Commands.add('loginAs', (username: string, password: string) => {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -nE "\\{\\s*force:\\s*true\\s*\\}" "$CLAUDE_FILE_PATH" | head -1 | grep -q "." && echo "HOOK_EXIT:0:Warning: { force: true } detected in Cypress spec — this masks real visibility issues, consider fixing the UI state instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -nE "\\{\\s*force:\\s*true\\s*\\}" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: { force: true } detected in Cypress spec — this masks real visibility issues, consider fixing the UI state instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for { force: true } in Cypress specs',
           },
         ],
       },

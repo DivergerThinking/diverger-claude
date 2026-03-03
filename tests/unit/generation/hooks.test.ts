@@ -10,6 +10,7 @@ function makeConfig(overrides: Partial<ComposedConfig> = {}): ComposedConfig {
     agents: [],
     skills: [],
     hooks: [],
+    hookScripts: [],
     mcp: [],
     externalTools: [],
     appliedProfiles: [],
@@ -105,6 +106,34 @@ describe('generateHooks', () => {
     const result = generateHooks(config);
 
     expect(result!.PostToolUse![0]!.hooks[0]!.timeout).toBeUndefined();
+  });
+
+  it('should include statusMessage when specified', () => {
+    const config = makeConfig({
+      hooks: [
+        {
+          event: 'PostToolUse',
+          hooks: [{ type: 'command', command: 'echo test', statusMessage: 'Checking...' }],
+        },
+      ],
+    });
+    const result = generateHooks(config);
+
+    expect(result!.PostToolUse![0]!.hooks[0]!.statusMessage).toBe('Checking...');
+  });
+
+  it('should omit statusMessage when not specified', () => {
+    const config = makeConfig({
+      hooks: [
+        {
+          event: 'PostToolUse',
+          hooks: [{ type: 'command', command: 'echo test' }],
+        },
+      ],
+    });
+    const result = generateHooks(config);
+
+    expect(result!.PostToolUse![0]!.hooks[0]!.statusMessage).toBeUndefined();
   });
 
   it('should set type to command for all hook entries', () => {

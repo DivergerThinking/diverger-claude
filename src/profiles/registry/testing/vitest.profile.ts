@@ -54,58 +54,39 @@ Fast Vite-native test runner. ESM-first, in-source testing support.
 - Use \`test.each\` / \`it.each\` for parameterized tests instead of duplicating test cases
 
 ## Mocking Patterns
-- Use \`vi.mock()\` at module level for dependency mocking — never inside test functions
-- Use \`vi.hoisted()\` for mock factory variables that need hoisting above vi.mock() calls:
-\`\`\`ts
-const { mockFn } = vi.hoisted(() => ({
-  mockFn: vi.fn(),
-}));
-vi.mock('./module', () => ({ myFn: mockFn }));
-\`\`\`
+- Use \`vi.mock()\` at module level — never inside test functions
+- Use \`vi.hoisted()\` for mock factory variables that need hoisting above \`vi.mock()\` calls
 - Use \`vi.spyOn()\` for partial mocking that preserves original behavior
 - Reset mocks in \`afterEach\` — use \`vi.restoreAllMocks()\` or \`vi.clearAllMocks()\`
-- Use \`vi.stubEnv('KEY', 'value')\` for environment variables, \`vi.unstubAllEnvs()\` in teardown
-- Use \`vi.stubGlobal('name', value)\` for globals, \`vi.unstubAllGlobals()\` in teardown
+- Use \`vi.stubEnv()\` for env vars, \`vi.stubGlobal()\` for globals — unstub in teardown
 - Type mock return values correctly to catch type mismatches at compile time
 
 ## Timer & Async Mocking
-- Use \`vi.useFakeTimers()\` for time-dependent tests
+- Use \`vi.useFakeTimers()\` for time-dependent tests, restore with \`vi.useRealTimers()\` in afterEach
 - Advance timers with \`vi.advanceTimersByTime(ms)\` or \`vi.runAllTimers()\`
-- Restore real timers with \`vi.useRealTimers()\` in afterEach
 - Use \`vi.waitFor()\` for asserting on eventually-consistent async operations
 
-## In-Source Testing
-- Use in-source testing for small pure utility functions: \`if (import.meta.vitest) { ... }\`
-- Keep in-source tests focused on the function they colocate with
+## In-Source & Type Testing
+- Use in-source testing (\`import.meta.vitest\`) only for small pure utility functions
 - Configure \`define\` in vitest config to strip in-source tests from production builds
-- Reserve in-source testing for pure functions with simple inputs and outputs only
-
-## Type Testing
-- Use \`expectTypeOf\` for compile-time type assertions
-- Place type tests in \`*.test-d.ts\` files
-- Test generic function type inference and conditional types
-- Verify that type errors occur where expected with \`// @ts-expect-error\`
+- Use \`expectTypeOf\` for compile-time type assertions in \`*.test-d.ts\` files
 
 ## Benchmarks
-- Use \`bench()\` to define performance benchmarks in \`*.bench.ts\` files
-- Compare implementations with benchmark groups using \`describe\`
+- Use \`bench()\` in \`*.bench.ts\` files, compare implementations with benchmark groups
 - Set performance baselines and track regressions with \`vitest bench\`
-- Use \`bench.skip()\` and \`bench.only()\` for focused benchmark runs
 
 ## Coverage
 - Enable coverage with \`@vitest/coverage-v8\` (preferred) or \`@vitest/coverage-istanbul\`
-- Enforce coverage thresholds: branches >= 80%, functions >= 80%, lines >= 80%
-- Focus on meaningful coverage — test behavior and edge cases, not just line count
-- Cover error paths, boundary conditions, and edge cases
+- Enforce thresholds: branches >= 80%, functions >= 80%, lines >= 80%
+- Focus on meaningful coverage — behavior, edge cases, error paths
 - Use \`/* v8 ignore next */\` sparingly and only with justification comment
 
 ## Configuration
 - Use \`vitest.config.ts\` extending from \`vite.config.ts\` when Vite is the project bundler
 - Configure workspace (\`vitest.workspace.ts\`) for monorepo setups
 - Use \`pool: 'threads'\` for speed, \`pool: 'forks'\` for full process isolation
-- Set \`globals: true\` only if the team prefers implicit imports (explicit imports recommended)
-- Configure \`include\` and \`exclude\` patterns to avoid running non-test files
-- Use \`setupFiles\` for global test setup (polyfills, global mocks, custom matchers)
+- Set \`globals: true\` only if the team prefers implicit imports (explicit recommended)
+- Configure \`include\`/\`exclude\` patterns; use \`setupFiles\` for global test setup
 `,
       },
       {
@@ -208,6 +189,8 @@ Available skills: vitest-test-generator
       {
         name: 'vitest-test-generator',
         description: 'Generate Vitest test files following project conventions and best practices',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Vitest Test Generator
 
 When generating a Vitest test file, produce a complete test suite following these conventions:
@@ -293,7 +276,7 @@ it('should debounce calls', () => {
           {
             type: 'command' as const,
             command:
-              'node -e "const f=process.argv[1]||\'\';if(!/\\.(test|spec)\\.(ts|tsx|js|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/\\.(only|skip)\\s*\\(/.test(c)&&!/\\/\\/.*\\.(only|skip)/.test(c))console.log(\'WARNING: .only or .skip detected in test file — remove before committing to avoid skipping tests in CI\')" -- "$CLAUDE_FILE_PATH"',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(test|spec)\\.(ts|tsx|js|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/\\.(only|skip)\\s*\\(/.test(c)&&!/\\/\\/.*\\.(only|skip)/.test(c))console.log(\'WARNING: .only or .skip detected in test file — remove before committing to avoid skipping tests in CI\')" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -305,7 +288,7 @@ it('should debounce calls', () => {
           {
             type: 'command' as const,
             command:
-              'node -e "const f=process.argv[1]||\'\';if(!/\\.(test|spec)\\.(ts|tsx|js|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/vi\\.mock\\s*\\(/.test(c)&&!/vi\\.restoreAllMocks|vi\\.clearAllMocks|vi\\.resetAllMocks/.test(c))console.log(\'WARNING: vi.mock() used without vi.restoreAllMocks()/vi.clearAllMocks() in afterEach — mocks may leak between tests\')" -- "$CLAUDE_FILE_PATH"',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(test|spec)\\.(ts|tsx|js|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/vi\\.mock\\s*\\(/.test(c)&&!/vi\\.restoreAllMocks|vi\\.clearAllMocks|vi\\.resetAllMocks/.test(c))console.log(\'WARNING: vi.mock() used without vi.restoreAllMocks()/vi.clearAllMocks() in afterEach — mocks may leak between tests\')" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

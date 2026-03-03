@@ -53,14 +53,7 @@ Modern C# (10+) with nullable reference types, records, and pattern matching.
         description: 'C# naming conventions and code style aligned with Microsoft Framework Design Guidelines',
         content: `# C# Naming & Code Style
 
-## Why This Matters
-Microsoft's Framework Design Guidelines are the industry standard for .NET code. Consistent
-naming makes APIs discoverable via IntelliSense, reduces cognitive load, and signals
-professionalism. These rules are derived directly from the official guidelines.
-
----
-
-## Naming Conventions
+## Naming Conventions (Framework Design Guidelines)
 
 | Element | Convention | Example |
 |---------|-----------|---------|
@@ -69,7 +62,6 @@ professionalism. These rules are derived directly from the official guidelines.
 | Methods, properties | PascalCase | \`GetUserById\`, \`FirstName\` |
 | Events | PascalCase (verb/past-tense) | \`Clicked\`, \`PropertyChanged\` |
 | Enums | PascalCase (singular) | \`OrderStatus\`, \`Color\` |
-| Enum values | PascalCase | \`OrderStatus.Pending\` |
 | Local variables, parameters | camelCase | \`userId\`, \`isValid\` |
 | Private/internal fields | \`_camelCase\` | \`_logger\`, \`_connectionString\` |
 | Constants, static readonly | PascalCase | \`MaxRetryCount\`, \`DefaultPort\` |
@@ -77,112 +69,25 @@ professionalism. These rules are derived directly from the official guidelines.
 | Namespaces | PascalCase (dot-separated) | \`Company.Product.Feature\` |
 | File names | Match type name | \`UserService.cs\`, \`IRepository.cs\` |
 
-### Word Choice (Framework Design Guidelines)
-- Choose easily readable names — \`HorizontalAlignment\` not \`AlignmentHorizontal\`
+## Word Choice
+
 - Favor readability over brevity — \`CanScrollHorizontally\` not \`ScrollableX\`
-- Do NOT use underscores, hyphens, or Hungarian notation in public APIs
-- Do NOT use abbreviations or contractions — \`GetWindow\` not \`GetWin\`
-- Do NOT use acronyms that are not widely accepted
+- No underscores, Hungarian notation, abbreviations, or contractions in public APIs
 - Use semantically meaningful names — \`GetLength\` not \`GetInt\`
-
-### Correct
-\`\`\`csharp
-namespace Acme.Billing.Invoices;
-
-public interface IInvoiceRepository
-{
-    Task<Invoice?> FindByIdAsync(int invoiceId, CancellationToken ct = default);
-}
-
-public class InvoiceService
-{
-    private readonly IInvoiceRepository _invoiceRepository;
-    private readonly ILogger<InvoiceService> _logger;
-
-    public InvoiceService(IInvoiceRepository invoiceRepository, ILogger<InvoiceService> logger)
-    {
-        _invoiceRepository = invoiceRepository;
-        _logger = logger;
-    }
-
-    public async Task<Invoice> GetInvoiceAsync(int invoiceId, CancellationToken ct)
-    {
-        var invoice = await _invoiceRepository.FindByIdAsync(invoiceId, ct);
-        if (invoice is null)
-            throw new InvoiceNotFoundException(invoiceId);
-        return invoice;
-    }
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`csharp
-// Bad: Hungarian notation, inconsistent casing, no nullable annotations
-namespace acme.billing;
-
-public class invoice_service  // snake_case class name
-{
-    IInvoiceRepository repo;  // no underscore prefix, no private modifier
-    private ILogger lgr;      // abbreviation
-
-    public Invoice getInvoice(int id)  // camelCase method, no Async suffix
-    {
-        var inv = repo.FindById(id);  // abbreviation
-        return inv;  // no null check
-    }
-}
-\`\`\`
-
----
 
 ## Code Style
 
-### File Layout
-- One type per file — file name matches type name exactly
-- Use file-scoped namespaces: \`namespace X;\` — reduces one level of indentation
-- Place \`using\` directives outside the namespace (at file top)
-- Order: usings -> namespace -> type (attributes, XML doc, declaration)
+- One type per file, name matches type name
+- File-scoped namespaces: \`namespace X;\` (reduces indentation)
+- Allman brace style, 4-space indentation, one statement per line
+- Use \`var\` when type is obvious (\`new\`, cast, literal); explicit types otherwise
+- Use expression-bodied members for single-expression methods/properties
 
-### Formatting
-- Use Allman brace style — opening brace on its own line
-- Four spaces for indentation — never tabs
-- One statement per line, one declaration per line
-- Use \`var\` when the type is obvious from the right side (\`new\`, cast, literal)
-- Use explicit types when the type is not apparent from a method name
-- Use expression-bodied members for single-expression methods and properties
+## XML Documentation
 
-\`\`\`csharp
-// Correct: var when type is obvious
-var users = new List<User>();
-var message = "Hello";
-var config = (AppConfig)rawConfig;
-
-// Correct: explicit type when not obvious
-int retryCount = ComputeRetryCount();
-UserRole currentRole = GetCurrentUserRole();
-\`\`\`
-
-### XML Documentation
-- Use \`///\` XML comments on all public types and members
+- \`///\` XML comments on all public types and members
 - Include \`<summary>\`, \`<param>\`, \`<returns>\`, \`<exception>\` tags
-- First sentence is a concise description visible in IntelliSense
-
-\`\`\`csharp
-/// <summary>
-/// Retrieves a user by their unique identifier.
-/// </summary>
-/// <param name="userId">The unique identifier of the user.</param>
-/// <param name="ct">Cancellation token for the operation.</param>
-/// <returns>The user if found; otherwise <c>null</c>.</returns>
-/// <exception cref="ArgumentOutOfRangeException">
-/// Thrown when <paramref name="userId"/> is less than 1.
-/// </exception>
-public async Task<User?> FindByIdAsync(int userId, CancellationToken ct = default)
-{
-    ArgumentOutOfRangeException.ThrowIfLessThan(userId, 1);
-    return await _context.Users.FindAsync([userId], ct);
-}
-\`\`\`
+- First sentence is a concise IntelliSense-visible description
 `,
       },
       {
@@ -192,155 +97,35 @@ public async Task<User?> FindByIdAsync(int userId, CancellationToken ct = defaul
         description: 'C# nullable reference types, error handling, and defensive coding',
         content: `# C# Nullable Reference Types & Error Handling
 
-## Why This Matters
-Nullable reference types (NRT) eliminate the most common category of runtime errors in .NET.
-Combined with disciplined error handling, they make C# code provably safer at compile time.
-
----
-
 ## Nullable Reference Types
 
-### Configuration
-Enable project-wide in every \`.csproj\`:
-\`\`\`xml
-<PropertyGroup>
-    <Nullable>enable</Nullable>
-    <WarningsAsErrors>nullable</WarningsAsErrors>
-</PropertyGroup>
-\`\`\`
-
-### Rules
+- Enable project-wide: \`<Nullable>enable</Nullable>\` + \`<WarningsAsErrors>nullable</WarningsAsErrors>\`
 - Annotate nullable references with \`?\` suffix — \`string?\`, \`User?\`
-- Never suppress warnings with \`!\` (null-forgiving operator) without a justifying comment
-- Prefer \`is not null\` over \`!= null\` and \`is null\` over \`== null\` for clarity
+- Never suppress with \`!\` (null-forgiving) without a justifying comment
+- Use \`is null\` / \`is not null\` instead of \`== null\` / \`!= null\`
 - Use null-conditional \`?.\` and null-coalescing \`??\`, \`??=\` operators
-- Use \`[NotNull]\`, \`[MaybeNull]\`, \`[NotNullWhen]\` attributes for advanced nullability
-
-### Correct
-\`\`\`csharp
-public string GetDisplayName(User? user)
-{
-    if (user is null)
-        return "Anonymous";
-
-    // Compiler knows user is not null here
-    return user.PreferredName ?? user.FullName;
-}
-
-public async Task<User> GetRequiredUserAsync(int id, CancellationToken ct)
-{
-    var user = await _repository.FindByIdAsync(id, ct);
-    return user ?? throw new UserNotFoundException(id);
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`csharp
-// Bad: null-forgiving operator without justification, no null checks
-public string GetDisplayName(User user)
-{
-    return user!.PreferredName!.ToUpper();  // multiple ! suppressions, NPE risk
-}
-\`\`\`
-
----
+- Use \`[NotNull]\`, \`[MaybeNull]\`, \`[NotNullWhen]\` for advanced nullability
 
 ## Error Handling
 
-### Use Specific Exception Types
-- Never throw \`Exception\` or \`ApplicationException\` directly
-- Define domain-specific exceptions inheriting from \`Exception\`
-- Always include inner exception when wrapping: \`throw new XxxException("msg", ex)\`
+- Never throw \`Exception\` or \`ApplicationException\` directly — use domain-specific types
+- Define custom exceptions inheriting from \`Exception\` with context properties
+- Always include inner exception when wrapping: \`new XxxException("msg", ex)\`
 - Use exception filters with \`when\` for conditional catch
+- Use guard clauses (.NET 7+): \`ArgumentNullException.ThrowIfNull()\`, \`ThrowIfNullOrWhiteSpace()\`
+- Never swallow exceptions with empty catch blocks
 
-\`\`\`csharp
-public class OrderNotFoundException : Exception
-{
-    public int OrderId { get; }
+## Result Pattern
 
-    public OrderNotFoundException(int orderId)
-        : base($"Order {orderId} not found")
-    {
-        OrderId = orderId;
-    }
-
-    public OrderNotFoundException(int orderId, Exception innerException)
-        : base($"Order {orderId} not found", innerException)
-    {
-        OrderId = orderId;
-    }
-}
-\`\`\`
-
-### Guard Clauses (.NET 8+)
-Use \`ArgumentNullException.ThrowIfNull()\` and \`ArgumentException.ThrowIfNullOrWhiteSpace()\`:
-
-\`\`\`csharp
-public void ProcessOrder(Order? order, string? region)
-{
-    ArgumentNullException.ThrowIfNull(order);
-    ArgumentException.ThrowIfNullOrWhiteSpace(region);
-    // Both are guaranteed non-null past this point
-}
-\`\`\`
-
-### Exception Filters
-\`\`\`csharp
-try
-{
-    await httpClient.SendAsync(request, ct);
-}
-catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
-{
-    _logger.LogWarning("Rate limited, retrying after delay");
-    await Task.Delay(retryDelay, ct);
-}
-catch (HttpRequestException ex) when (ex.StatusCode is >= HttpStatusCode.InternalServerError)
-{
-    _logger.LogError(ex, "Server error from upstream service");
-    throw new UpstreamServiceException("Upstream service unavailable", ex);
-}
-\`\`\`
-
-### Result Pattern for Expected Failures
-Use a discriminated result type instead of exceptions for expected business failures:
-
-\`\`\`csharp
-public readonly record struct Result<T>
-{
-    public T? Value { get; }
-    public string? Error { get; }
-    public bool IsSuccess => Error is null;
-
-    private Result(T value) { Value = value; Error = null; }
-    private Result(string error) { Value = default; Error = error; }
-
-    public static Result<T> Success(T value) => new(value);
-    public static Result<T> Failure(string error) => new(error);
-}
-
-// Usage: return Result<Order>.Failure("Insufficient inventory");
-\`\`\`
-
----
+- Use a discriminated result type for expected business failures (not exceptions)
+- Pattern: \`Result<T>.Success(value)\` / \`Result<T>.Failure("reason")\`
+- Reserve exceptions for truly exceptional conditions
 
 ## IDisposable & Resource Management
 
-### Rules
-- Use \`using\` declarations for deterministic disposal
-- Implement \`IAsyncDisposable\` for async resources (\`await using\`)
-- Never call \`.Dispose()\` manually inside a \`finally\` block — use \`using\`
-- In DI containers, prefer letting the container manage lifetimes
-
-\`\`\`csharp
-// Correct: using declaration (no braces needed)
-await using var connection = new SqlConnection(connectionString);
-await connection.OpenAsync(ct);
-await using var command = connection.CreateCommand();
-command.CommandText = "SELECT Id, Name FROM Users WHERE Active = @active";
-command.Parameters.AddWithValue("@active", true);
-await using var reader = await command.ExecuteReaderAsync(ct);
-\`\`\`
+- Use \`using\` declarations for deterministic disposal — never manual \`.Dispose()\` in finally
+- Use \`await using\` for \`IAsyncDisposable\` resources
+- Let DI containers manage service lifetimes when possible
 `,
       },
       {
@@ -352,230 +137,45 @@ await using var reader = await command.ExecuteReaderAsync(ct);
 
 ## Records & Pattern Matching
 
-### Records for Immutable Data
-- Use \`record\` (reference type) for DTOs, events, and value objects
+- Use \`record\` for DTOs, events, value objects — immutable with \`with\` expressions
 - Use \`record struct\` for small value types (< 16 bytes) with value semantics
-- Use positional syntax for concise declaration: \`record Person(string Name, int Age);\`
-- Use \`with\` expressions for non-destructive mutation
-
-\`\`\`csharp
-public record OrderCreatedEvent(int OrderId, DateTime CreatedAt, decimal Total);
-
-// Non-destructive mutation
-var updated = originalEvent with { Total = 150.00m };
-\`\`\`
-
-### Pattern Matching
-\`\`\`csharp
-// Switch expression with property patterns
-public decimal CalculateDiscount(Customer customer) => customer switch
-{
-    { Tier: CustomerTier.Platinum, YearsActive: > 5 } => 0.25m,
-    { Tier: CustomerTier.Gold } => 0.15m,
-    { Tier: CustomerTier.Silver } => 0.10m,
-    { IsEmployee: true } => 0.30m,
-    _ => 0m,
-};
-
-// Type pattern with when clause
-public string FormatError(Exception ex) => ex switch
-{
-    ArgumentNullException ane => $"Missing argument: {ane.ParamName}",
-    HttpRequestException { StatusCode: HttpStatusCode.NotFound } => "Resource not found",
-    TimeoutException => "Operation timed out — try again",
-    _ => "An unexpected error occurred",
-};
-
-// List patterns (C# 11+)
-public string DescribeArray(int[] values) => values switch
-{
-    [] => "empty",
-    [var single] => $"one element: {single}",
-    [var first, .., var last] => $"from {first} to {last}",
-};
-\`\`\`
-
----
+- Use switch expressions with property/type/list patterns for multi-branch logic
+- Prefer pattern matching over if-else chains for type dispatch
 
 ## Dependency Injection
 
-### Rules
-- Use constructor injection for all required dependencies
-- Use \`IOptions<T>\` / \`IOptionsSnapshot<T>\` / \`IOptionsMonitor<T>\` for configuration
-- Register services with the correct lifetime:
-  - \`Transient\`: lightweight stateless services (factories, formatters)
-  - \`Scoped\`: per-request services (DbContext, unit-of-work)
-  - \`Singleton\`: shared thread-safe services (caches, HTTP clients)
-- Use \`IHttpClientFactory\` — never create \`HttpClient\` instances directly (socket exhaustion)
-- Prefer interfaces for service abstractions — enables testability
-
-### Primary Constructor DI (C# 12+)
-\`\`\`csharp
-public class OrderService(
-    IOrderRepository orderRepository,
-    IPaymentGateway paymentGateway,
-    ILogger<OrderService> logger)
-{
-    public async Task<Order> PlaceOrderAsync(CreateOrderRequest request, CancellationToken ct)
-    {
-        logger.LogInformation("Placing order for {CustomerId}", request.CustomerId);
-        var order = Order.Create(request);
-        await paymentGateway.ChargeAsync(order.Total, ct);
-        await orderRepository.SaveAsync(order, ct);
-        return order;
-    }
-}
-\`\`\`
-
-### Anti-Pattern: Service Locator
-\`\`\`csharp
-// Bad: hides dependencies, untestable, violates DI principle
-public class OrderService
-{
-    public async Task PlaceOrder(CreateOrderRequest request)
-    {
-        var repo = ServiceLocator.Get<IOrderRepository>();  // hidden dependency
-        var payment = ServiceLocator.Get<IPaymentGateway>(); // no compile-time check
-        // ...
-    }
-}
-\`\`\`
-
----
+- Constructor injection for all required dependencies
+- \`IOptions<T>\` / \`IOptionsSnapshot<T>\` for configuration
+- Correct lifetimes: Transient (stateless), Scoped (per-request), Singleton (thread-safe shared)
+- Use \`IHttpClientFactory\` — never \`new HttpClient()\` directly (socket exhaustion)
+- No service locator pattern — never call \`IServiceProvider.GetService\` in business logic
+- Primary constructors (C# 12+) for clean DI class declarations
 
 ## Async Patterns
 
-### CancellationToken Propagation
-Every async method that performs I/O should accept and forward \`CancellationToken\`:
-
-\`\`\`csharp
-public async Task<List<Product>> SearchAsync(
-    string query,
-    int page,
-    CancellationToken ct = default)
-{
-    var results = await _httpClient.GetFromJsonAsync<List<Product>>(
-        $"/api/products?q={Uri.EscapeDataString(query)}&page={page}", ct);
-    return results ?? [];
-}
-\`\`\`
-
-### IAsyncEnumerable for Streaming
-\`\`\`csharp
-public async IAsyncEnumerable<LogEntry> StreamLogsAsync(
-    string source,
-    [EnumeratorCancellation] CancellationToken ct = default)
-{
-    await foreach (var line in _logReader.ReadLinesAsync(source, ct))
-    {
-        if (LogEntry.TryParse(line, out var entry))
-            yield return entry;
-    }
-}
-
-// Consumption
-await foreach (var entry in service.StreamLogsAsync("app", ct))
-{
-    Console.WriteLine(entry);
-}
-\`\`\`
-
-### Async Anti-Patterns
-\`\`\`csharp
-// Bad: blocking on async code — causes deadlocks in UI/ASP.NET contexts
-var result = GetDataAsync().Result;           // NEVER
-var result2 = GetDataAsync().GetAwaiter().GetResult();  // NEVER
-GetDataAsync().Wait();                        // NEVER
-
-// Bad: async void — exceptions are unobservable
-async void OnButtonClick()  // should be async Task
-{
-    await DoWorkAsync();
-}
-
-// Bad: missing ConfigureAwait in library code
-public async Task<Data> GetDataAsync()
-{
-    return await _client.GetAsync(url);  // should use ConfigureAwait(false) in libraries
-}
-\`\`\`
-
----
+- Every async I/O method must accept and forward \`CancellationToken\`
+- All async methods have \`Async\` suffix and return \`Task\`/\`Task<T>\`/\`ValueTask<T>\`
+- Use \`ConfigureAwait(false)\` in library code
+- Use \`IAsyncEnumerable\` with \`[EnumeratorCancellation]\` for streaming
+- NEVER use \`.Result\`, \`.Wait()\`, \`.GetAwaiter().GetResult()\` — causes deadlocks
+- NEVER use \`async void\` except for event handlers
 
 ## Project Structure
 
-### Recommended Solution Layout
-\`\`\`
-Solution.sln
-src/
-  MyApp.Domain/            # Entities, value objects, domain events, interfaces
-    Entities/
-    ValueObjects/
-    Events/
-    Interfaces/
-  MyApp.Application/       # Use cases, DTOs, service interfaces, validators
-    Features/
-      Orders/
-        CreateOrder/
-          CreateOrderCommand.cs
-          CreateOrderHandler.cs
-          CreateOrderValidator.cs
-  MyApp.Infrastructure/    # EF Core, external APIs, file system, messaging
-    Persistence/
-    ExternalServices/
-  MyApp.Api/               # Controllers/endpoints, middleware, DI registration
-    Endpoints/
-    Middleware/
-    Program.cs
-tests/
-  MyApp.Domain.Tests/
-  MyApp.Application.Tests/
-  MyApp.Infrastructure.Tests/
-  MyApp.Api.IntegrationTests/
-\`\`\`
+- Clean Architecture: Domain -> Application -> Infrastructure -> Api
+- Organize by feature/domain slice, not technical layer
+- One class per file, name matches class name
+- Keep \`Program.cs\` minimal — wire DI, middleware, delegate to modules
+- Use \`Directory.Build.props\` for shared settings (nullable, analysis level)
 
-### Rules
-- One class per file — file name matches class name
-- Organize by feature/domain slice, not by technical layer within a project
-- Use the Clean Architecture or Vertical Slice pattern for non-trivial applications
-- Keep \`Program.cs\` minimal — wire DI, middleware, and delegate to feature modules
-- Use \`Directory.Build.props\` for shared project settings (nullable, analysis level, etc.)
+## Security
 
-\`\`\`xml
-<!-- Directory.Build.props at solution root -->
-<Project>
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <AnalysisLevel>latest-recommended</AnalysisLevel>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-  </PropertyGroup>
-</Project>
-\`\`\`
-
----
-
-## Security — C#-Specific
-
-### SQL Injection Prevention
-\`\`\`csharp
-// Correct: parameterized query
-await using var cmd = connection.CreateCommand();
-cmd.CommandText = "SELECT * FROM Users WHERE Email = @email";
-cmd.Parameters.AddWithValue("@email", userEmail);
-
-// Anti-pattern: string concatenation — SQL injection vulnerability
-cmd.CommandText = $"SELECT * FROM Users WHERE Email = '{userEmail}'";  // NEVER
-\`\`\`
-
-### Dangerous APIs to Avoid
-- Never use \`Process.Start()\` with \`UseShellExecute = true\` and user-controlled input
-- Never use \`Assembly.Load()\` or \`Activator.CreateInstance()\` with untrusted type names
-- Never use \`BinaryFormatter\` or \`SoapFormatter\` — use \`System.Text.Json\` or Protobuf
-- Never use \`dynamic\` with untrusted data
-- Use \`System.Security.Cryptography.RandomNumberGenerator\` — not \`System.Random\` for secrets
-- Use \`Microsoft.AspNetCore.DataProtection\` for symmetric encryption of sensitive data
+- All SQL queries must be parameterized — no string interpolation/concatenation
+- Never use \`BinaryFormatter\`/\`SoapFormatter\` — use \`System.Text.Json\` or Protobuf
+- Never use \`Process.Start(UseShellExecute=true)\` with user input
+- Never use \`Assembly.Load()\`/\`Activator.CreateInstance()\` with untrusted type names
+- Use \`RandomNumberGenerator\` for cryptographic purposes — not \`System.Random\`
+- Use \`DataProtection\` API for symmetric encryption of sensitive data
 `,
       },
     ],
@@ -840,6 +440,8 @@ public class OrderServiceTests
       {
         name: 'dotnet-scaffold',
         description: 'Scaffolding patterns for ASP.NET Core: Minimal APIs, controllers, EF Core, and middleware',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# .NET Scaffold Skill
 
 ## Minimal API Endpoints (Recommended for .NET 8+)
@@ -975,8 +577,9 @@ public class RequestTimingMiddleware(RequestDelegate next, ILogger<RequestTiming
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.cs$" && grep -nE "\\.(Result|Wait\\(\\)|GetAwaiter\\(\\)\\.GetResult\\(\\))" "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: sync-over-async pattern detected (.Result/.Wait()/.GetAwaiter().GetResult()) — use await instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.cs$" && grep -nE "\\.(Result|Wait\\(\\)|GetAwaiter\\(\\)\\.GetResult\\(\\))" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: sync-over-async pattern detected (.Result/.Wait()/.GetAwaiter().GetResult()) — use await instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for sync-over-async patterns',
           },
         ],
       },
@@ -987,8 +590,9 @@ public class RequestTimingMiddleware(RequestDelegate next, ILogger<RequestTiming
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.cs$" && grep -nE "new\\s+HttpClient\\s*\\(" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: direct HttpClient instantiation detected — use IHttpClientFactory to avoid socket exhaustion" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.cs$" && grep -nE "new\\s+HttpClient\\s*\\(" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: direct HttpClient instantiation detected — use IHttpClientFactory to avoid socket exhaustion" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for direct HttpClient instantiation',
           },
         ],
       },
@@ -999,8 +603,9 @@ public class RequestTimingMiddleware(RequestDelegate next, ILogger<RequestTiming
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.cs$" && grep -nE "(BinaryFormatter|SoapFormatter|NetDataContractSerializer)" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:1:Dangerous serializer detected (BinaryFormatter/SoapFormatter) — use System.Text.Json or Protobuf" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.cs$" && grep -nE "(BinaryFormatter|SoapFormatter|NetDataContractSerializer)" "$FILE_PATH" | head -3 | grep -q "." && { echo "Dangerous serializer detected (BinaryFormatter/SoapFormatter) — use System.Text.Json or Protobuf" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for dangerous serializers',
           },
         ],
       },
@@ -1011,8 +616,9 @@ public class RequestTimingMiddleware(RequestDelegate next, ILogger<RequestTiming
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.cs$" && grep -nE "\\$\"[^\"]*\\{[^}]+\\}[^\"]*\"\\s*;\\s*$" "$CLAUDE_FILE_PATH" | grep -iE "(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)" | head -3 | grep -q "." && echo "HOOK_EXIT:1:Potential SQL injection — string interpolation in SQL query detected. Use parameterized queries." || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cs$" && grep -nE "\\$\"[^\"]*\\{[^}]+\\}[^\"]*\"\\s*;\\s*$" "$FILE_PATH" | grep -iE "(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)" | head -3 | grep -q "." && { echo "Potential SQL injection — string interpolation in SQL query detected. Use parameterized queries." >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for SQL injection patterns',
           },
         ],
       },

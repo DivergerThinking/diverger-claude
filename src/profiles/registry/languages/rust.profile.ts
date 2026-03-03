@@ -55,123 +55,29 @@ Ownership-driven design. Let the compiler guide you — fix warnings, not suppre
 
 ## Ownership & Borrowing
 
-### Prefer Borrowing Over Cloning
-Borrow with \`&T\` when the caller needs to retain the value. Clone only when you truly need an independent copy.
-
-\`\`\`rust
-// Anti-pattern: unnecessary clone
-fn process(items: Vec<String>) {
-    let first = items[0].clone(); // wasteful if we only need to read
-    println!("{first}");
-}
-
-// Correct: borrow instead
-fn process(items: &[String]) {
-    if let Some(first) = items.first() {
-        println!("{first}");
-    }
-}
-\`\`\`
-
-### Use Cow for Conditional Ownership
-When a function sometimes needs to allocate and sometimes can borrow, use \`Cow<'_, T>\`.
-
-\`\`\`rust
-use std::borrow::Cow;
-
-fn normalize_path(path: &str) -> Cow<'_, str> {
-    if path.contains("//") {
-        Cow::Owned(path.replace("//", "/"))
-    } else {
-        Cow::Borrowed(path)
-    }
-}
-\`\`\`
-
-### Smart Pointers for Shared Ownership
-- Use \`Arc<T>\` for shared ownership across threads (with \`Mutex<T>\` or \`RwLock<T>\` for interior mutability)
-- Use \`Rc<T>\` for single-threaded shared ownership only
-- Never use \`Rc<T>\` in async or multi-threaded contexts — it is not \`Send\`
+- Borrow with \`&T\` by default — clone only when you truly need an independent copy
+- Use \`&[T]\` and \`&str\` in function parameters instead of \`Vec<T>\` and \`String\`
+- Use \`Cow<'_, T>\` when a function sometimes borrows and sometimes allocates
+- Use \`Arc<T>\` + \`Mutex<T>\`/\`RwLock<T>\` for shared ownership across threads
+- Use \`Rc<T>\` for single-threaded shared ownership only — never in async/multi-threaded
+- Avoid unnecessary \`Box<T>\` — prefer stack allocation when size is known
 
 ## Lifetimes
 
 - Let the compiler infer lifetimes via elision rules — annotate only when required
 - Name lifetimes descriptively: \`'input\`, \`'conn\`, \`'query\` — not just \`'a\`
-- Use \`'static\` sparingly; prefer bounded lifetimes for flexibility
-
-\`\`\`rust
-// Anti-pattern: forcing 'static when not needed
-fn extract_name(data: &'static str) -> &'static str { /* ... */ }
-
-// Correct: use elision or bounded lifetime
-fn extract_name(data: &str) -> &str { /* ... */ }
-\`\`\`
+- Use \`'static\` sparingly — prefer bounded lifetimes for flexibility
 
 ## Error Handling
 
-### Use Result<T, E> Consistently
-Every fallible operation must return \`Result\`. Never panic in library code.
-
-\`\`\`rust
-// Anti-pattern: panicking in library code
-pub fn parse_config(input: &str) -> Config {
-    serde_json::from_str(input).unwrap() // panics on invalid input
-}
-
-// Correct: return Result with descriptive error
-pub fn parse_config(input: &str) -> Result<Config, ConfigError> {
-    serde_json::from_str(input).map_err(ConfigError::Parse)
-}
-\`\`\`
-
-### Define Domain Error Types with thiserror
-\`\`\`rust
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum StorageError {
-    #[error("file not found: {path}")]
-    NotFound { path: String },
-    #[error("permission denied for {path}")]
-    PermissionDenied { path: String },
-    #[error("I/O error")]
-    Io(#[from] std::io::Error),
-}
-\`\`\`
-
-### Use anyhow for Application Code
-\`\`\`rust
-use anyhow::{Context, Result};
-
-fn main() -> Result<()> {
-    let config = std::fs::read_to_string("config.toml")
-        .context("failed to read config file")?;
-    let parsed: Config = toml::from_str(&config)
-        .context("failed to parse config TOML")?;
-    run(parsed)
-}
-\`\`\`
-
-### Propagate with ? — Never Match Manually
-\`\`\`rust
-// Anti-pattern: manual match on Result
-let file = match std::fs::read_to_string(path) {
-    Ok(f) => f,
-    Err(e) => return Err(e.into()),
-};
-
-// Correct: use ? operator
-let file = std::fs::read_to_string(path)?;
-\`\`\`
-
-### Annotate #[must_use] on Important Return Values
-\`\`\`rust
-#[must_use]
-pub fn validate(input: &str) -> ValidationResult {
-    // Ignoring this result is almost certainly a bug
-    // ...
-}
-\`\`\`
+- Every fallible operation must return \`Result<T, E>\` — never panic in library code
+- Use \`thiserror\` for library error types with \`#[derive(Debug, Error)]\`
+- Use \`anyhow\` for application code with \`.context("description")?\`
+- Propagate with \`?\` operator — never match Result/Option manually
+- Use \`#[from]\` on thiserror variants for automatic \`?\` conversion
+- Annotate \`#[must_use]\` on functions where ignoring the return is a bug
+- Never use \`unwrap()\`/\`expect()\` in production code paths
+- Use \`map_err\` to add context when converting between error types
 `,
       },
       {
@@ -187,171 +93,44 @@ pub fn validate(input: &str) -> ValidationResult {
 |------|-----------|---------|
 | Types, traits | UpperCamelCase | \`HttpClient\`, \`IntoIterator\` |
 | Functions, methods | snake_case | \`read_to_string\`, \`is_empty\` |
-| Local variables | snake_case | \`retry_count\`, \`user_name\` |
 | Constants, statics | SCREAMING_SNAKE_CASE | \`MAX_CONNECTIONS\`, \`DEFAULT_PORT\` |
 | Modules | snake_case | \`file_utils\`, \`error_handling\` |
-| Type parameters | short UpperCamelCase | \`T\`, \`E\`, \`K\`, \`V\`, \`S\` |
-| Lifetimes | short lowercase | \`'a\`, \`'de\`, \`'input\` |
 
-## Conversion Method Naming (C-CONV)
+## Conversion Naming (C-CONV)
 
-| Prefix | Cost | Ownership | Example |
-|--------|------|-----------|---------|
-| \`as_\` | Free (no allocation) | Borrows \`&self\` | \`as_bytes()\`, \`as_str()\` |
-| \`to_\` | Expensive (may allocate) | Borrows \`&self\` | \`to_string()\`, \`to_vec()\` |
-| \`into_\` | Variable | Consumes \`self\` | \`into_inner()\`, \`into_vec()\` |
+- \`as_\` — free, borrows \`&self\`: \`as_bytes()\`, \`as_str()\`
+- \`to_\` — expensive (may allocate), borrows \`&self\`: \`to_string()\`, \`to_vec()\`
+- \`into_\` — variable cost, consumes \`self\`: \`into_inner()\`, \`into_vec()\`
 
-\`\`\`rust
-// Anti-pattern: wrong prefix
-impl Buffer {
-    fn to_slice(&self) -> &[u8] { &self.data }  // free conversion, use as_
-    fn as_owned(&self) -> Vec<u8> { self.data.clone() }  // allocates, use to_
-}
+## Getter & Predicate Naming
 
-// Correct: prefixes reflect cost and ownership
-impl Buffer {
-    fn as_slice(&self) -> &[u8] { &self.data }
-    fn to_vec(&self) -> Vec<u8> { self.data.clone() }
-    fn into_vec(self) -> Vec<u8> { self.data }
-}
-\`\`\`
-
-## Getter Naming (C-GETTER)
-Getter methods omit the \`get_\` prefix. Use \`get_\` only when the operation is a lookup or has a side effect.
-
-\`\`\`rust
-// Anti-pattern: Java-style getter
-impl User {
-    fn get_name(&self) -> &str { &self.name }
-}
-
-// Correct: idiomatic Rust getter
-impl User {
-    fn name(&self) -> &str { &self.name }
-}
-\`\`\`
-
-## Boolean Predicates (C-BOOL)
-Methods returning \`bool\` use \`is_\`, \`has_\`, \`can_\`, \`should_\` prefixes.
-
-\`\`\`rust
-impl Connection {
-    fn is_connected(&self) -> bool { /* ... */ }
-    fn has_pending_data(&self) -> bool { /* ... */ }
-    fn can_write(&self) -> bool { /* ... */ }
-}
-\`\`\`
+- Getters omit \`get_\` prefix: \`fn name(&self) -> &str\` not \`fn get_name()\`
+- Boolean predicates use \`is_\`, \`has_\`, \`can_\`, \`should_\` prefixes
 
 ## Standard Trait Implementations
 
-### Always Derive
-- \`Debug\` — on ALL public types (required for good error messages and logging)
-- \`Clone\` — when the type is logically copyable
-- \`PartialEq\`, \`Eq\` — when equality comparison is meaningful
-- \`Hash\` — when the type may be used as a HashMap/HashSet key (requires \`Eq\`)
-- \`Default\` — when there is a natural default value
+- Always derive: \`Debug\` (all public types), \`Clone\`, \`PartialEq\`/\`Eq\`, \`Hash\`, \`Default\`
+- Implement manually: \`Display\`, \`From<T>\`/\`TryFrom<T>\`, \`AsRef<T>\`, \`Iterator\`
+- \`Deref\` only for smart pointer types — never for general "inheritance"
+- Use \`#[non_exhaustive]\` on public enums and structs that may grow
 
-### Implement Manually When Needed
-- \`Display\` — for user-facing output; keep \`Debug\` for developer output
-- \`From<T>\` / \`TryFrom<T>\` — for type conversions (implementing \`From\` gives \`Into\` for free)
-- \`AsRef<T>\` / \`AsMut<T>\` — to accept \`&str\`, \`String\`, \`&Path\`, \`PathBuf\` etc. generically
-- \`Deref\` — only for smart pointer types, never for general "inheritance"
-- \`Iterator\` — for custom collection types
+## Design Patterns
 
-### Forward Compatibility
-- Use \`#[non_exhaustive]\` on public enums so adding variants is not a breaking change
-- Use \`#[non_exhaustive]\` on public structs when fields may be added later
-
-\`\`\`rust
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum DatabaseError {
-    ConnectionFailed,
-    QueryTimeout { duration_ms: u64 },
-    AuthenticationFailed,
-}
-\`\`\`
-
-## Builder Pattern for Complex Construction
-Use the builder pattern when a struct has more than 3 optional fields.
-
-\`\`\`rust
-pub struct ServerConfig {
-    host: String,
-    port: u16,
-    max_connections: usize,
-    tls_enabled: bool,
-    timeout_ms: u64,
-}
-
-impl ServerConfig {
-    pub fn builder(host: impl Into<String>, port: u16) -> ServerConfigBuilder {
-        ServerConfigBuilder {
-            host: host.into(),
-            port,
-            max_connections: 100,
-            tls_enabled: false,
-            timeout_ms: 30_000,
-        }
-    }
-}
-
-pub struct ServerConfigBuilder { /* fields */ }
-
-impl ServerConfigBuilder {
-    pub fn max_connections(mut self, n: usize) -> Self { self.max_connections = n; self }
-    pub fn tls(mut self, enabled: bool) -> Self { self.tls_enabled = enabled; self }
-    pub fn timeout_ms(mut self, ms: u64) -> Self { self.timeout_ms = ms; self }
-    pub fn build(self) -> ServerConfig { /* ... */ }
-}
-\`\`\`
-
-## Newtype Pattern for Type Safety
-Wrap primitive types to prevent mixing semantically different values.
-
-\`\`\`rust
-// Anti-pattern: easy to confuse user_id and order_id
-fn process(user_id: u64, order_id: u64) { /* ... */ }
-
-// Correct: newtype wrappers enforce type safety
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct UserId(pub u64);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OrderId(pub u64);
-
-fn process(user_id: UserId, order_id: OrderId) { /* ... */ }
-\`\`\`
+- Use builder pattern when a struct has more than 3 optional fields
+- Use newtype pattern to wrap primitives for type safety (\`UserId(u64)\`, \`OrderId(u64)\`)
+- Use \`From\`/\`TryFrom\` instead of custom conversion methods
 
 ## Module Visibility
-- Expose a clean public API from \`lib.rs\` — keep internals private
+
+- Expose clean public API from \`lib.rs\` — keep internals private
 - Use \`pub(crate)\` for crate-internal items shared across modules
 - Use \`pub(super)\` for parent-module-only visibility
-- Never expose implementation details as public API
 
-## Documentation Conventions (C-DOC)
-- Use \`///\` for public item documentation, \`//!\` for module/crate-level docs
-- First line is a short summary sentence (shows in search results)
-- Include \`# Examples\` section with runnable doc tests
-- Include \`# Errors\` section for functions returning \`Result\`
-- Include \`# Panics\` section if the function can panic
+## Documentation (C-DOC)
 
-\`\`\`rust
-/// Parses a configuration file from the given path.
-///
-/// # Examples
-///
-/// \\\`\\\`\\\`rust
-/// let config = parse_config("config.toml")?;
-/// assert_eq!(config.port, 8080);
-/// \\\`\\\`\\\`
-///
-/// # Errors
-///
-/// Returns \`ConfigError::NotFound\` if the file does not exist.
-/// Returns \`ConfigError::Parse\` if the file contains invalid TOML.
-pub fn parse_config(path: &str) -> Result<Config, ConfigError> { /* ... */ }
-\`\`\`
+- Use \`///\` for public items, \`//!\` for module/crate-level docs
+- First line is a short summary sentence
+- Include \`# Examples\` with runnable doc tests, \`# Errors\`, \`# Panics\` sections
 `,
       },
       {
@@ -363,192 +142,45 @@ pub fn parse_config(path: &str) -> Result<Config, ConfigError> { /* ... */ }
 
 ## Pattern Matching
 
-### Exhaustive Match Over If-Let Chains
-\`\`\`rust
-// Anti-pattern: chaining if-let for multiple variants
-if let Some(Ok(value)) = result {
-    handle_value(value);
-} else if let Some(Err(e)) = result {
-    handle_error(e);
-}
-
-// Correct: exhaustive match
-match result {
-    Some(Ok(value)) => handle_value(value),
-    Some(Err(e)) => handle_error(e),
-    None => handle_none(),
-}
-\`\`\`
-
-### Use if-let for Single-Variant Matching
-\`\`\`rust
-// Correct: simple single-variant check
-if let Some(user) = find_user(id) {
-    greet(&user);
-}
-\`\`\`
-
-### Use matches! for Boolean Checks
-\`\`\`rust
-// Anti-pattern: verbose match for a boolean check
-let is_success = match status {
-    Status::Ok | Status::Created => true,
-    _ => false,
-};
-
-// Correct: use matches! macro
-let is_success = matches!(status, Status::Ok | Status::Created);
-\`\`\`
-
-### Use @ Bindings to Capture and Match
-\`\`\`rust
-match response.status_code {
-    code @ 200..=299 => println!("Success: {code}"),
-    code @ 400..=499 => println!("Client error: {code}"),
-    code @ 500..=599 => println!("Server error: {code}"),
-    code => println!("Unexpected: {code}"),
-}
-\`\`\`
+- Use exhaustive \`match\` over if-let chains for multiple variants
+- Use \`if let\` for single-variant matching only
+- Use \`matches!\` macro for boolean checks: \`matches!(status, Status::Ok | Status::Created)\`
+- Use \`@\` bindings to capture and match simultaneously
 
 ## Iterators
 
-### Prefer Combinators Over Manual Loops
-\`\`\`rust
-// Anti-pattern: manual loop with mutable accumulator
-let mut names = Vec::new();
-for user in &users {
-    if user.is_active {
-        names.push(user.name.clone());
-    }
-}
-
-// Correct: iterator chain
-let names: Vec<_> = users.iter()
-    .filter(|u| u.is_active)
-    .map(|u| u.name.clone())
-    .collect();
-\`\`\`
-
-### Fallible Collection with collect::<Result<_, _>>()
-\`\`\`rust
-let parsed: Result<Vec<i32>, _> = strings.iter()
-    .map(|s| s.parse::<i32>())
-    .collect();
-\`\`\`
-
-### Iterator Protocol
-- \`.iter()\` borrows elements (\`&T\`)
-- \`.iter_mut()\` borrows elements mutably (\`&mut T\`)
-- \`.into_iter()\` consumes the collection (takes ownership of \`T\`)
+- Prefer iterator combinators (\`filter\`, \`map\`, \`collect\`) over manual loops
+- Use \`collect::<Result<Vec<_>, _>>()\` for fallible collection processing
+- \`.iter()\` borrows (\`&T\`), \`.iter_mut()\` borrows mutably, \`.into_iter()\` consumes
 - Prefer lazy iterators — only \`.collect()\` when needed
 
 ## Async Rust
 
-### Tokio Runtime Conventions
-\`\`\`rust
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let listener = TcpListener::bind("0.0.0.0:8080").await?;
-    loop {
-        let (stream, _) = listener.accept().await?;
-        tokio::spawn(async move {
-            if let Err(e) = handle_connection(stream).await {
-                eprintln!("Connection error: {e}");
-            }
-        });
-    }
-}
-\`\`\`
-
-### Async Anti-Patterns
-\`\`\`rust
-// Anti-pattern: blocking the async runtime
-async fn read_file(path: &str) -> Result<String> {
-    std::fs::read_to_string(path).map_err(Into::into) // blocks the thread!
-}
-
-// Correct: use async I/O
-async fn read_file(path: &str) -> Result<String> {
-    tokio::fs::read_to_string(path).await.map_err(Into::into)
-}
-
-// Correct alternative: spawn blocking for CPU-heavy work
-async fn compress(data: Vec<u8>) -> Result<Vec<u8>> {
-    tokio::task::spawn_blocking(move || cpu_heavy_compress(&data)).await?
-}
-\`\`\`
-
-### select! Cancellation Safety
+- Use \`tokio::fs\` and \`tokio::io\` — never blocking \`std::fs\` in async context
+- Use \`tokio::task::spawn_blocking\` for CPU-heavy work in async context
 - Only use cancellation-safe operations inside \`tokio::select!\`
-- \`tokio::io::AsyncReadExt::read\` is NOT cancellation-safe
-- \`tokio::sync::mpsc::Receiver::recv\` IS cancellation-safe
-- Consult the tokio docs for each operation's cancellation safety guarantee
+- Ensure \`tokio::spawn\` tasks handle errors (not silently dropped)
 
 ## Unsafe Code Rules
 
-- Minimize unsafe usage — exhaust safe alternatives first
-- Every \`unsafe\` block MUST have a \`// SAFETY:\` comment explaining why the invariants hold
-- Encapsulate unsafe code behind safe abstractions
-- Never use unsafe for performance unless profiling proves it is necessary and the safe version is a bottleneck
-- Use \`#[deny(unsafe_code)]\` at the crate level; opt in per-module with \`#[allow(unsafe_code)]\`
-
-\`\`\`rust
-// Correct: justified and documented unsafe
-// SAFETY: We have exclusive access to the buffer and the length is validated
-// against the buffer capacity in the constructor.
-unsafe {
-    std::ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), len);
-}
-\`\`\`
+- Minimize unsafe — exhaust safe alternatives first
+- Every \`unsafe\` block MUST have a \`// SAFETY:\` comment explaining invariants
+- Encapsulate unsafe behind safe abstractions
+- Use \`#[deny(unsafe_code)]\` at crate level; opt in per-module with \`#[allow(unsafe_code)]\`
 
 ## Project Structure
 
-### Binary Crate
-\`\`\`
-src/
-  main.rs          # thin entry point — parse args, wire deps, delegate
-  lib.rs           # public API surface
-  config.rs        # configuration types and parsing
-  error.rs         # error types (thiserror)
-  domain/          # business logic by feature
-    mod.rs
-    users.rs
-    orders.rs
-  infra/           # I/O adapters (DB, HTTP clients, filesystem)
-    mod.rs
-    database.rs
-    http_client.rs
-tests/
-  integration/     # integration tests (separate binaries)
-    api_test.rs
-benches/
-  benchmarks.rs    # criterion benchmarks
-\`\`\`
-
-### Library Crate
-\`\`\`
-src/
-  lib.rs           # public API re-exports, crate-level docs
-  types.rs         # public types
-  error.rs         # error types
-  internal/        # implementation details (pub(crate))
-    mod.rs
-    parser.rs
-    validator.rs
-\`\`\`
-
-### Workspace Layout
-- Use \`[workspace]\` in root Cargo.toml for multi-crate projects
-- Share dependencies via \`[workspace.dependencies]\`
+- Binary crate: thin \`main.rs\`, \`lib.rs\` for public API, \`error.rs\` for error types
+- Library crate: \`lib.rs\` re-exports, \`internal/\` for \`pub(crate)\` implementation
+- Use \`[workspace]\` for multi-crate projects, share deps via \`[workspace.dependencies]\`
 - Keep shared types in a dedicated \`-core\` or \`-types\` crate
-- Use \`cargo test --workspace\` to test all crates
 
 ## Cargo.toml Best Practices
-- Set \`edition = "2021"\` (or latest stable edition)
-- Set \`rust-version\` (MSRV) for libraries
+
+- Set \`edition = "2021"\` and \`rust-version\` (MSRV) for libraries
 - Use \`[lints.clippy]\` section for project-wide Clippy configuration
-- Group dependencies: workspace deps, external deps, dev-dependencies
 - Use \`[features]\` for optional functionality — avoid feature creep
+- Group dependencies: workspace, external, dev-dependencies
 `,
       },
     ],
@@ -797,8 +429,9 @@ async fn login(username: &str, password: &str) -> Result<Token> {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && command -v cargo >/dev/null 2>&1 && cargo fmt -- --check "$CLAUDE_FILE_PATH" 2>/dev/null || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && command -v cargo >/dev/null 2>&1 && cargo fmt -- --check "$FILE_PATH" 2>/dev/null || true',
             timeout: 15,
+            statusMessage: 'Checking Rust formatting with cargo fmt',
           },
         ],
       },
@@ -809,8 +442,9 @@ async fn login(username: &str, password: &str) -> Result<Token> {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "\\bunwrap\\(\\)|\\bexpect\\(" "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: unwrap()/expect() detected — verify these are not in production code paths" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "\\bunwrap\\(\\)|\\bexpect\\(" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: unwrap()/expect() detected — verify these are not in production code paths" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for unwrap()/expect() usage',
           },
         ],
       },
@@ -821,8 +455,9 @@ async fn login(username: &str, password: &str) -> Result<Token> {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "^\\s*unsafe\\s*\\{" "$CLAUDE_FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$CLAUDE_FILE_PATH" | grep -q "SAFETY:" || echo "HOOK_EXIT:0:Warning: unsafe block at line $line missing // SAFETY: comment"; done || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "^\\s*unsafe\\s*\\{" "$FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$FILE_PATH" | grep -q "SAFETY:" || { echo "Warning: unsafe block at line $line missing // SAFETY: comment" >&2; exit 2; }; done || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for unsafe blocks without SAFETY comments',
           },
         ],
       },

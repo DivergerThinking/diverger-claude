@@ -54,163 +54,29 @@ Mobile CI/CD automation. Lanes for build/test/deploy workflows, match for code s
         description: 'Fastlane lane architecture, Fastfile organization, and secret management',
         content: `# Fastlane Lane Structure & Security
 
-## Why This Matters
-A well-structured Fastfile enables reliable, repeatable builds and deployments for iOS and
-Android apps. Poor Fastfile organization leads to fragile CI pipelines, code signing failures,
-and accidental App Store submissions. These rules follow Fastlane documentation best practices
-(docs.fastlane.tools).
-
----
-
 ## Fastfile Organization
-
-Every Fastlane project MUST have a clear lane hierarchy separating concerns.
-
-### Correct — well-structured Fastfile
-\`\`\`ruby
-# fastlane/Fastfile
-
-default_platform(:ios)
-
-platform :ios do
-  before_all do
-    ensure_git_status_clean
-    cocoapods(clean_install: true)
-  end
-
-  desc "Run all unit and UI tests"
-  lane :test do
-    scan(
-      scheme: "MyApp",
-      code_coverage: true,
-      output_types: "junit",
-      fail_build: true
-    )
-  end
-
-  desc "Build and distribute to TestFlight for internal testing"
-  lane :beta do |options|
-    increment_build_number
-    sync_code_signing(type: "appstore", readonly: is_ci)
-    build_app(
-      scheme: "MyApp",
-      export_method: "app-store",
-      clean: true
-    )
-    upload_to_testflight(
-      skip_waiting_for_build_processing: true,
-      changelog: options[:changelog] || "Bug fixes and improvements"
-    )
-  end
-
-  desc "Build and submit to App Store for review"
-  lane :release do |options|
-    ensure_git_branch(branch: "main")
-    version = options[:version]
-    increment_version_number(version_number: version) if version
-    increment_build_number
-    sync_code_signing(type: "appstore", readonly: true)
-    build_app(scheme: "MyApp", export_method: "app-store", clean: true)
-    upload_to_app_store(
-      submit_for_review: true,
-      automatic_release: false,
-      force: true
-    )
-    add_git_tag(tag: "v#{get_version_number}")
-    push_git_tags
-  end
-
-  # Reusable helper — not callable from CLI
-  private_lane :notify_team do |options|
-    slack(
-      message: options[:message],
-      success: options[:success],
-      default_payloads: [:git_branch, :git_author]
-    )
-  end
-
-  after_all do |lane|
-    notify_team(message: "Lane '#{lane}' completed successfully!", success: true)
-  end
-
-  error do |lane, exception|
-    notify_team(message: "Lane '#{lane}' failed: #{exception.message}", success: false)
-  end
-end
-\`\`\`
-
-### Anti-Pattern — monolithic Fastfile with no structure
-\`\`\`ruby
-# BAD: no platform block, no before_all, mixed concerns, hardcoded values
-lane :do_everything do
-  cocoapods
-  scan
-  match(type: "appstore")
-  gym(scheme: "MyApp")
-  pilot(username: "developer@company.com")  # hardcoded credential
-  deliver(submit_for_review: true)
-  # Problem: no error handling, no separation of beta vs release,
-  # credentials in source, no build number management
-end
-\`\`\`
-
----
+- Organize lanes inside platform blocks: \`platform :ios do ... end\`
+- Define \`before_all\`, \`after_all\`, and \`error\` blocks for each platform
+- One lane per concern: \`test\`, \`beta\`, \`release\`, \`screenshots\`
+- Use \`private_lane\` for helper lanes (\`notify_team\`, \`bump_version\`, \`setup_signing\`)
+- Add \`desc\` to every public lane for \`fastlane lanes\` documentation
+- Prefix CI-specific lanes with \`ci_\`: \`ci_test\`, \`ci_beta\`, \`ci_release\`
 
 ## Lane Naming Conventions
-- Use descriptive lane names: \`test\`, \`beta\`, \`release\`, \`screenshots\`, \`deploy_staging\`
-- Prefix CI-specific lanes with \`ci_\`: \`ci_test\`, \`ci_beta\`, \`ci_release\`
-- Use \`private_lane\` for helper lanes: \`notify_team\`, \`bump_version\`, \`setup_signing\`
-- Add \`desc\` to every public lane for \`fastlane lanes\` documentation
-
----
+- Descriptive names: \`test\`, \`beta\`, \`release\`, \`deploy_staging\`
+- CI lanes: \`ci_test\`, \`ci_beta\`, \`ci_release\`
+- Use lane options instead of hardcoded values
 
 ## Secret & Credential Management (MANDATORY)
-
-### Environment Variables
 - Store ALL credentials in environment variables, NEVER in Fastfile, Appfile, or Matchfile
-- Required environment variables:
-  - \`MATCH_PASSWORD\` — passphrase for match certificate encryption
-  - \`FASTLANE_USER\` / \`FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD\` — Apple ID auth
-  - \`SUPPLY_JSON_KEY_DATA\` — Google Play service account JSON (base64 encoded)
-  - \`SLACK_URL\` — webhook URL for notifications
-- Use \`.env.default\` for non-secret defaults, \`.env.<environment>\` for environment-specific values
+- Required env vars: \`MATCH_PASSWORD\`, \`FASTLANE_USER\`, \`FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD\`, \`SUPPLY_JSON_KEY_DATA\`, \`SLACK_URL\`
+- Use \`.env.default\` for non-secret defaults
 - Add all \`.env*\` files (except \`.env.example\`) to \`.gitignore\`
-
-### Correct
-\`\`\`ruby
-# Appfile — references env vars, no hardcoded secrets
-app_identifier(ENV["APP_IDENTIFIER"] || "com.company.app")
-apple_id(ENV["FASTLANE_USER"])
-team_id(ENV["TEAM_ID"])
-\`\`\`
-
-### Anti-Pattern
-\`\`\`ruby
-# BAD: hardcoded credentials in Appfile
-app_identifier("com.company.app")
-apple_id("developer@company.com")
-team_id("ABC123DEF")
-# Problem: credentials committed to version control
-\`\`\`
-
----
+- Appfile and Matchfile MUST reference \`ENV[]\` — never hardcode Apple IDs, team IDs, or bundle IDs
 
 ## Code Signing with match
-
-### match Configuration
-\`\`\`ruby
-# Matchfile
-git_url(ENV["MATCH_GIT_URL"])
-storage_mode("git")
-type("appstore")
-app_identifier([ENV["APP_IDENTIFIER"]])
-username(ENV["FASTLANE_USER"])
-readonly(is_ci)
-\`\`\`
-
-### Rules
 - ALWAYS use \`readonly: true\` (or \`is_ci\`) in CI to prevent accidental certificate regeneration
-- Use \`match nuke\` only when absolutely necessary and NEVER in automated pipelines
+- Use \`match nuke\` only when absolutely necessary — NEVER in automated pipelines
 - Store match passphrase in \`MATCH_PASSWORD\` environment variable
 - Use a dedicated shared Git repo for certificates — never the app repository
 - Run \`match development\`, \`match adhoc\`, and \`match appstore\` separately
@@ -224,166 +90,35 @@ readonly(is_ci)
         description: 'Fastlane CI/CD integration, build automation, and platform distribution',
         content: `# Fastlane CI/CD Integration
 
-## Why This Matters
-Mobile CI/CD is uniquely complex: code signing, provisioning profiles, Xcode version management,
-and store submission rules make every CI run fragile. Proper Fastlane CI configuration prevents
-the most common build and deployment failures.
-
----
-
 ## CI Environment Setup
-
-### Keychain Management (macOS CI)
-\`\`\`ruby
-# Set up a temporary keychain for CI to avoid login keychain issues
-lane :ci_setup do
-  create_keychain(
-    name: "ci_keychain",
-    password: ENV["CI_KEYCHAIN_PASSWORD"],
-    default_keychain: true,
-    unlock: true,
-    timeout: 3600,
-    lock_when_sleeps: false
-  )
-end
-
-# Clean up after the lane
-after_all do
-  delete_keychain(name: "ci_keychain") if is_ci
-end
-\`\`\`
-
-### Xcode Version Management
-- Use \`xcodes\` or \`xcode-select\` to set the Xcode version at the start of CI
-- Pin the Xcode version in CI configuration (not just "latest")
-- Use \`xcversion(version: "15.2")\` action in \`before_all\` for consistent builds
-
-### GitHub Actions Integration
-\`\`\`yaml
-# .github/workflows/ios-beta.yml
-name: iOS Beta
-on:
-  push:
-    branches: [main]
-jobs:
-  beta:
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
-        with:
-          bundler-cache: true
-      - name: Install CocoaPods
-        run: bundle exec pod install
-      - name: Deploy to TestFlight
-        env:
-          MATCH_PASSWORD: \${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_URL: \${{ secrets.MATCH_GIT_URL }}
-          FASTLANE_USER: \${{ secrets.FASTLANE_USER }}
-          FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: \${{ secrets.APP_SPECIFIC_PASSWORD }}
-          APP_IDENTIFIER: com.company.app
-          TEAM_ID: \${{ secrets.TEAM_ID }}
-        run: bundle exec fastlane ios beta
-\`\`\`
-
----
+- Create a temporary keychain in CI with \`create_keychain\` or \`setup_ci\` — delete in \`after_all\`
+- Pin Xcode version in CI config (not "latest") — use \`xcversion\` action in \`before_all\`
+- Use \`bundle exec fastlane\` (not bare \`fastlane\`) to ensure locked gem versions
+- Pass all secrets via environment variables in CI (GitHub Secrets, etc.)
 
 ## CI-Specific Lane Patterns
+- Use \`setup_ci\` at the start of CI lanes for automatic keychain and environment setup
+- Use \`sync_code_signing(readonly: true)\` in CI — never allow certificate regeneration
+- Use \`clean: true\` in \`build_app\` and \`scan\` for reproducible CI builds
+- Use \`skip_waiting_for_build_processing: true\` in \`upload_to_testflight\` for faster CI
+- Output test results as JUnit for CI reporting
 
-### Correct — dedicated CI lanes with safety checks
-\`\`\`ruby
-lane :ci_test do
-  setup_ci  # Fastlane built-in CI setup (creates temp keychain, etc.)
-  sync_code_signing(type: "development", readonly: true)
-  scan(
-    scheme: "MyApp",
-    clean: true,
-    code_coverage: true,
-    output_types: "junit",
-    result_bundle: true
-  )
-end
-
-lane :ci_beta do
-  setup_ci
-  sync_code_signing(type: "appstore", readonly: true)
-  build_app(
-    scheme: "MyApp",
-    export_method: "app-store",
-    clean: true
-  )
-  upload_to_testflight(
-    skip_waiting_for_build_processing: true,
-    changelog: last_git_commit[:message]
-  )
-end
-\`\`\`
-
----
-
-## Android CI with Fastlane
-
-### supply (Google Play) Setup
-\`\`\`ruby
-platform :android do
-  desc "Deploy internal track to Google Play"
-  lane :deploy_internal do
-    gradle(task: "clean bundleRelease")
-    supply(
-      track: "internal",
-      release_status: "completed",
-      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
-      json_key_data: ENV["SUPPLY_JSON_KEY_DATA"],
-      skip_upload_metadata: true,
-      skip_upload_images: true,
-      skip_upload_screenshots: true
-    )
-  end
-
-  desc "Promote internal to production"
-  lane :promote_to_production do |options|
-    supply(
-      track: "internal",
-      track_promote_to: "production",
-      rollout: options[:rollout] || "0.1",
-      json_key_data: ENV["SUPPLY_JSON_KEY_DATA"]
-    )
-  end
-end
-\`\`\`
-
----
+## Android CI
+- Use \`gradle(task: "clean bundleRelease")\` for Play Store builds
+- Use \`supply\` with \`json_key_data: ENV["SUPPLY_JSON_KEY_DATA"]\` for Google Play uploads
+- Track promotion: \`supply(track_promote_to: "production", rollout: "0.1")\`
+- Skip metadata/image/screenshot uploads with flags for faster CI
 
 ## Build Number & Versioning
-
-### Automated Build Numbers
-\`\`\`ruby
-# iOS — use CI build number or timestamp
-lane :set_build_number do
-  build_number = ENV["GITHUB_RUN_NUMBER"] || Time.now.strftime("%Y%m%d%H%M")
-  increment_build_number(build_number: build_number)
-end
-
-# Android — use versionCode from environment
-lane :set_version_code do
-  version_code = ENV["GITHUB_RUN_NUMBER"] || Time.now.strftime("%Y%m%d%H%M")
-  android_set_version_code(version_code: version_code.to_i)
-end
-\`\`\`
-
-### Release Versioning
-- Use semantic versioning for app versions (e.g. 1.2.3)
-- Automate version bumps with \`increment_version_number\` for iOS
-- Use \`android_set_version_name\` for Android version name
-- Tag releases in Git after successful deployment: \`add_git_tag\`, \`push_git_tags\`
-
----
+- Use CI build number (\`GITHUB_RUN_NUMBER\`) or timestamp for build numbers
+- iOS: \`increment_build_number\`; Android: \`android_set_version_code\`
+- Use semantic versioning for app versions
+- Tag releases in Git: \`add_git_tag\`, \`push_git_tags\`
 
 ## Error Handling & Notifications
 - Always define \`error\` block in each platform for failure notifications
-- Use Slack, Microsoft Teams, or email for build/deploy notifications
-- Include branch name, commit author, and error message in failure notifications
-- Use \`clean_build_artifacts\` in \`after_all\` to avoid disk space issues on CI
+- Include branch name, commit author, and error message in notifications
+- Use \`clean_build_artifacts\` in \`after_all\` to prevent CI disk space issues
 - Implement retry logic for flaky network operations (App Store Connect uploads)
 `,
       },
@@ -605,7 +340,7 @@ fastlane/README.md
         hooks: [
           {
             type: 'command',
-            command: 'node -e "const f=process.argv[1]||\'\';if(!/Fastfile|Appfile|Matchfile|Deliverfile|Gymfile/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];const secrets=c.match(/[\"\\x27](AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk-[0-9a-zA-Z]{48}|ghp_[0-9a-zA-Z]{36})[\"\\x27]/g);if(secrets)issues.push(\'CRITICAL: Possible API key or token found in Fastlane config\');if(/password\\s*[:=]\\s*[\"\\x27][^\"\\x27]{4,}/i.test(c)&&!/ENV\\[/.test(c.split(/password/i)[1]||\'\')){issues.push(\'WARNING: Possible hardcoded password — use ENV variables\')}if(/Fastfile/.test(f)){if(!/before_all/.test(c)&&/platform/.test(c))issues.push(\'INFO: No before_all block — consider adding shared setup\');if(!/error\\s+do/.test(c))issues.push(\'INFO: No error block — add error handling for failure notifications\');if(/match.*readonly.*false/.test(c)&&/ci_|CI/.test(c))issues.push(\'WARNING: match without readonly in what appears to be a CI lane\')}issues.forEach(i=>console.log(i))" -- "$CLAUDE_FILE_PATH"',
+            command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/Fastfile|Appfile|Matchfile|Deliverfile|Gymfile/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];const secrets=c.match(/[\"\\x27](AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk-[0-9a-zA-Z]{48}|ghp_[0-9a-zA-Z]{36})[\"\\x27]/g);if(secrets)issues.push(\'CRITICAL: Possible API key or token found in Fastlane config\');if(/password\\s*[:=]\\s*[\"\\x27][^\"\\x27]{4,}/i.test(c)&&!/ENV\\[/.test(c.split(/password/i)[1]||\'\')){issues.push(\'WARNING: Possible hardcoded password — use ENV variables\')}if(/Fastfile/.test(f)){if(!/before_all/.test(c)&&/platform/.test(c))issues.push(\'INFO: No before_all block — consider adding shared setup\');if(!/error\\s+do/.test(c))issues.push(\'INFO: No error block — add error handling for failure notifications\');if(/match.*readonly.*false/.test(c)&&/ci_|CI/.test(c))issues.push(\'WARNING: match without readonly in what appears to be a CI lane\')}issues.forEach(i=>console.log(i))" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -616,7 +351,7 @@ fastlane/README.md
         hooks: [
           {
             type: 'command',
-            command: 'node -e "const f=process.argv[1]||\'\';if(!/\\.env/.test(f)||/\\.example/.test(f))process.exit(0);if(!/fastlane/i.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/(MATCH_PASSWORD|FASTLANE_.*PASSWORD|SUPPLY_JSON_KEY)\\s*=\\s*[^\\s$]/.test(c))issues.push(\'CRITICAL: Secret value in Fastlane .env file — use CI secrets manager instead of committing this file\');issues.forEach(i=>console.log(i))" -- "$CLAUDE_FILE_PATH"',
+            command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.env/.test(f)||/\\.example/.test(f))process.exit(0);if(!/fastlane/i.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/(MATCH_PASSWORD|FASTLANE_.*PASSWORD|SUPPLY_JSON_KEY)\\s*=\\s*[^\\s$]/.test(c))issues.push(\'CRITICAL: Secret value in Fastlane .env file — use CI secrets manager instead of committing this file\');issues.forEach(i=>console.log(i))" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

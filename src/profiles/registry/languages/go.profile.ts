@@ -700,8 +700,9 @@ srv := &http.Server{
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_TOOL_OUTPUT" | grep -qE "^# command-line-arguments$|cannot use .+ as .+ in|undefined:" && echo "HOOK_EXIT:0:Go compilation error detected — review the error and fix before proceeding" || true',
+              'echo "$CLAUDE_TOOL_OUTPUT" | grep -qE "^# command-line-arguments$|cannot use .+ as .+ in|undefined:" && { echo "Go compilation error detected — review the error and fix before proceeding" >&2; exit 2; } || exit 0',
             timeout: 5,
+            statusMessage: 'Checking for Go compilation errors',
           },
         ],
       },

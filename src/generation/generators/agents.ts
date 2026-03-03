@@ -32,6 +32,7 @@ const DEFAULT_TOOLS = ['Read', 'Grep', 'Glob', 'Bash'];
 
 function formatAgentFile(agent: AgentDefinition): string {
   const parts: string[] = [];
+  const tools = agent.tools ?? DEFAULT_TOOLS;
 
   // YAML frontmatter with proper escaping
   parts.push('---');
@@ -40,8 +41,11 @@ function formatAgentFile(agent: AgentDefinition): string {
   if (agent.model) {
     parts.push(`model: ${yamlEscape(agent.model)}`);
   }
+  if (agent.memory) {
+    parts.push(`memory: ${agent.memory}`);
+  }
   parts.push('tools:');
-  for (const tool of DEFAULT_TOOLS) {
+  for (const tool of tools) {
     parts.push(`  - ${tool}`);
   }
   if (agent.skills.length > 0) {

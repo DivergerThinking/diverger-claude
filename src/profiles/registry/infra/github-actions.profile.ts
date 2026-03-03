@@ -46,59 +46,41 @@ Workflow automation. Least-privilege permissions, pinned action versions, matrix
 
 ## Workflow Structure
 - Name workflows descriptively: \`ci.yml\`, \`deploy-production.yml\`, \`release.yml\`
-- Separate CI (lint/test/build) from CD (deploy) workflows — single responsibility per workflow
-- Keep individual jobs focused on one concern — do not combine linting, testing, and building in one job
-- Use \`name:\` at workflow, job, and step levels for clear GitHub Actions UI visibility
-- Use \`workflow_dispatch\` with typed \`inputs\` for manual triggers requiring parameters
+- Separate CI (lint/test/build) from CD (deploy) — single responsibility per workflow
+- Use \`name:\` at workflow, job, and step levels for clear UI visibility
+- Use \`workflow_dispatch\` with typed \`inputs\` for manual triggers
 
 ## Triggers
-- Use path filters to run workflows only when relevant files change
-- Prefer \`pull_request\` over \`pull_request_target\` — the latter runs with base branch write permissions and is a critical security risk when checking out PR code
-- Use \`push\` for main/release branches, \`pull_request\` for all PRs
-- Use \`on.schedule\` (cron) for periodic maintenance (dependency audits, nightly builds)
-- Use \`workflow_run\` for chaining workflows that depend on other workflow completions
+- Use path filters to run only when relevant files change
+- Prefer \`pull_request\` over \`pull_request_target\` (security risk with base branch write permissions)
+- Use \`push\` for main/release branches, \`pull_request\` for PRs
+- Use \`on.schedule\` for periodic maintenance; \`workflow_run\` for chaining
 
 ## Caching
-- Cache package manager dependencies using lock file hashes: \`hashFiles('**/package-lock.json')\`
-- Use \`restore-keys\` for partial cache hits as fallback
-- Leverage built-in caching in setup actions (\`actions/setup-node\`, \`actions/setup-python\`) with \`cache:\` input
-- Cache build outputs with \`actions/upload-artifact\` / \`actions/download-artifact\` for cross-job sharing
-- Set appropriate \`retention-days\` on artifacts — do not keep CI artifacts for 90 days by default
+- Cache dependencies using lock file hashes: \`hashFiles('**/package-lock.json')\`
+- Leverage built-in caching in setup actions with \`cache:\` input
+- Set appropriate \`retention-days\` on artifacts (default 90 is excessive for CI)
 
 ## Concurrency
-- Use \`concurrency\` groups to cancel redundant runs on the same branch:
-  \`\`\`yaml
-  concurrency:
-    group: \${{ github.workflow }}-\${{ github.ref }}
-    cancel-in-progress: true
-  \`\`\`
-- Disable \`cancel-in-progress\` for deployment workflows to prevent partial deployments
+- Use \`concurrency\` groups with \`cancel-in-progress: true\` for CI workflows
+- Disable \`cancel-in-progress\` for deployment workflows
 
 ## Matrix Builds
-- Use \`strategy.matrix\` for testing across versions (Node 18/20/22) and platforms (ubuntu, macos, windows)
-- Use \`include\`/\`exclude\` for specific matrix combinations
-- Set \`fail-fast: false\` in test matrices to see all failures, not just the first
-- Use matrix values in step conditions: \`if: matrix.os == 'ubuntu-latest'\`
+- Use \`strategy.matrix\` for multi-version/multi-OS testing
+- Set \`fail-fast: false\` in test matrices to see all failures
 
 ## Reusable Workflows
-- Define reusable workflows with \`workflow_call\` trigger
-- Parameterize with \`inputs\` (typed) and \`secrets\` (inherit or explicit)
-- Version reusable workflows with tags for stability
-- Use composite actions for reusable step sequences: \`.github/actions/<name>/action.yml\`
+- Define with \`workflow_call\` trigger; parameterize with \`inputs\` and \`secrets\`
+- Use composite actions for reusable step sequences
 
-## Job Outputs & Environment
-- Use \`$GITHUB_OUTPUT\` to set step outputs: \`echo "key=value" >> $GITHUB_OUTPUT\`
-- Use \`$GITHUB_ENV\` to set environment variables for subsequent steps
-- Use \`$GITHUB_STEP_SUMMARY\` to add markdown summaries to the workflow run UI
+## Job Outputs
+- Use \`$GITHUB_OUTPUT\`, \`$GITHUB_ENV\`, \`$GITHUB_STEP_SUMMARY\` (not deprecated commands)
 - Use job-level \`outputs:\` to pass data between jobs via \`needs.<job>.outputs.<key>\`
-- Never use deprecated \`set-output\` or \`set-env\` workflow commands
 
 ## Secrets
-- Store sensitive values in GitHub Secrets — never hardcode in workflow files
-- Use environment-level secrets for deployment credentials
-- Prefer \`GITHUB_TOKEN\` (automatic) over Personal Access Tokens for GitHub API operations
-- Mask runtime-sensitive values with \`::add-mask::VALUE\`
-- Never echo or log secret values — audit steps that use secrets
+- Store in GitHub Secrets — never hardcode in workflow files
+- Prefer \`GITHUB_TOKEN\` over Personal Access Tokens
+- Never echo or log secret values
 `,
       },
       {
@@ -109,75 +91,41 @@ Workflow automation. Least-privilege permissions, pinned action versions, matrix
         content: `# GitHub Actions Security Hardening
 
 ## Supply Chain Security
-- Pin ALL third-party actions to full 40-character commit SHA — never use mutable tags
+- Pin ALL third-party actions to full 40-character commit SHA — never use mutable tags (\`@v4\`, \`@main\`)
 - Review action source code before using — compromised actions can exfiltrate secrets
-- Use Dependabot or Renovate to keep pinned SHAs updated with security patches
+- Use Dependabot or Renovate to keep pinned SHAs updated
 - Prefer official GitHub actions (\`actions/*\`) and Marketplace-verified creators
-- Use \`actions/dependency-review-action\` on pull requests to catch vulnerable dependencies
-- Audit your workflow files periodically for newly added or modified action references
-
-### Correct
-\`\`\`yaml
-- uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-\`\`\`
-
-### Anti-Pattern
-\`\`\`yaml
-# Mutable tag — attacker can rewrite to serve malicious code
-- uses: actions/checkout@v4
-# Branch reference — completely untrusted
-- uses: some-org/some-action@main
-\`\`\`
+- Audit workflow files periodically for modified action references
 
 ## Permissions (Least Privilege)
-- Set \`permissions: {}\` at workflow level (deny all) — grant specific permissions per job
-- Common permission sets:
-  | Workflow Type | Permissions |
-  |---|---|
-  | CI (lint/test) | \`contents: read\` |
-  | PR automation | \`contents: read, pull-requests: write\` |
-  | Package publish | \`contents: read, packages: write\` |
-  | Release | \`contents: write\` |
-  | OIDC deploy | \`contents: read, id-token: write\` |
-- Never use \`permissions: write-all\` — always scope to minimum required
+- Set \`permissions: {}\` at workflow level (deny all) — grant per job
+- CI (lint/test): \`contents: read\`
+- PR automation: \`contents: read, pull-requests: write\`
+- Package publish: \`contents: read, packages: write\`
+- Release: \`contents: write\`
+- OIDC deploy: \`contents: read, id-token: write\`
+- Never use \`permissions: write-all\`
 
 ## Script Injection Prevention
-- NEVER use \`\${{ }}\` interpolation of untrusted input in \`run:\` blocks
-- Untrusted contexts: \`github.event.issue.title\`, \`github.event.issue.body\`, \`github.event.pull_request.title\`, \`github.event.pull_request.body\`, \`github.event.comment.body\`, \`github.head_ref\`
-- Always route untrusted input through environment variables:
-
-### Correct
-\`\`\`yaml
-- name: Process PR title
-  env:
-    PR_TITLE: \${{ github.event.pull_request.title }}
-  run: echo "$PR_TITLE"
-\`\`\`
-
-### Anti-Pattern
-\`\`\`yaml
-# Shell injection — attacker controls the title string
-- run: echo "\${{ github.event.pull_request.title }}"
-\`\`\`
+- NEVER use \`\${{ }}\` interpolation of untrusted input directly in \`run:\` blocks
+- Untrusted contexts: \`github.event.issue.title\`, \`.body\`, \`pull_request.title\`, \`.body\`, \`comment.body\`, \`github.head_ref\`
+- Always route untrusted input through environment variables first
 
 ## Environment Protection
-- Require manual approval for production deployment environments
+- Require manual approval for production deployments
 - Restrict deployment branches to \`main\` and \`release/*\`
-- Use environment-specific secrets (staging vs production credentials)
-- Set deployment concurrency to prevent parallel deploys to the same environment
-- Use wait timers on production environments for rollback decisions
+- Use environment-specific secrets (staging vs production)
+- Set deployment concurrency to prevent parallel deploys
 
 ## OIDC Authentication
-- Use OpenID Connect instead of static cloud credentials (AWS keys, GCP service account JSON)
-- Configure trust policies to accept tokens only from specific repos and branches
+- Use OpenID Connect instead of static cloud credentials
+- Configure trust policies for specific repos and branches
 - Use official OIDC actions: \`aws-actions/configure-aws-credentials\`, \`azure/login\`, \`google-github-actions/auth\`
-- Rotate fallback credentials if OIDC is not available for all providers
 
 ## Self-Hosted Runners
 - Never use self-hosted runners for public repositories
 - Run as non-root, use ephemeral runners, isolate with containers or VMs
-- Restrict runner access to specific repositories via runner groups
-- Monitor runner activity and audit unexpected workflow executions
+- Restrict access to specific repositories via runner groups
 `,
       },
       {
@@ -187,151 +135,39 @@ Workflow automation. Least-privilege permissions, pinned action versions, matrix
         description: 'GitHub Actions recommended workflow patterns and templates for common CI/CD scenarios',
         content: `# GitHub Actions Workflow Patterns
 
-## CI Workflow Pattern
-\`\`\`yaml
-name: CI
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+## CI Workflow
+- Trigger on \`push\` to main and \`pull_request\` to main, with path filters
+- Set \`permissions: {}\` at workflow level, \`contents: read\` per job
+- Add \`concurrency\` group with \`cancel-in-progress: true\`
+- Separate lint and test into distinct jobs
+- Use matrix strategy with \`fail-fast: false\` for multi-version testing
+- Pin all actions to full commit SHA
 
-permissions: {}
+## Release Workflow
+- Trigger on tag push (\`tags: ['v*']\`)
+- Build job: checkout, build, upload artifact with \`retention-days\`
+- Publish job: \`needs: build\`, download artifact, publish
+- Use \`environment: production\` with protection rules
+- Grant \`contents: write, packages: write\` only on publish job
 
-concurrency:
-  group: \${{ github.workflow }}-\${{ github.ref }}
-  cancel-in-progress: true
+## Reusable Workflow
+- Define with \`workflow_call\` trigger
+- Declare typed \`inputs\` with defaults and \`secrets\` (required or optional)
+- Keep permissions minimal (\`contents: read\`)
+- Call from other workflows: \`uses: ./.github/workflows/reusable-test.yml\`
 
-jobs:
-  lint:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@<full-sha>
-      - uses: actions/setup-node@<full-sha>
-        with:
-          node-version-file: '.node-version'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run lint
-
-  test:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: [18, 20, 22]
-    steps:
-      - uses: actions/checkout@<full-sha>
-      - uses: actions/setup-node@<full-sha>
-        with:
-          node-version: \${{ matrix.node-version }}
-          cache: 'npm'
-      - run: npm ci
-      - run: npm test
-\`\`\`
-
-## Release Workflow Pattern
-\`\`\`yaml
-name: Release
-on:
-  push:
-    tags: ['v*']
-
-permissions: {}
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@<full-sha>
-      - run: npm ci && npm run build
-      - uses: actions/upload-artifact@<full-sha>
-        with:
-          name: dist
-          path: dist/
-          retention-days: 7
-
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-    environment: production
-    steps:
-      - uses: actions/download-artifact@<full-sha>
-        with:
-          name: dist
-      - run: npm publish
-\`\`\`
-
-## Reusable Workflow Pattern
-\`\`\`yaml
-# .github/workflows/reusable-test.yml
-name: Reusable Test
-on:
-  workflow_call:
-    inputs:
-      node-version:
-        type: string
-        default: '20'
-    secrets:
-      NPM_TOKEN:
-        required: false
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@<full-sha>
-      - uses: actions/setup-node@<full-sha>
-        with:
-          node-version: \${{ inputs.node-version }}
-          cache: 'npm'
-      - run: npm ci
-      - run: npm test
-\`\`\`
-
-## Deployment with OIDC Pattern
-\`\`\`yaml
-name: Deploy
-on:
-  push:
-    branches: [main]
-
-permissions: {}
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    environment: production
-    steps:
-      - uses: actions/checkout@<full-sha>
-      - uses: aws-actions/configure-aws-credentials@<full-sha>
-        with:
-          role-to-assume: arn:aws:iam::123456789012:role/deploy-role
-          aws-region: us-east-1
-      - run: ./deploy.sh
-\`\`\`
+## Deployment with OIDC
+- Grant \`id-token: write\` permission for OIDC
+- Use \`aws-actions/configure-aws-credentials\` (or equivalent) with \`role-to-assume\`
+- Use \`environment: production\` with required reviewers
+- No static cloud credentials stored as secrets
 
 ## Conditional Job Execution
-- Use \`if:\` conditions to skip jobs based on context:
-  - \`if: github.event_name == 'push'\` — only on push, not PRs
-  - \`if: contains(github.event.pull_request.labels.*.name, 'deploy')\` — label-based triggers
-  - \`if: github.ref == 'refs/heads/main'\` — only on main branch
-- Use \`needs:\` for job dependencies — downstream jobs run only after upstream succeeds
-- Use \`if: always()\` on cleanup jobs to ensure they run regardless of prior failures
+- \`if: github.event_name == 'push'\` — only on push, not PRs
+- \`if: contains(github.event.pull_request.labels.*.name, 'deploy')\` — label-based
+- \`if: github.ref == 'refs/heads/main'\` — main branch only
+- Use \`needs:\` for job dependencies
+- Use \`if: always()\` on cleanup jobs to ensure they run regardless of failures
 `,
       },
     ],
@@ -521,8 +357,9 @@ strategy:
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.github/workflows/.*\\.ya?ml$" && grep -nE "\\$\\{\\{\\s*github\\.event\\.(issue|pull_request|comment|review|discussion)\\.(title|body)\\s*\\}\\}" "$CLAUDE_FILE_PATH" | head -5 | while read line; do echo "HOOK_EXIT:1:Potential script injection — untrusted input interpolated directly in workflow file ($(echo "$line" | cut -d: -f1)) — use env variable instead"; done || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.github/workflows/.*\\.ya?ml$" && grep -nE "\\$\\{\\{\\s*github\\.event\\.(issue|pull_request|comment|review|discussion)\\.(title|body)\\s*\\}\\}" "$FILE_PATH" | head -1 | grep -q "." && { echo "Potential script injection — untrusted input interpolated directly in workflow file — use env variable instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for script injection in GitHub Actions workflows',
           },
         ],
       },
@@ -533,8 +370,9 @@ strategy:
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.github/workflows/.*\\.ya?ml$" && grep -nE "uses:\\s+[^@]+@v[0-9]" "$CLAUDE_FILE_PATH" | head -5 | while read line; do echo "HOOK_EXIT:0:Warning: action pinned to mutable tag ($(echo "$line" | cut -d: -f1)) — pin to full commit SHA for supply chain security"; done || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.github/workflows/.*\\.ya?ml$" && grep -nE "uses:\\s+[^@]+@v[0-9]" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: action pinned to mutable tag — pin to full commit SHA for supply chain security" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for mutable action tags in GitHub Actions workflows',
           },
         ],
       },

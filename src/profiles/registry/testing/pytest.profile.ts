@@ -49,90 +49,47 @@ Pythonic testing with fixtures, parametrize, and plugins. Convention over config
         content: `# Pytest Testing Conventions
 
 ## Test Structure
-- Place tests in a top-level \`tests/\` directory mirroring \`src/\` structure
-- Use \`test_*.py\` for test files and \`test_*\` for test functions
-- Use \`Test*\` classes only for logical grouping — never for shared mutable state
-- Follow Arrange-Act-Assert (AAA) pattern in every test
-- Use descriptive test names: \`test_should_raise_validation_error_when_email_is_empty\`
-- Separate \`unit/\`, \`integration/\`, and \`e2e/\` tests into subdirectories
+- Place tests in \`tests/\` mirroring \`src/\` structure; separate \`unit/\`, \`integration/\`, \`e2e/\`
+- Use \`test_*.py\` files, \`test_*\` functions, \`Test*\` classes only for logical grouping
+- Follow Arrange-Act-Assert (AAA) pattern; use descriptive names
 
 ## Fixtures Rules
-- Define shared fixtures in \`conftest.py\` — pytest discovers them automatically
-- NEVER import from \`conftest.py\` directly — fixture injection is by name, not import
-- Use the narrowest fixture scope that meets the need:
-  - \`function\` (default): full isolation per test — preferred for unit tests
-  - \`class\`: shared across a test class
-  - \`module\`: shared across a test file
-  - \`session\`: shared across the entire test run — use for expensive resources (DB connections, API clients)
-- Use \`yield\` fixtures for setup/teardown patterns:
-  \`\`\`python
-  @pytest.fixture
-  def db_connection():
-      conn = create_connection()
-      yield conn
-      conn.close()
-  \`\`\`
-- Use factory fixtures to create test data with customizable parameters:
-  \`\`\`python
-  @pytest.fixture
-  def make_user():
-      def _make_user(name="test", role="viewer"):
-          return User(name=name, role=role)
-      return _make_user
-  \`\`\`
-- Use \`autouse=True\` only for truly universal setup (database rollback, global state reset)
-- Use \`@pytest.fixture(params=[...])\` to parametrize fixtures — provides each param to all dependent tests
+- Define shared fixtures in \`conftest.py\` — NEVER import from it directly
+- Use narrowest fixture scope: \`function\` (default) for unit, \`session\` for expensive resources
+- Use \`yield\` fixtures for setup/teardown; factory fixtures for customizable test data
+- Use \`autouse=True\` only for universal setup; \`params=[...]\` for parametrized fixtures
 
 ## Assertion Rules
-- Use plain \`assert\` statements — pytest rewrites them for detailed introspection output
-- Use \`pytest.raises(ExceptionType)\` as context manager for exception testing
-- Use \`match\` parameter for regex: \`with pytest.raises(ValueError, match=r"invalid")\`
-- Use \`pytest.approx()\` for floating-point comparisons: \`assert result == pytest.approx(3.14, rel=1e-3)\`
-- Use \`pytest.warns(WarningType)\` to assert that specific warnings are raised
-- Never use bare \`assert True\` or \`assert result\` — always assert specific expected values
+- Use plain \`assert\` — pytest rewrites for detailed introspection
+- Use \`pytest.raises(ExType, match=r"...")\` for exceptions
+- Use \`pytest.approx()\` for floats, \`pytest.warns()\` for warnings
+- Never use bare \`assert True\` — always assert specific expected values
 
 ## Mocking Rules
-- Use the \`mocker\` fixture (pytest-mock) — it auto-restores all patches after each test
-- \`mocker.patch("module.path.to.target")\` for replacing functions or classes with MagicMock
-- \`mocker.patch.object(instance, "method")\` for patching specific object attributes
-- \`mocker.spy(obj, "method")\` to track calls while preserving original implementation
+- Use \`mocker\` fixture (pytest-mock) — auto-restores after each test
+- \`mocker.patch("module.target")\` at the point of use, not where defined
+- \`mocker.spy(obj, "method")\` to track calls while preserving behavior
 - Use \`monkeypatch\` for simple attribute/env overrides without call tracking
-- ALWAYS patch at the point of use (where the name is looked up), not where it is defined:
-  \`\`\`python
-  # If module_a.py does: from module_b import func
-  # Patch in module_a, not module_b:
-  mocker.patch("module_a.func")
-  \`\`\`
 
 ## Parametrize Rules
-- Use \`@pytest.mark.parametrize\` for data-driven tests — avoid duplicating test bodies
-- Provide descriptive \`ids\` for readability: \`ids=["valid-email", "missing-at-symbol", "empty-string"]\`
-- Use \`pytest.param(..., marks=pytest.mark.xfail)\` to mark individual cases as expected failures
-- Stack multiple \`@pytest.mark.parametrize\` decorators for cross-product combinations
+- Use \`@pytest.mark.parametrize\` with descriptive \`ids\` — avoid duplicating test bodies
+- Use \`pytest.param(..., marks=pytest.mark.xfail)\` for expected failures
+- Stack multiple decorators for cross-product combinations
 
-## Markers Rules
-- Register ALL custom markers in \`pyproject.toml\` to avoid \`PytestUnknownMarkWarning\`
-- Use \`--strict-markers\` in \`addopts\` to error on unregistered markers
-- Use marker expressions for selective execution: \`pytest -m "not slow and not integration"\`
+## Markers & Async
+- Register ALL custom markers in \`pyproject.toml\`; use \`--strict-markers\`
+- Use \`pytest-asyncio\` with \`@pytest.mark.asyncio\` or \`asyncio_mode = "auto"\`
 
-## Async Testing Rules
-- Use \`pytest-asyncio\` for async test support
-- Decorate async tests with \`@pytest.mark.asyncio\` or set \`asyncio_mode = "auto"\` in config
-- Use \`@pytest_asyncio.fixture\` for async fixtures that need \`await\` or \`async with\`
-
-## Coverage Requirements
-- Enforce coverage thresholds: \`pytest --cov=src --cov-fail-under=80\`
-- Focus on meaningful coverage: edge cases, error paths, boundary conditions — not just line count
-- Use \`--cov-report=term-missing\` to identify uncovered lines
-- Use \`# pragma: no cover\` only with a documented justification
+## Coverage
+- Enforce thresholds: \`pytest --cov=src --cov-fail-under=80\`
+- Focus on meaningful coverage: edge cases, error paths, boundary conditions
+- Use \`# pragma: no cover\` only with documented justification
 
 ## Anti-Patterns
-- Using \`unittest.TestCase\` patterns (setUp/tearDown) — use pytest fixtures instead
-- Tests that depend on execution order or share mutable state — each test runs independently
-- Over-mocking: mock only external boundaries (network, DB, filesystem), not internal logic
-- Using \`time.sleep()\` in tests — mock time-dependent code or use \`monkeypatch\`
-- Empty except blocks — always use \`pytest.raises\` to assert specific exceptions
-- Importing from conftest.py — let pytest handle fixture injection automatically
+- \`unittest.TestCase\` patterns — use pytest fixtures instead
+- Tests that depend on execution order or share mutable state
+- Over-mocking internal logic; using \`time.sleep()\` in tests
+- Importing from conftest.py — let pytest handle fixture injection
 `,
       },
       {
@@ -142,76 +99,32 @@ Pythonic testing with fixtures, parametrize, and plugins. Convention over config
         description: 'Pytest configuration best practices and recommended pyproject.toml settings',
         content: `# Pytest Configuration Best Practices
 
-## Recommended pyproject.toml Configuration
-\`\`\`toml
-[tool.pytest.ini_options]
-# Default CLI options: verbose summary, strict marker enforcement
-addopts = "-ra -q --strict-markers --strict-config"
+## pyproject.toml — Key Settings
+- \`addopts = "-ra -q --strict-markers --strict-config"\` for verbose summaries and strict markers
+- \`testpaths = ["tests"]\`, \`pythonpath = ["src"]\`, \`minversion = "7.0"\`
+- Register all custom markers under \`[tool.pytest.ini_options] markers = [...]\`
+- Set \`filterwarnings = ["error", "ignore::DeprecationWarning:third_party_lib.*"]\`
+- Set \`asyncio_mode = "auto"\` for pytest-asyncio
 
-# Test discovery paths
-testpaths = ["tests"]
-
-# Make src/ importable without pip install
-pythonpath = ["src"]
-
-# Minimum Python version for compat
-minversion = "7.0"
-
-# Register custom markers
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests requiring external services",
-    "e2e: marks end-to-end tests",
-]
-
-# Warning filters: treat warnings as errors except known third-party
-filterwarnings = [
-    "error",
-    "ignore::DeprecationWarning:third_party_lib.*",
-]
-
-# Async mode for pytest-asyncio
-asyncio_mode = "auto"
-\`\`\`
-
-## Coverage Configuration (pyproject.toml)
-\`\`\`toml
-[tool.coverage.run]
-source = ["src"]
-branch = true
-omit = ["tests/*", "*/migrations/*"]
-
-[tool.coverage.report]
-fail_under = 80
-show_missing = true
-exclude_lines = [
-    "pragma: no cover",
-    "if TYPE_CHECKING:",
-    "if __name__ == .__main__.:",
-    "@overload",
-]
-\`\`\`
+## Coverage Configuration
+- \`[tool.coverage.run]\`: \`source = ["src"]\`, \`branch = true\`, \`omit = ["tests/*"]\`
+- \`[tool.coverage.report]\`: \`fail_under = 80\`, \`show_missing = true\`
+- Exclude lines: \`pragma: no cover\`, \`if TYPE_CHECKING:\`, \`if __name__ == "__main__":\`
 
 ## conftest.py Organization
-- Root \`conftest.py\`: shared fixtures, global hooks, plugin configuration, custom markers
-- Package-level \`conftest.py\`: domain-specific fixtures scoped to that test subdirectory
-- Fixtures in child conftest.py can override parent fixtures by using the same name
-- Use conftest.py for \`pytest_configure\` hooks and custom assertion helpers
+- Root \`conftest.py\`: shared fixtures, global hooks, plugin configuration
+- Package-level \`conftest.py\`: domain-specific fixtures for that test subdirectory
+- Child conftest.py can override parent fixtures by using the same name
 
 ## Parallel Execution (pytest-xdist)
-- \`pytest -n auto\` — distribute tests across all CPU cores
-- \`pytest -n 4\` — use exactly 4 workers
-- Ensure tests are fully isolated — no shared files, databases, or ports without proper scoping
-- Use \`tmp_path\` instead of hardcoded paths to avoid worker conflicts
-- Use \`worker_id\` fixture from xdist to create unique resources per worker
+- \`pytest -n auto\` to distribute across CPU cores
+- Ensure full test isolation — no shared files, databases, or ports
+- Use \`tmp_path\` instead of hardcoded paths; \`worker_id\` for unique resources
 
 ## Performance Tips
-- Use \`--lf\` (last failed) to re-run only tests that failed in the previous run
-- Use \`--ff\` (failed first) to run failing tests first, then the rest
-- Use \`-x\` to stop after first failure for fast feedback during development
-- Use \`-k "expression"\` to run only tests matching a name pattern
+- \`--lf\` (last failed), \`--ff\` (failed first), \`-x\` (stop at first failure)
+- \`-k "expression"\` to filter by name; \`--co\` for collect-only
 - Use \`pytest-timeout\` with \`timeout = 30\` to prevent hanging tests
-- Use \`--co\` (collect only) to verify test discovery without running tests
 `,
       },
     ],
@@ -306,6 +219,8 @@ Available skills: pytest-test-generator
       {
         name: 'pytest-test-generator',
         description: 'Generate comprehensive pytest test suites for Python modules',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Pytest Test Generator
 
 ## Purpose
@@ -443,8 +358,9 @@ def temp_database(tmp_path):
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "test_.*\\.py$" && grep -cE "\\b(pytest\\.mark\\.only|@only)\\b" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:1:Focused test marker detected — remove before committing to avoid skipping other tests" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "test_.*\\.py$" && grep -cE "\\b(pytest\\.mark\\.only|@only)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test marker detected — remove before committing to avoid skipping other tests" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for focused test markers in pytest files',
           },
         ],
       },
@@ -455,8 +371,9 @@ def temp_database(tmp_path):
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "test_.*\\.py$" && grep -cE "\\btime\\.sleep\\(" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:0:Warning: time.sleep() detected in test file — consider using monkeypatch or mocking time-dependent code instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "test_.*\\.py$" && grep -cE "\\btime\\.sleep\\(" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Warning: time.sleep() detected in test file — consider using monkeypatch or mocking time-dependent code instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for time.sleep() in pytest files',
           },
         ],
       },

@@ -50,148 +50,44 @@ Cross-browser E2E testing. Auto-waiting, web-first assertions, trace viewer.
           'Playwright testing conventions — mandatory rules for locators, assertions, fixtures, and parallel execution',
         content: `# Playwright Testing Conventions
 
-## Locator Strategy (Mandatory Priority Order)
-1. \`page.getByRole()\` — ARIA role-based selectors (most resilient, mirrors accessibility tree)
-2. \`page.getByLabel()\` — form label associations
-3. \`page.getByPlaceholder()\` — input placeholder text
-4. \`page.getByText()\` — visible text content
-5. \`page.getByAltText()\` — image alt text
-6. \`page.getByTitle()\` — title attribute
-7. \`page.getByTestId()\` — \`data-testid\` explicit contracts
-8. \`page.locator('css=...')\` — CSS selectors (last resort only)
-
-### Rules
-- ALWAYS prefer user-facing locators (role, label, text) over implementation details
-- NEVER use XPath selectors — they are tightly coupled to DOM structure and break on refactors
-- NEVER use CSS class selectors for test targeting — classes are for styling, not testing
-- Use \`.filter({ hasText: '...' })\` or \`.filter({ has: locator })\` to narrow locator scope
-- Define reusable locators in Page Object classes or fixture helpers — avoid inline locator strings
-- Configure \`testIdAttribute\` in playwright config when the app uses a custom test attribute
-
-### Correct
-\`\`\`typescript
-// Role-based: most resilient, mirrors how users perceive the page
-await page.getByRole('button', { name: 'Submit Order' }).click();
-await page.getByRole('heading', { name: 'Order Confirmation' }).isVisible();
-
-// Label-based: great for form inputs
-await page.getByLabel('Email address').fill('user@example.com');
-
-// Test ID: explicit contract when semantic selectors are impractical
-await page.getByTestId('cart-total').toHaveText('$99.00');
-\`\`\`
-
-### Anti-Pattern
-\`\`\`typescript
-// BAD: CSS class — breaks when styling changes
-await page.locator('.btn-primary.submit-btn').click();
-
-// BAD: XPath — brittle, coupled to DOM structure
-await page.locator('//div[@class="form"]/button[2]').click();
-
-// BAD: structural selector — breaks on DOM changes
-await page.locator('form > div:nth-child(3) > button').click();
-\`\`\`
-
----
+## Locator Strategy (Priority Order)
+1. \`page.getByRole()\` — ARIA role-based (most resilient)
+2. \`page.getByLabel()\` — form labels
+3. \`page.getByPlaceholder()\` / \`page.getByText()\` — visible content
+4. \`page.getByTestId()\` — explicit \`data-testid\` contracts
+5. \`page.locator('css=...')\` — CSS selectors (last resort)
+- NEVER use XPath or CSS class selectors for test targeting
+- Use \`.filter()\` to narrow scope; define reusable locators in Page Objects
 
 ## Auto-Waiting Rules
-- NEVER use \`page.waitForTimeout()\` — this is always wrong in Playwright
-- Rely on built-in auto-waiting: every action waits for the element to be actionable
-- Use web-first assertions (\`expect(locator).toBeVisible()\`) — they auto-retry until timeout
-- Use \`page.waitForURL()\` for navigation waits instead of arbitrary delays
-- Use \`page.waitForResponse(url)\` when waiting on specific network responses
-- Use \`expect.poll()\` for custom retry logic on values not tied to locators
-
-### Correct
-\`\`\`typescript
-// Web-first assertion — auto-retries until element has expected text
-await expect(page.getByTestId('status')).toHaveText('Completed');
-
-// Wait for navigation
-await page.getByRole('link', { name: 'Dashboard' }).click();
-await page.waitForURL('**/dashboard');
-
-// Wait for specific API response
-const responsePromise = page.waitForResponse('**/api/orders');
-await page.getByRole('button', { name: 'Refresh' }).click();
-await responsePromise;
-\`\`\`
-
-### Anti-Pattern
-\`\`\`typescript
-// BAD: arbitrary timeout — flaky and slow
-await page.waitForTimeout(3000);
-await expect(page.locator('#status')).toHaveText('Completed');
-
-// BAD: manual visibility check instead of web-first assertion
-const isVisible = await page.locator('#modal').isVisible();
-expect(isVisible).toBe(true);
-\`\`\`
-
----
+- NEVER use \`page.waitForTimeout()\` — always wrong in Playwright
+- Rely on built-in auto-waiting; use web-first assertions (\`expect(locator).toBeVisible()\`)
+- Use \`page.waitForURL()\` for navigation, \`page.waitForResponse(url)\` for API waits
+- Use \`expect.poll()\` for custom retry logic on non-locator values
 
 ## Assertion Rules
-- ALWAYS use web-first assertions from \`expect(locator)\` — they auto-retry and are race-condition-free
-- Use \`expect(page).toHaveURL()\` for URL assertions — supports string and regex
-- Use \`expect(page).toHaveTitle()\` for page title assertions
-- Use \`expect(response).toBeOK()\` for API response assertions (status 200-299)
-- Use \`expect.soft()\` for non-blocking assertions when you want to check multiple conditions
-- Use \`expect(page).toHaveScreenshot()\` for visual regression testing
-- Use property matchers with \`toHaveScreenshot({ maxDiffPixelRatio: 0.01 })\` for threshold control
-- NEVER extract locator state manually and assert on it — use web-first assertions directly
-
----
+- ALWAYS use web-first assertions — they auto-retry and are race-condition-free
+- Use \`expect(page).toHaveURL()\`, \`toHaveTitle()\`; \`expect(response).toBeOK()\`
+- Use \`expect.soft()\` for non-blocking multi-condition checks
+- Use \`toHaveScreenshot({ maxDiffPixelRatio: 0.01 })\` for visual regression
+- NEVER extract locator state manually — use web-first assertions directly
 
 ## Fixture Rules
-- Use \`test.extend<T>()\` to create custom fixtures — prefer fixtures over \`beforeAll\`/\`beforeEach\`
-- Fixtures provide automatic setup AND teardown — use the yielded cleanup pattern
-- Use \`{ scope: 'worker' }\` for expensive shared resources (database connections, server instances)
-- Use \`storageState\` for authentication reuse — authenticate once per worker, share cookies across tests
-- Create an \`auth.setup.ts\` project for global authentication that runs before test projects
-- Use fixture composition: fixtures can depend on other fixtures for modular setup
+- Use \`test.extend<T>()\` for custom fixtures with automatic teardown
+- Use \`{ scope: 'worker' }\` for expensive shared resources
+- Use \`storageState\` for auth reuse; create \`auth.setup.ts\` project for global auth
+- Fixtures can depend on other fixtures for modular composition
 
-### Correct
-\`\`\`typescript
-// Custom fixture with automatic teardown
-const test = base.extend<{ todoPage: TodoPage }>({
-  todoPage: async ({ page }, use) => {
-    const todoPage = new TodoPage(page);
-    await todoPage.goto();
-    await use(todoPage);
-    // Automatic teardown after test
-    await todoPage.cleanup();
-  },
-});
+## Parallel Execution
+- Design EVERY test to be independent — no shared mutable state
+- Use \`fullyParallel: true\` as default; serial mode only when genuinely needed
+- Isolate test data per test with unique identifiers
 
-// Worker-scoped fixture for expensive setup
-const test = base.extend<{}, { dbConnection: DBConnection }>({
-  dbConnection: [async ({}, use) => {
-    const db = await createConnection();
-    await use(db);
-    await db.close();
-  }, { scope: 'worker' }],
-});
-\`\`\`
-
----
-
-## Parallel Execution Rules
-- Design EVERY test to be independent — no shared mutable state between tests
-- Use \`fullyParallel: true\` as the default — override to serial only when strictly necessary
-- Use \`test.describe.configure({ mode: 'serial' })\` only for tests with genuine order dependencies
-- Isolate test data per test — use unique identifiers or per-test database transactions
-- Use worker-scoped fixtures for resources that are expensive but safely shared (read-only data, server instances)
-
----
-
-## Network Mocking Rules
-- Use \`page.route()\` for per-page request interception and \`context.route()\` for context-wide interception
-- Register route handlers BEFORE \`page.goto()\` to intercept requests made during page load
-- Use \`route.fulfill({ json: mockData })\` to return mock responses
-- Use \`route.abort()\` to simulate network failures in error-path tests
-- Use HAR recording (\`page.routeFromHAR()\`) for complex multi-request mock scenarios
-- NEVER call real external APIs in tests — mock all external dependencies
+## Network Mocking
+- Use \`page.route()\` for interception — register BEFORE \`page.goto()\`
+- \`route.fulfill({ json: mockData })\` for mocks, \`route.abort()\` for error paths
+- Use HAR recording for complex multi-request scenarios
+- NEVER call real external APIs in tests
 `,
       },
       {
@@ -202,118 +98,40 @@ const test = base.extend<{}, { dbConnection: DBConnection }>({
           'Playwright configuration best practices for playwright.config.ts including projects, reporters, and CI settings',
         content: `# Playwright Configuration Best Practices
 
-## Recommended Configuration
-Configure Playwright via \`playwright.config.ts\` at the project root:
-
-\`\`\`typescript
-import { defineConfig, devices } from '@playwright/test';
-
-export default defineConfig({
-  testDir: './tests',
-  fullyParallel: true,
-  forbidOnly: !!process.env.CI,         // Fail CI if test.only is left in code
-  retries: process.env.CI ? 2 : 0,      // Retry on CI, no retries locally
-  workers: process.env.CI ? 1 : undefined, // Single worker on CI for stability
-  reporter: process.env.CI
-    ? [['html', { open: 'never' }], ['junit', { outputFile: 'results.xml' }]]
-    : 'html',
-
-  use: {
-    baseURL: 'http://localhost:3000',
-    trace: 'on-first-retry',            // Capture trace only for retried tests
-    screenshot: 'only-on-failure',       // Screenshot on failure for debugging
-    video: 'retain-on-failure',          // Keep video only for failing tests
-  },
-
-  projects: [
-    // Authentication setup — runs before all test projects
-    { name: 'setup', testMatch: /.*\\.setup\\.ts/ },
-
-    // Desktop browsers
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'], storageState: 'playwright/.auth/user.json' },
-      dependencies: ['setup'],
-    },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'], storageState: 'playwright/.auth/user.json' },
-      dependencies: ['setup'],
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'], storageState: 'playwright/.auth/user.json' },
-      dependencies: ['setup'],
-    },
-
-    // Mobile viewports
-    {
-      name: 'mobile-chrome',
-      use: { ...devices['Pixel 5'], storageState: 'playwright/.auth/user.json' },
-      dependencies: ['setup'],
-    },
-    {
-      name: 'mobile-safari',
-      use: { ...devices['iPhone 12'], storageState: 'playwright/.auth/user.json' },
-      dependencies: ['setup'],
-    },
-  ],
-
-  // Local dev server
-  webServer: {
-    command: 'npm run start',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-  },
-});
-\`\`\`
+## playwright.config.ts Key Settings
+- \`fullyParallel: true\`, \`forbidOnly: !!process.env.CI\`, \`retries: process.env.CI ? 2 : 0\`
+- \`use.trace: 'on-first-retry'\`, \`screenshot: 'only-on-failure'\`, \`video: 'retain-on-failure'\`
+- Configure \`baseURL\`, \`webServer\` for local dev, \`reporter\` (html locally, junit on CI)
 
 ## Project Organization
-- Use a dedicated \`setup\` project for authentication that runs before test projects
-- Configure \`dependencies\` to ensure setup runs before browser projects
-- Use \`devices\` presets for consistent viewport, user-agent, and device emulation settings
-- Group projects by browser engine and device type for clear cross-browser coverage
+- Use a dedicated \`setup\` project for authentication before test projects
+- Configure \`dependencies\` to ensure setup runs first
+- Use \`devices\` presets for desktop and mobile viewports
+- Group projects by browser engine and device type
 
 ## Timeouts
-- Default test timeout is 30 seconds — override with \`timeout\` in config
-- Default assertion timeout is 5 seconds — override with \`expect.timeout\` in config
-- Use \`test.setTimeout(ms)\` for individual slow tests instead of raising global timeout
-- Use \`test.slow()\` annotation to triple the timeout for known slow tests
+- Default test: 30s, assertion: 5s — override in config as needed
+- Use \`test.setTimeout(ms)\` for individual slow tests
+- Use \`test.slow()\` to triple timeout for known slow tests
 
 ## Reporters
-- Use \`html\` reporter for local development — interactive report with trace viewer integration
-- Add \`junit\` reporter on CI for test result integration with CI platforms
-- Use \`list\` reporter for terminal output during test runs
-- Use \`blob\` reporter for sharded runs, then merge with \`npx playwright merge-reports\`
+- \`html\` for local dev, \`junit\` on CI, \`blob\` for sharded runs
+- Use \`list\` for terminal output during runs
 
 ## CI Integration
-- Set \`forbidOnly: true\` on CI to prevent accidentally committed \`test.only\` from skipping tests
-- Set \`retries: 2\` on CI for resilience against infrastructure flakiness
-- Set \`trace: 'on-first-retry'\` to capture debugging traces without overhead on passing tests
-- Upload HTML report and trace artifacts for post-failure analysis
-- Use \`--shard=N/M\` flag for distributing tests across multiple CI machines
+- \`forbidOnly: true\` on CI; \`retries: 2\` for flakiness resilience
+- \`trace: 'on-first-retry'\` for debugging without overhead on passing tests
+- Upload HTML report and trace artifacts; use \`--shard=N/M\` for distribution
 
-## Authentication Setup File
-Create \`tests/auth.setup.ts\` as a setup project:
-\`\`\`typescript
-import { test as setup, expect } from '@playwright/test';
+## Authentication Setup
+- Create \`tests/auth.setup.ts\` that logs in and saves \`storageState\`
+- Reference \`storageState\` in browser project configs with \`dependencies: ['setup']\`
 
-setup('authenticate as user', async ({ page }) => {
-  await page.goto('/login');
-  await page.getByLabel('Email').fill('user@example.com');
-  await page.getByLabel('Password').fill('password');
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/dashboard');
-  await page.context().storageState({ path: 'playwright/.auth/user.json' });
-});
-\`\`\`
-
-## Visual Regression Configuration
-- Use \`toHaveScreenshot()\` for pixel-level visual regression testing
-- Configure \`maxDiffPixelRatio\` or \`maxDiffPixels\` for acceptable threshold
-- Set \`animations: 'disabled'\` in \`use\` options to stabilize screenshot comparisons
-- Update baselines explicitly with \`--update-snapshots\` — review every change
-- Store screenshot baselines in version control for team-wide consistency
+## Visual Regression
+- Use \`toHaveScreenshot()\` with \`maxDiffPixelRatio\` for threshold control
+- Set \`animations: 'disabled'\` to stabilize comparisons
+- Update baselines with \`--update-snapshots\` — review every change
+- Store baselines in version control
 `,
       },
     ],
@@ -410,6 +228,8 @@ Available skills: playwright-test-generator
         name: 'playwright-test-generator',
         description:
           'Generate comprehensive Playwright end-to-end test suites with Page Object Model, fixtures, and proper locator strategy',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Playwright Test Generator
 
 ## Purpose
@@ -570,8 +390,9 @@ test('should create and retrieve a product via API', async ({ request }) => {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -cE "\\bpage\\.waitForTimeout\\(" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:1:Anti-pattern: page.waitForTimeout() detected — use web-first assertions or event-based waits instead (see https://playwright.dev/docs/best-practices)" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -cE "\\bpage\\.waitForTimeout\\(" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Anti-pattern: page.waitForTimeout() detected — use web-first assertions or event-based waits instead (see https://playwright.dev/docs/best-practices)" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for page.waitForTimeout() anti-pattern',
           },
         ],
       },
@@ -582,8 +403,9 @@ test('should create and retrieve a product via API', async ({ request }) => {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -cE "\\b(test\\.only|describe\\.only)\\b" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:1:Focused test detected (.only) — remove before committing to avoid skipping other tests" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -cE "\\b(test\\.only|describe\\.only)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test detected (.only) — remove before committing to avoid skipping other tests" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for .only in Playwright specs',
           },
         ],
       },
@@ -594,8 +416,9 @@ test('should create and retrieve a product via API', async ({ request }) => {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -nE "expect\\(await .+\\.(isVisible|isEnabled|isDisabled|isChecked|isHidden|isEditable|textContent|inputValue|getAttribute|innerText)\\(" "$CLAUDE_FILE_PATH" | head -1 | grep -q "." && echo "HOOK_EXIT:0:Warning: manual state extraction detected — use web-first assertions like expect(locator).toBeVisible() instead of expect(await locator.isVisible()).toBe(true)" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -nE "expect\\(await .+\\.(isVisible|isEnabled|isDisabled|isChecked|isHidden|isEditable|textContent|inputValue|getAttribute|innerText)\\(" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: manual state extraction detected — use web-first assertions like expect(locator).toBeVisible() instead of expect(await locator.isVisible()).toBe(true)" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for manual state extraction in Playwright specs',
           },
         ],
       },

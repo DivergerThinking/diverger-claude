@@ -1,5 +1,41 @@
-import type { Profile } from '../../../core/types.js';
+import type { Profile, HookScriptDefinition } from '../../../core/types.js';
 import { PROFILE_LAYERS } from '../../../core/types.js';
+import { makeFilePatternCheckScript } from '../../hook-script-templates.js';
+
+function buildJestHookScripts(): HookScriptDefinition[] {
+  return [
+    {
+      filename: 'jest-no-only.sh',
+      isPreToolUse: false,
+      content: makeFilePatternCheckScript({
+        filename: 'jest-no-only.sh',
+        pattern: '\\b(test\\.only|describe\\.only|fit|fdescribe)\\b',
+        message: 'Focused test detected (.only) — remove before committing to avoid skipping other tests',
+        exitCode: 2,
+        fileExtensions: ['.test.ts', '.test.tsx', '.test.js', '.test.jsx', '.spec.ts', '.spec.tsx', '.spec.js', '.spec.jsx'],
+      }),
+    },
+    {
+      filename: 'jest-mock-hoisting.sh',
+      isPreToolUse: false,
+      content: `#!/bin/bash
+# Warn on jest.mock() inside test blocks (not hoisted correctly)
+INPUT=$(cat)
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+if [ -z "$FILE_PATH" ]; then exit 0; fi
+echo "$FILE_PATH" | grep -qE '\\.(test|spec)\\.(ts|tsx|js|jsx)$' || exit 0
+grep -nE "jest\\.mock\\(" "$FILE_PATH" 2>/dev/null | while read line; do
+  linenum=$(echo "$line" | cut -d: -f1)
+  if [ "$linenum" -gt 1 ] && head -n "$linenum" "$FILE_PATH" | grep -qE "^\\s*(describe|it|test|beforeEach|afterEach|beforeAll|afterAll)\\("; then
+    echo "Warning: jest.mock() call may be inside a test block (line $linenum) — jest.mock() must be at module level" >&2
+    exit 2
+  fi
+done
+exit 0
+`,
+    },
+  ];
+}
 
 export const jestProfile: Profile = {
   id: 'testing/jest',
@@ -48,58 +84,39 @@ Full-featured test runner. Built-in mocking, snapshot testing, code coverage.
         content: `# Jest Testing Conventions
 
 ## Test Structure
-- Place tests in \`__tests__/\` directories or colocate as \`*.test.ts\` / \`*.spec.ts\`
-- Mirror source directory structure in test directories
-- One test file per source module
+- Place tests in \`__tests__/\` or colocate as \`*.test.ts\` / \`*.spec.ts\`
+- One test file per source module; mirror source directory structure
 - Use \`describe\` blocks to group related tests by function or behavior
 - Follow Arrange-Act-Assert (AAA) pattern in every test
 - Use descriptive test names: \`it('should return user when valid ID is provided')\`
 
 ## Mocking Rules
-- \`jest.mock()\` calls MUST be at module level — they are hoisted to the top of the file
-- Use \`jest.spyOn()\` when you need to track calls but preserve the original implementation
-- Use \`jest.fn()\` for creating standalone mock functions
-- Use \`jest.requireActual()\` inside mock factories for partial mocks:
-  \`\`\`typescript
-  jest.mock('../utils', () => ({
-    ...jest.requireActual('../utils'),
-    fetchData: jest.fn(),
-  }));
-  \`\`\`
-- ALWAYS reset or restore mocks between tests:
-  - \`jest.clearAllMocks()\` — clears call history, keeps implementation
-  - \`jest.resetAllMocks()\` — clears history AND removes mock implementation
-  - \`jest.restoreAllMocks()\` — restores original implementation for spies
-- Prefer \`restoreMocks: true\` in jest config for automatic restoration
+- \`jest.mock()\` calls MUST be at module level — they are hoisted
+- Use \`jest.spyOn()\` to track calls while preserving original implementation
+- Use \`jest.fn()\` for standalone mock functions
+- Use \`jest.requireActual()\` inside mock factories for partial mocks
+- ALWAYS reset/restore mocks between tests (prefer \`restoreMocks: true\` in config)
 
 ## Async Testing
-- Use \`async/await\` for async tests — return the promise or use await
-- Use \`await expect(promise).resolves.toEqual(value)\` for resolved promises
-- Use \`await expect(promise).rejects.toThrow(ErrorType)\` for rejected promises
-- Use \`expect.assertions(n)\` in callback-based async tests to ensure all assertions run
-- Set appropriate timeouts for long-running async operations with test-level timeout parameter
+- Use \`async/await\` for async tests
+- Use \`await expect(promise).resolves.toEqual(value)\` / \`.rejects.toThrow(ErrorType)\`
+- Use \`expect.assertions(n)\` in callback-based async tests
 
 ## Snapshot Rules
-- Use snapshots for UI components and serializable output — NOT for business logic
-- Use property matchers for dynamic values (IDs, dates, timestamps)
-- Review ALL snapshot changes in code reviews before accepting
-- Never run \`--updateSnapshot\` blindly — understand every change
-- Prefer \`toMatchInlineSnapshot()\` for small snapshots (under 10 lines)
-- Enforce maximum snapshot size with linting rules
+- Use snapshots for UI components only — NOT for business logic
+- Use property matchers for dynamic values (IDs, dates)
+- Never run \`--updateSnapshot\` blindly — review every change
 
 ## Coverage Requirements
-- Enforce global coverage thresholds: branches >= 80%, functions >= 80%, lines >= 80%, statements >= 80%
+- Enforce thresholds: branches/functions/lines/statements >= 80%
 - Focus on meaningful coverage — edge cases, error paths, boundary conditions
-- Use \`collectCoverageFrom\` to target source files and exclude generated/config files
-- Use coverage ignore comments (\`/* istanbul ignore next */\`) only with documented justification
 
-## Patterns to Follow
-- Use \`test.each\` / \`it.each\` for parameterized tests with multiple input/output combinations
-- Use \`jest.useFakeTimers()\` for time-dependent logic — always restore with \`jest.useRealTimers()\`
-- Use \`beforeEach\` for shared setup — avoid \`beforeAll\` unless truly needed for expensive one-time operations
-- Avoid testing implementation details — test behavior and observable outcomes
-- Use custom matchers (\`expect.extend()\`) for domain-specific assertions
+## Key Patterns
+- \`test.each\` for parameterized tests; \`jest.useFakeTimers()\` for time-dependent logic
+- \`beforeEach\` for shared setup; avoid testing implementation details
 - Use \`test.todo()\` to document planned tests
+
+For detailed examples and reference, invoke: /jest-conventions-guide
 `,
       },
       {
@@ -110,157 +127,95 @@ Full-featured test runner. Built-in mocking, snapshot testing, code coverage.
         content: `# Jest Configuration Best Practices
 
 ## Recommended Configuration
-Configure Jest via \`jest.config.ts\` (or \`jest.config.js\`) at the project root:
-
-\`\`\`typescript
-import type { Config } from 'jest';
-
-const config: Config = {
-  // Test environment
-  testEnvironment: 'node', // or 'jsdom' for browser-like environment
-
-  // Test discovery
-  testMatch: ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
-  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/build/'],
-
-  // TypeScript support
-  transform: { '^.+\\\\.tsx?$': 'ts-jest' },
-
-  // Module resolution
-  moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1',
-  },
-
-  // Mock management
-  restoreMocks: true,
-  clearMocks: true,
-
-  // Coverage
-  collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/**/index.ts'],
-  coverageDirectory: 'coverage',
-  coverageThreshold: {
-    global: { branches: 80, functions: 80, lines: 80, statements: 80 },
-  },
-  coverageReporters: ['text', 'lcov', 'json-summary'],
-
-  // Performance
-  maxWorkers: '50%',
-  bail: 1, // stop after first failure in CI
-};
-
-export default config;
-\`\`\`
+Configure Jest via \`jest.config.ts\` at the project root with these key settings:
+- \`testEnvironment\`: \`'node'\` (server/CLI) or \`'jsdom'\` (browser/React)
+- \`testMatch\`: \`['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)']\`
+- \`testPathIgnorePatterns\`: exclude \`node_modules\`, \`dist\`, \`build\`
+- \`transform\`: \`{ '^.+\\\\.tsx?$': 'ts-jest' }\` for TypeScript support
+- \`restoreMocks: true\`, \`clearMocks: true\` for automatic mock cleanup
+- \`coverageThreshold\`: branches/functions/lines/statements >= 80%
+- \`maxWorkers: '50%'\` for balanced parallel execution
 
 ## Setup Files
-- Use \`setupFiles\` for code that runs BEFORE the test framework is installed (polyfills, env vars)
-- Use \`setupFilesAfterEnv\` for code that runs AFTER the framework (custom matchers, global mocks)
-- Register custom matchers or extend expect in setup files, not in individual test files
+- \`setupFiles\`: runs BEFORE test framework (polyfills, env vars)
+- \`setupFilesAfterEnv\`: runs AFTER framework (custom matchers, global mocks)
+- Register custom matchers in setup files, not in individual test files
 
 ## Multi-Project Configuration
-Use \`projects\` for monorepos or distinct test environments:
-\`\`\`typescript
-projects: [
-  { displayName: 'unit', testMatch: ['<rootDir>/tests/unit/**/*.test.ts'] },
-  { displayName: 'integration', testMatch: ['<rootDir>/tests/integration/**/*.test.ts'] },
-]
-\`\`\`
+- Use \`projects\` array for monorepos or distinct test environments (unit, integration)
 
 ## Environment-Specific Settings
-- Use \`testEnvironment: 'jsdom'\` for DOM-dependent code (React components, browser APIs)
-- Use \`testEnvironment: 'node'\` for server-side, CLI, and library code
-- Use \`testEnvironmentOptions\` to configure jsdom (url, html, userAgent)
-- Override environment per file with docblock: \`/** @jest-environment jsdom */\`
+- \`'jsdom'\` for DOM-dependent code; \`'node'\` for server-side/CLI
+- Override per file with docblock: \`/** @jest-environment jsdom */\`
 
 ## Performance Tuning
-- Set \`maxWorkers: '50%'\` to balance parallel execution with system load
-- Use \`bail: 1\` in CI to fail fast after first test failure
-- Use \`--changedSince\` or \`--onlyChanged\` in local development for faster feedback
-- Set \`workerIdleMemoryLimit\` to recycle workers that consume too much memory
+- \`bail: 1\` in CI to fail fast after first test failure
+- \`--changedSince\` in local dev for faster feedback
+- \`workerIdleMemoryLimit\` to recycle memory-heavy workers
+
+For detailed examples and reference, invoke: /jest-config-guide
 `,
       },
     ],
     agents: [
       {
-        name: 'code-reviewer',
-        type: 'enrich',
-        prompt: `## Jest-Specific Review Checklist
-Available skills: jest-test-generator
-- Verify mocks are properly managed: check for \`jest.restoreAllMocks()\` in \`afterEach\` or \`restoreMocks: true\` in config
-- Verify \`jest.mock()\` calls are at module level, not inside test functions (they are hoisted by Jest)
-- Check that \`test.each\` / \`it.each\` is used for parameterized cases instead of duplicated test bodies
-- Verify snapshot updates are intentional and reviewed — flag any blindly regenerated snapshots
-- Check that dynamic values in snapshots use property matchers (\`expect.any()\`, \`expect.anything()\`)
-- Verify proper async test handling: \`async/await\`, \`resolves/rejects\`, or \`expect.assertions(n)\` for callbacks
-- Check for test interdependencies — each test must run independently in any order
-- Verify coverage thresholds are configured and enforced in jest config (\`coverageThreshold\`)
-- Check that \`jest.spyOn()\` is used when original implementation matters (not \`jest.fn()\` replacement)
-- Verify no \`test.only\` or \`describe.only\` is left in committed code
-- Check that fake timers are restored in \`afterEach\` with \`jest.useRealTimers()\`
-- Verify tests follow AAA pattern: clearly separated Arrange, Act, Assert sections`,
+        name: 'test-reviewer',
+        type: 'define',
+        model: 'sonnet',
+        description: 'Reviews Jest test code for correctness, isolation, and best practices',
+        prompt: `You are a Jest test reviewer. Reference concrete line numbers.
+
+## Checklist
+1. **Mocking**: jest.mock() at module level (hoisted), restoreAllMocks in afterEach or config, spyOn when original needed
+2. **Isolation**: no test interdependencies, no .only/.skip committed, fake timers restored
+3. **Async**: async/await with resolves/rejects, expect.assertions(n) for callbacks
+4. **Snapshots**: only for UI/serializable output, property matchers for dynamic values, reviewed updates
+5. **Coverage**: thresholds configured, test.each for parameterized cases, AAA pattern
+6. **Security**: no real credentials in fixtures, jest.mock for external APIs, no PII in snapshots
+
+## Output: CRITICAL | WARNING | SUGGESTION | POSITIVE — explain WHY.`,
+        skills: ['jest-test-generator'],
       },
       {
         name: 'test-writer',
         type: 'enrich',
-        prompt: `## Jest-Specific Test Writing Guidelines
-Available skills: jest-test-generator
-- Structure tests with \`describe\` and \`it\`/\`test\` blocks — group by function or behavior, max 3 nesting levels
-- Use descriptive names: \`it('should throw ValidationError when email is empty')\`
-- Follow AAA pattern: arrange test data and mocks, act by calling the function, assert with expect matchers
-- Mock external dependencies with \`jest.mock()\` at module level — use \`jest.requireActual()\` for partial mocks
-- Create mock functions with \`jest.fn()\` — use \`.mockReturnValue()\`, \`.mockResolvedValue()\`, \`.mockImplementation()\`
-- Use \`jest.spyOn(object, 'method')\` to track calls while preserving real behavior
-- Leverage \`test.each\` for parameterized test cases with multiple input/output combinations
-- Test async code with \`async/await\` — use \`resolves\`/\`rejects\` matchers for promise assertions
-- Use snapshot testing for UI components and serializable output — use property matchers for dynamic values
-- Use \`jest.useFakeTimers()\` and \`jest.advanceTimersByTime(ms)\` for time-dependent logic
-- Assert with appropriate matchers: \`toBe()\` for primitives, \`toEqual()\` for deep equality, \`toMatchObject()\` for partial match, \`toThrow()\` for errors
-- Use asymmetric matchers: \`expect.any(Number)\`, \`expect.objectContaining()\`, \`expect.arrayContaining()\`
-- Use \`expect.assertions(n)\` in callback-based async tests to verify all assertions ran
-- Configure \`beforeEach\`/\`afterEach\` for proper test isolation — reset mocks and restore timers`,
+        prompt: `## Jest Test Writing
+- describe/it blocks, descriptive names, AAA pattern, max 3 nesting levels
+- jest.mock() at module level, jest.fn()/spyOn for mocks, test.each for parameterized cases
+- async/await with resolves/rejects, jest.useFakeTimers(), proper matcher choice (toBe/toEqual/toMatchObject)`,
       },
       {
-        name: 'security-checker',
+        name: 'security-reviewer',
         type: 'enrich',
         prompt: `## Jest Security Review
-- Verify test fixtures and mock data do not contain real credentials, API keys, or PII
-- Check that test setup files do not import or expose production secrets
-- Verify \`jest.mock()\` is used to stub external service calls — tests must never hit real production APIs
-- Check that test environment variables use dummy values, not real credentials
-- Verify snapshot files do not contain sensitive data (tokens, keys, internal URLs)
-- Check that test output (console logs, coverage reports) does not leak sensitive information
-- Verify \`testEnvironmentOptions.url\` does not reference production endpoints`,
+- No real credentials/PII in fixtures or snapshots
+- jest.mock() for all external service calls — tests never hit production APIs
+- Test env vars use dummy values, test output does not leak sensitive information`,
       },
       {
         name: 'refactor-assistant',
         type: 'enrich',
-        prompt: `## Jest Test Refactoring Guidance
-Available skills: jest-test-generator
-- Replace duplicated test logic with \`test.each\` parameterized tests
-- Extract shared test setup into \`beforeEach\` blocks or shared helper functions
-- Replace manual mock management with config-level \`restoreMocks: true\` / \`clearMocks: true\`
-- Convert large external snapshot files to \`toMatchInlineSnapshot()\` when under 10 lines
-- Replace \`jest.fn().mockImplementation()\` with more specific mocking: \`.mockReturnValue()\`, \`.mockResolvedValue()\`
-- Move reusable test utilities (factories, custom matchers) into shared test helpers
-- Convert callback-based async tests to \`async/await\` with \`resolves\`/\`rejects\`
-- Consolidate scattered \`jest.mock()\` calls into \`setupFilesAfterEnv\` when used across many test files`,
+        prompt: `## Jest Test Refactoring
+- Replace duplicated tests with test.each, extract shared setup to beforeEach
+- Use config-level restoreMocks/clearMocks, convert snapshots <10 lines to inline
+- Move reusable test utilities to shared helpers, convert callbacks to async/await`,
       },
       {
         name: 'migration-helper',
         type: 'enrich',
-        prompt: `## Jest Migration Guidance
-- When migrating from Mocha/Chai: replace \`expect().to.equal()\` with \`expect().toBe()\`, \`describe\`/\`it\` syntax is compatible
-- When migrating from Jasmine: most APIs are compatible — replace \`jasmine.createSpy()\` with \`jest.fn()\`, \`jasmine.createSpyObj()\` with manual mock objects
-- When migrating to Vitest: most Jest APIs are compatible — replace \`jest.fn()\` with \`vi.fn()\`, \`jest.mock()\` with \`vi.mock()\`, update config from jest.config to vitest.config
-- Check that all \`jest.mock()\` factories use proper hoisting behavior — Vitest handles hoisting differently
-- Update TypeScript types: replace \`@types/jest\` with \`@jest/globals\` imports for stricter typing
-- Verify test environment compatibility when upgrading Jest major versions (jsdom version changes, ESM support)
-- When migrating from CommonJS to ESM: use \`jest.unstable_mockModule()\` for ESM module mocking`,
+        prompt: `## Jest Migration
+- Mocha/Chai → Jest: expect().toBe(), compatible describe/it
+- Jasmine → Jest: jest.fn() replaces createSpy, manual mock objects
+- Jest → Vitest: vi.fn()/vi.mock(), different hoisting behavior
+- CommonJS → ESM: jest.unstable_mockModule()`,
       },
     ],
     skills: [
       {
         name: 'jest-test-generator',
         description: 'Generate comprehensive Jest test suites for TypeScript/JavaScript modules',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Jest Test Generator
 
 ## Purpose
@@ -359,6 +314,144 @@ it('should throw NotFoundError when user does not exist', async () => {
 - [ ] Async tests properly use async/await with resolves/rejects
 `,
       },
+      {
+        name: 'jest-conventions-guide',
+        description: 'Detailed reference for Jest testing conventions with examples',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Jest Testing Conventions — Full Reference
+
+## Test Structure
+- Place tests in \`__tests__/\` directories or colocate as \`*.test.ts\` / \`*.spec.ts\`
+- Mirror source directory structure in test directories
+- One test file per source module
+- Use \`describe\` blocks to group related tests by function or behavior
+- Follow Arrange-Act-Assert (AAA) pattern in every test
+- Use descriptive test names: \`it('should return user when valid ID is provided')\`
+
+## Mocking Rules
+- \`jest.mock()\` calls MUST be at module level — they are hoisted to the top of the file
+- Use \`jest.spyOn()\` when you need to track calls but preserve the original implementation
+- Use \`jest.fn()\` for creating standalone mock functions
+- Use \`jest.requireActual()\` inside mock factories for partial mocks:
+  \\\`\\\`\\\`typescript
+  jest.mock('../utils', () => ({
+    ...jest.requireActual('../utils'),
+    fetchData: jest.fn(),
+  }));
+  \\\`\\\`\\\`
+- ALWAYS reset or restore mocks between tests:
+  - \`jest.clearAllMocks()\` — clears call history, keeps implementation
+  - \`jest.resetAllMocks()\` — clears history AND removes mock implementation
+  - \`jest.restoreAllMocks()\` — restores original implementation for spies
+- Prefer \`restoreMocks: true\` in jest config for automatic restoration
+
+## Async Testing
+- Use \`async/await\` for async tests — return the promise or use await
+- Use \`await expect(promise).resolves.toEqual(value)\` for resolved promises
+- Use \`await expect(promise).rejects.toThrow(ErrorType)\` for rejected promises
+- Use \`expect.assertions(n)\` in callback-based async tests to ensure all assertions run
+- Set appropriate timeouts for long-running async operations with test-level timeout parameter
+
+## Snapshot Rules
+- Use snapshots for UI components and serializable output — NOT for business logic
+- Use property matchers for dynamic values (IDs, dates, timestamps)
+- Review ALL snapshot changes in code reviews before accepting
+- Never run \`--updateSnapshot\` blindly — understand every change
+- Prefer \`toMatchInlineSnapshot()\` for small snapshots (under 10 lines)
+- Enforce maximum snapshot size with linting rules
+
+## Coverage Requirements
+- Enforce global coverage thresholds: branches >= 80%, functions >= 80%, lines >= 80%, statements >= 80%
+- Focus on meaningful coverage — edge cases, error paths, boundary conditions
+- Use \`collectCoverageFrom\` to target source files and exclude generated/config files
+- Use coverage ignore comments (\`/* istanbul ignore next */\`) only with documented justification
+
+## Patterns to Follow
+- Use \`test.each\` / \`it.each\` for parameterized tests with multiple input/output combinations
+- Use \`jest.useFakeTimers()\` for time-dependent logic — always restore with \`jest.useRealTimers()\`
+- Use \`beforeEach\` for shared setup — avoid \`beforeAll\` unless truly needed for expensive one-time operations
+- Avoid testing implementation details — test behavior and observable outcomes
+- Use custom matchers (\`expect.extend()\`) for domain-specific assertions
+- Use \`test.todo()\` to document planned tests
+`,
+      },
+      {
+        name: 'jest-config-guide',
+        description: 'Detailed reference for Jest configuration best practices with examples',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Jest Configuration Best Practices — Full Reference
+
+## Recommended Configuration
+Configure Jest via \`jest.config.ts\` (or \`jest.config.js\`) at the project root:
+
+\\\`\\\`\\\`typescript
+import type { Config } from 'jest';
+
+const config: Config = {
+  // Test environment
+  testEnvironment: 'node', // or 'jsdom' for browser-like environment
+
+  // Test discovery
+  testMatch: ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
+  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/build/'],
+
+  // TypeScript support
+  transform: { '^.+\\\\\\\\.tsx?$': 'ts-jest' },
+
+  // Module resolution
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+  },
+
+  // Mock management
+  restoreMocks: true,
+  clearMocks: true,
+
+  // Coverage
+  collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/**/index.ts'],
+  coverageDirectory: 'coverage',
+  coverageThreshold: {
+    global: { branches: 80, functions: 80, lines: 80, statements: 80 },
+  },
+  coverageReporters: ['text', 'lcov', 'json-summary'],
+
+  // Performance
+  maxWorkers: '50%',
+  bail: 1, // stop after first failure in CI
+};
+
+export default config;
+\\\`\\\`\\\`
+
+## Setup Files
+- Use \`setupFiles\` for code that runs BEFORE the test framework is installed (polyfills, env vars)
+- Use \`setupFilesAfterEnv\` for code that runs AFTER the framework (custom matchers, global mocks)
+- Register custom matchers or extend expect in setup files, not in individual test files
+
+## Multi-Project Configuration
+Use \`projects\` for monorepos or distinct test environments:
+\\\`\\\`\\\`typescript
+projects: [
+  { displayName: 'unit', testMatch: ['<rootDir>/tests/unit/**/*.test.ts'] },
+  { displayName: 'integration', testMatch: ['<rootDir>/tests/integration/**/*.test.ts'] },
+]
+\\\`\\\`\\\`
+
+## Environment-Specific Settings
+- Use \`testEnvironment: 'jsdom'\` for DOM-dependent code (React components, browser APIs)
+- Use \`testEnvironment: 'node'\` for server-side, CLI, and library code
+- Use \`testEnvironmentOptions\` to configure jsdom (url, html, userAgent)
+- Override environment per file with docblock: \`/** @jest-environment jsdom */\`
+
+## Performance Tuning
+- Set \`maxWorkers: '50%'\` to balance parallel execution with system load
+- Use \`bail: 1\` in CI to fail fast after first test failure
+- Use \`--changedSince\` or \`--onlyChanged\` in local development for faster feedback
+- Set \`workerIdleMemoryLimit\` to recycle workers that consume too much memory
+`,
+      },
     ],
     hooks: [
       {
@@ -367,9 +460,9 @@ it('should throw NotFoundError when user does not exist', async () => {
         hooks: [
           {
             type: 'command',
-            command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.(test|spec)\\.(ts|tsx|js|jsx)$" && grep -cE "\\b(test\\.only|describe\\.only|fit|fdescribe)\\b" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:1:Focused test detected (.only) — remove before committing to avoid skipping other tests" || true',
+            command: 'bash .claude/hooks/jest-no-only.sh',
             timeout: 10,
+            statusMessage: 'Checking for focused tests...',
           },
         ],
       },
@@ -379,12 +472,13 @@ it('should throw NotFoundError when user does not exist', async () => {
         hooks: [
           {
             type: 'command',
-            command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.(test|spec)\\.(ts|tsx|js|jsx)$" && grep -nE "jest\\.mock\\(" "$CLAUDE_FILE_PATH" | while read line; do linenum=$(echo "$line" | cut -d: -f1); if [ "$linenum" -gt 1 ] && head -n "$linenum" "$CLAUDE_FILE_PATH" | grep -qE "^\\s*(describe|it|test|beforeEach|afterEach|beforeAll|afterAll)\\("; then echo "HOOK_EXIT:0:Warning: jest.mock() call may be inside a test block (line $linenum) — jest.mock() must be at module level to be hoisted correctly"; break; fi; done 2>/dev/null || true',
+            command: 'bash .claude/hooks/jest-mock-hoisting.sh',
             timeout: 10,
+            statusMessage: 'Checking jest.mock() placement...',
           },
         ],
       },
     ],
+    hookScripts: buildJestHookScripts(),
   },
 };

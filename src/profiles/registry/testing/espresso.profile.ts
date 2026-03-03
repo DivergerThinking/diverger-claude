@@ -46,193 +46,44 @@ Android UI testing. ViewMatchers -> ViewActions -> ViewAssertions pattern.
         content: `# Espresso Testing Conventions
 
 ## Core Pattern: Find -> Perform -> Check
-Every Espresso interaction follows three steps:
-\`\`\`kotlin
-onView(withId(R.id.button))    // 1. Find: locate the view with a ViewMatcher
-    .perform(click())           // 2. Perform: execute a ViewAction
-    .check(matches(isDisplayed())) // 3. Check: verify with a ViewAssertion
-\`\`\`
-
-- ALWAYS use the find -> perform -> check pattern — avoid bypassing it with direct view access
-- Use \`onView()\` for standard views; use \`onData()\` only for AdapterView-backed content (ListView, Spinner)
+- ALWAYS follow: \`onView(matcher).perform(action).check(assertion)\`
+- Use \`onView()\` for standard views; \`onData()\` only for AdapterView content (ListView, Spinner)
 - Chain related actions in a single \`perform()\` call for atomic operations
 
----
-
-## ViewMatcher Rules
-
-### Priority Order
-1. \`withId(R.id.view_id)\` — resource ID (most stable, preferred)
-2. \`withText("text")\` — displayed text (combine with \`withId()\` using \`allOf()\` to disambiguate)
-3. \`withContentDescription("description")\` — accessibility label (preferred for image buttons)
-4. \`withHint("hint")\` — placeholder text (for EditText fields)
-5. Hierarchical matchers (\`withParent()\`, \`hasSibling()\`) — structural matching (last resort)
-
-### Rules
-- Use \`allOf()\` to combine matchers when a single matcher matches multiple views — Espresso throws \`AmbiguousViewMatcherException\` on ambiguous matches
-- Use the simplest matcher that uniquely identifies the view — avoid over-specifying
-- NEVER use \`isDisplayed()\` as a standalone onView matcher — use it as a filter within \`allOf()\` or as a check in assertions
-- Use \`not(matcher)\` to exclude views from matching — useful for filtering out hidden or disabled views
-
-### Correct
-\`\`\`kotlin
-// Simple: single matcher uniquely identifies view
-onView(withId(R.id.email_input)).perform(typeText("user@test.com"))
-
-// Combined: disambiguate when multiple views share an ID
-onView(allOf(withId(R.id.title), withText("Settings")))
-    .check(matches(isDisplayed()))
-
-// Accessibility-based: for icon buttons without visible text
-onView(withContentDescription("Navigate up")).perform(click())
-\`\`\`
-
-### Anti-Pattern
-\`\`\`kotlin
-// BAD: isDisplayed() as the sole matcher — matches too many views
-onView(isDisplayed()).perform(click())
-
-// BAD: checking property in the matcher instead of the assertion
-onView(allOf(withId(R.id.status), withText("Done")))
-    .check(matches(isDisplayed()))
-// GOOD: check the text in the assertion
-onView(withId(R.id.status))
-    .check(matches(withText("Done")))
-
-// BAD: deep hierarchical matchers — brittle and coupled to layout structure
-onView(allOf(
-    isDescendantOfA(withId(R.id.container)),
-    isDescendantOfA(withChild(withText("Header"))),
-    instanceOf(Button::class.java)
-)).perform(click())
-\`\`\`
-
----
+## ViewMatcher Priority
+1. \`withId(R.id.x)\` — resource ID (most stable, preferred)
+2. \`withText("text")\` — combine with \`allOf()\` to disambiguate
+3. \`withContentDescription("desc")\` — accessibility label (image buttons)
+4. \`withHint("hint")\` — placeholder text (EditText fields)
+5. Hierarchical matchers — last resort only
+- Use \`allOf()\` to combine matchers when a single matcher is ambiguous
+- NEVER use \`isDisplayed()\` as standalone matcher — use in assertions only
 
 ## ViewAction Rules
-- Call \`closeSoftKeyboard()\` after \`typeText()\` — the keyboard may obscure views needed for subsequent actions
-- Use \`clearText()\` before \`typeText()\` when replacing existing content — \`typeText()\` appends to existing text
-- Call \`scrollTo()\` before actions on off-screen views within a ScrollView — Espresso does not auto-scroll for all view types
-- Use \`replaceText()\` when keyboard simulation is not needed — it is faster but skips IME callbacks
-- Use \`pressBack()\` from \`Espresso.pressBack()\` for system navigation — do not simulate hardware button events
-
-### Correct
-\`\`\`kotlin
-// Complete text input pattern: clear + type + close keyboard
-onView(withId(R.id.search_input))
-    .perform(clearText(), typeText("espresso testing"), closeSoftKeyboard())
-
-// Scroll before interacting with off-screen view
-onView(withId(R.id.terms_checkbox))
-    .perform(scrollTo(), click())
-
-// Chain multiple actions on the same view
-onView(withId(R.id.text_field))
-    .perform(click(), clearText(), typeText("new value"), closeSoftKeyboard())
-\`\`\`
-
-### Anti-Pattern
-\`\`\`kotlin
-// BAD: forgetting closeSoftKeyboard() — next view may be hidden
-onView(withId(R.id.email_input)).perform(typeText("user@test.com"))
-onView(withId(R.id.password_input)).perform(typeText("pass123"))
-// password_input may be obscured by the keyboard
-
-// BAD: typeText without clearText — appends to existing text
-onView(withId(R.id.name_input)).perform(typeText("new name"))
-// If field already contains text, result is "old textnew name"
-\`\`\`
-
----
+- Call \`closeSoftKeyboard()\` after \`typeText()\` — keyboard may obscure subsequent views
+- Use \`clearText()\` before \`typeText()\` when replacing existing content
+- Call \`scrollTo()\` before actions on off-screen views within ScrollView
+- Use \`replaceText()\` for speed when IME callbacks are not needed
 
 ## Assertion Rules
-- Use \`check(matches(...))\` for positive assertions about view properties
-- Use \`check(doesNotExist())\` to assert a view is not in the hierarchy — different from \`not(isDisplayed())\` which asserts the view exists but is not visible
-- Use Hamcrest matchers inside \`matches()\` for flexible assertions: \`containsString()\`, \`startsWith()\`, \`endsWith()\`
-- Use \`matches(hasErrorText("message"))\` for EditText validation error assertions
-- Separate matching from asserting — put the property under test in \`check()\`, not in \`onView()\`
-
-### Correct
-\`\`\`kotlin
-// Assert text content
-onView(withId(R.id.greeting)).check(matches(withText("Hello Steve!")))
-
-// Assert view does not exist in hierarchy
-onView(withId(R.id.loading_spinner)).check(doesNotExist())
-
-// Assert view exists but is not visible
-onView(withId(R.id.hidden_tip)).check(matches(not(isDisplayed())))
-
-// Assert partial text match
-onView(withId(R.id.description))
-    .check(matches(withText(containsString("Espresso"))))
-
-// Assert input validation error
-onView(withId(R.id.email_input))
-    .check(matches(hasErrorText("Invalid email format")))
-\`\`\`
-
----
+- Use \`check(matches(...))\` for positive assertions on view properties
+- Use \`check(doesNotExist())\` for hierarchy absence vs \`not(isDisplayed())\` for hidden views
+- Separate matching from asserting — put property under test in \`check()\`, not \`onView()\`
+- Use \`hasErrorText()\` for EditText validation errors
 
 ## Synchronization Rules
-- NEVER use \`Thread.sleep()\`, \`SystemClock.sleep()\`, or manual polling in Espresso tests — Espresso handles synchronization automatically
-- Register \`IdlingResource\` for background operations: network requests, database queries, custom thread pools
-- Use \`CountingIdlingResource\` for tracking simple async operations: call \`increment()\` before and \`decrement()\` after
-- Register idling resources in \`@Before\` and unregister in \`@After\` — ALWAYS clean up to prevent cross-test pollution
-- Use \`IdlingRegistry.getInstance().register()\` — do not use deprecated \`Espresso.registerIdlingResources()\`
-- Call \`onTransitionToIdle()\` callback outside of \`isIdleNow()\` — calling it inside causes Espresso to make unnecessary rechecks
+- NEVER use \`Thread.sleep()\` or \`SystemClock.sleep()\` — Espresso auto-synchronizes
+- Register \`IdlingResource\` for async operations (network, DB, thread pools)
+- Use \`CountingIdlingResource\` — \`increment()\` before, \`decrement()\` after
+- Register in \`@Before\`, unregister in \`@After\` — ALWAYS clean up
+- Use \`IdlingRegistry.getInstance().register()\` (not deprecated API)
 
-### Correct
-\`\`\`kotlin
-@Before
-fun setUp() {
-    idlingResource = CountingIdlingResource("NetworkCall")
-    IdlingRegistry.getInstance().register(idlingResource)
-}
-
-@After
-fun tearDown() {
-    IdlingRegistry.getInstance().unregister(idlingResource)
-}
-
-@Test
-fun dataLoadsAfterNetworkCall() {
-    // Espresso waits for idlingResource to become idle
-    onView(withId(R.id.data_list))
-        .check(matches(isDisplayed()))
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`kotlin
-// BAD: Thread.sleep — unreliable, slow, flaky
-Thread.sleep(3000)
-onView(withId(R.id.data_list)).check(matches(isDisplayed()))
-
-// BAD: never unregistering idling resources — leaks across tests
-@Before fun setUp() {
-    IdlingRegistry.getInstance().register(resource)
-}
-// Missing @After with unregister!
-
-// BAD: calling callback inside isIdleNow
-override fun isIdleNow(): Boolean {
-    val idle = taskCount == 0
-    if (idle) callback?.onTransitionToIdle() // WRONG
-    return idle
-}
-\`\`\`
-
----
-
-## Test Structure Rules
-- Annotate every test class with \`@RunWith(AndroidJUnit4::class)\`
-- Use \`ActivityScenarioRule\` to manage activity lifecycle — it replaces deprecated \`ActivityTestRule\`
-- Keep tests independent — each test must work without relying on state from previous tests
-- Follow Arrange-Act-Assert pattern within each test method
-- Use meaningful test method names: \`clickSubmit_withEmptyEmail_showsValidationError()\`
-- Use Test Orchestrator with \`clearPackageData\` for full state isolation between tests in CI
-- Use \`@HiltAndroidTest\` with \`HiltAndroidRule\` for Hilt-based apps to inject test dependencies
+## Test Structure
+- Annotate with \`@RunWith(AndroidJUnit4::class)\`, use \`ActivityScenarioRule\`
+- Follow Arrange-Act-Assert pattern, keep tests independent
+- Name methods descriptively: \`clickSubmit_withEmptyEmail_showsValidationError()\`
+- Use Test Orchestrator with \`clearPackageData\` for full isolation in CI
+- Use \`@HiltAndroidTest\` with \`HiltAndroidRule\` for Hilt-based apps
 `,
       },
       {
@@ -244,99 +95,30 @@ override fun isIdleNow(): Boolean {
         content: `# Espresso-Intents & Contrib Best Practices
 
 ## Espresso-Intents — Hermetic Intent Testing
-
-### Setup
-Use \`IntentsRule\` to automatically initialize and release intent recording:
-\`\`\`kotlin
-@get:Rule
-val intentsRule = IntentsRule()
-
-@get:Rule
-val activityRule = ActivityScenarioRule(MainActivity::class.java)
-\`\`\`
-
-### Intent Validation with \`intended()\`
-Verify that your app sends the correct intents to other apps or system components:
-\`\`\`kotlin
-@Test
-fun clickDial_sendsCallIntent() {
-    onView(withId(R.id.dial_button)).perform(click())
-    intended(allOf(
-        hasAction(Intent.ACTION_DIAL),
-        hasData(Uri.parse("tel:+1234567890"))
-    ))
-}
-\`\`\`
-
-### Intent Stubbing with \`intending()\`
-Stub responses for \`startActivityForResult()\` to avoid launching external apps:
-\`\`\`kotlin
-@Test
-fun pickContact_displaysSelectedPhoneNumber() {
-    val resultData = Intent().apply {
-        putExtra("phone", "555-123-4567")
-    }
-    val result = Instrumentation.ActivityResult(Activity.RESULT_OK, resultData)
-
-    intending(toPackage("com.android.contacts")).respondWith(result)
-
-    onView(withId(R.id.pick_contact_button)).perform(click())
-    onView(withId(R.id.phone_number))
-        .check(matches(withText("555-123-4567")))
-}
-\`\`\`
-
-### Best Practices
-- Always stub external intents — never let tests launch real camera, contacts, or browser apps
+- Use \`IntentsRule\` to automatically initialize and release intent recording
+- Use \`intended()\` to verify your app sends correct intents after an action
+- Use \`intending().respondWith()\` to stub \`startActivityForResult()\` responses
+- Always stub external intents — never let tests launch real camera, contacts, or browser
 - Test both success (\`RESULT_OK\`) and cancellation (\`RESULT_CANCELED\`) paths
-- Use intent matchers from \`IntentMatchers\`: \`hasAction()\`, \`hasData()\`, \`toPackage()\`, \`hasExtra()\`, \`hasComponent()\`
-- Validate intents AFTER the action that triggers them — \`intended()\` checks the recorded history
+- Use matchers: \`hasAction()\`, \`hasData()\`, \`toPackage()\`, \`hasExtra()\`, \`hasComponent()\`
+- Validate intents AFTER the triggering action — \`intended()\` checks recorded history
 
----
-
-## Espresso-Contrib — Extended Component Interactions
+## Espresso-Contrib — Extended Components
 
 ### RecyclerView
-\`\`\`kotlin
-// Click item at position
-onView(withId(R.id.recycler_view))
-    .perform(RecyclerViewActions.actionOnItemAtPosition<ViewHolder>(3, click()))
-
-// Scroll to position
-onView(withId(R.id.recycler_view))
-    .perform(RecyclerViewActions.scrollToPosition<ViewHolder>(42))
-
-// Action on item matching a condition
-onView(withId(R.id.recycler_view))
-    .perform(RecyclerViewActions.actionOnItem<ViewHolder>(
-        hasDescendant(withText("Target Item")), click()))
-\`\`\`
+- Use \`RecyclerViewActions.actionOnItemAtPosition()\` to interact by position
+- Use \`RecyclerViewActions.scrollToPosition()\` to scroll to specific items
+- Use \`RecyclerViewActions.actionOnItem(hasDescendant(withText("...")), click())\` for matching
 
 ### NavigationDrawer
-\`\`\`kotlin
-onView(withId(R.id.drawer_layout)).perform(DrawerActions.open())
-onView(withId(R.id.nav_settings)).perform(click())
-onView(withId(R.id.drawer_layout)).perform(DrawerActions.close())
-\`\`\`
+- Use \`DrawerActions.open()\` / \`DrawerActions.close()\` for drawer interactions
 
 ### DatePicker / TimePicker
-\`\`\`kotlin
-onView(withId(R.id.date_picker))
-    .perform(PickerActions.setDate(2025, 6, 15))
-
-onView(withId(R.id.time_picker))
-    .perform(PickerActions.setTime(14, 30))
-\`\`\`
+- Use \`PickerActions.setDate(year, month, day)\` and \`PickerActions.setTime(hour, minute)\`
 
 ### Accessibility Checks
-\`\`\`kotlin
-@Before
-fun setUp() {
-    AccessibilityChecks.enable()
-        .setRunChecksFromRootView(true)
-}
-\`\`\`
-This automatically validates accessibility on every Espresso assertion — fails tests for violations like missing content descriptions, insufficient contrast, or small touch targets.
+- Enable \`AccessibilityChecks.enable().setRunChecksFromRootView(true)\` in \`@Before\`
+- Auto-validates accessibility on every assertion — fails for missing content descriptions, contrast, touch targets
 `,
       },
     ],
@@ -410,6 +192,8 @@ Available skills: espresso-test-generator
         name: 'espresso-test-generator',
         description:
           'Generate comprehensive Espresso instrumentation test suites for Android activities and user flows',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Espresso Test Generator
 
 ## Purpose
@@ -571,8 +355,9 @@ fun logout_removesUserProfileView() {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "androidTest/.*\\.kt$" && grep -cE "\\bThread\\.sleep\\(|SystemClock\\.sleep\\(" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:1:Thread.sleep() or SystemClock.sleep() detected in Espresso test — use IdlingResource for async synchronization instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "androidTest/.*\\.kt$" && grep -cE "\\bThread\\.sleep\\(|SystemClock\\.sleep\\(" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Thread.sleep() or SystemClock.sleep() detected in Espresso test — use IdlingResource for async synchronization instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for Thread.sleep() in Espresso tests',
           },
         ],
       },
@@ -583,8 +368,9 @@ fun logout_removesUserProfileView() {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "androidTest/.*\\.kt$" && grep -cE "ActivityTestRule\\b" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:0:Warning: ActivityTestRule is deprecated — use ActivityScenarioRule from androidx.test.ext.junit.rules instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "androidTest/.*\\.kt$" && grep -cE "ActivityTestRule\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Warning: ActivityTestRule is deprecated — use ActivityScenarioRule from androidx.test.ext.junit.rules instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for deprecated ActivityTestRule',
           },
         ],
       },

@@ -66,294 +66,43 @@ Declarative infrastructure as code. Modules, state management, plan-before-apply
         description: 'Terraform HCL conventions, module design, state management, and resource lifecycle',
         content: `# Terraform Conventions
 
-## Why This Matters
-Terraform manages critical infrastructure — a misconfigured resource can expose data, incur
-costs, or cause outages. These rules follow the HashiCorp Terraform Style Guide
-(developer.hashicorp.com/terraform/language/style) and community best practices to ensure
-configurations are readable, maintainable, and safe.
-
----
-
 ## File Structure
-
-Every Terraform configuration MUST follow this file organization:
-
-\`\`\`
-infrastructure/
-  environments/
-    dev/
-      main.tf
-      variables.tf
-      outputs.tf
-      backend.tf
-      terraform.tfvars
-    staging/
-      main.tf
-      ...
-    production/
-      main.tf
-      ...
-  modules/
-    networking/
-      main.tf
-      variables.tf
-      outputs.tf
-      README.md
-    compute/
-      main.tf
-      variables.tf
-      outputs.tf
-      README.md
-\`\`\`
-
----
+- Organize per environment: \`environments/{dev,staging,production}/\` each with \`main.tf\`, \`variables.tf\`, \`outputs.tf\`, \`backend.tf\`, \`terraform.tfvars\`
+- Reusable modules in \`modules/{name}/\` with \`main.tf\`, \`variables.tf\`, \`outputs.tf\`, \`README.md\`
 
 ## Variable Definitions
-
-### Correct — fully typed variable with validation
-\`\`\`hcl
-variable "environment" {
-  type        = string
-  description = "Deployment environment (dev, staging, production)"
-
-  validation {
-    condition     = contains(["dev", "staging", "production"], var.environment)
-    error_message = "Environment must be one of: dev, staging, production."
-  }
-}
-
-variable "instance_config" {
-  type = object({
-    instance_type = string
-    ami_id        = string
-    volume_size   = optional(number, 20)
-    enable_monitoring = optional(bool, true)
-  })
-  description = "EC2 instance configuration parameters"
-}
-
-variable "database_password" {
-  type        = string
-  description = "Master password for the RDS instance"
-  sensitive   = true
-
-  validation {
-    condition     = length(var.database_password) >= 16
-    error_message = "Database password must be at least 16 characters."
-  }
-}
-\`\`\`
-
-### Anti-Pattern — untyped, undescribed variables
-\`\`\`hcl
-# BAD: no type, no description, no validation
-variable "env" {}
-
-variable "db_pass" {
-  default = "changeme"
-  # Problem: default password in source code, no type safety, no validation
-}
-
-variable "config" {
-  type = any
-  # Problem: 'any' type provides no validation or documentation
-}
-\`\`\`
-
----
+- Every variable MUST have \`type\` and \`description\` attributes
+- Use \`validation\` blocks for variables with constrained values
+- Mark sensitive variables with \`sensitive = true\`
+- Never use \`type = any\` — provide explicit types
+- Never set default values containing secrets or credentials
 
 ## Resource Naming
-
-### Correct — descriptive snake_case names
-\`\`\`hcl
-resource "aws_vpc" "main" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-
-  tags = local.common_tags
-}
-
-resource "aws_subnet" "private_application" {
-  count             = length(var.availability_zones)
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index)
-  availability_zone = var.availability_zones[count.index]
-
-  tags = merge(local.common_tags, {
-    Name = "\${var.project_name}-private-app-\${var.availability_zones[count.index]}"
-    Tier = "Private"
-  })
-}
-\`\`\`
-
-### Anti-Pattern — numeric or meaningless names
-\`\`\`hcl
-# BAD: names reveal nothing about purpose
-resource "aws_vpc" "vpc1" {
-  cidr_block = "10.0.0.0/16"
-  # Problem: "vpc1" is meaningless — what is this VPC for?
-}
-
-resource "aws_subnet" "subnet" {
-  vpc_id     = aws_vpc.vpc1.id
-  cidr_block = "10.0.1.0/24"
-  # Problem: hardcoded CIDR, no tags, generic name
-}
-\`\`\`
-
----
+- Use descriptive \`snake_case\` names that reveal purpose (e.g., \`private_application\`, not \`subnet1\`)
+- Apply tags via \`local.common_tags\` — never leave resources untagged
+- Avoid hardcoded CIDRs, AMIs, or regions — use variables
 
 ## Module Design
-
-### Correct — well-structured reusable module
-\`\`\`hcl
-# modules/rds/variables.tf
-variable "identifier" {
-  type        = string
-  description = "Unique identifier for the RDS instance"
-}
-
-variable "engine_version" {
-  type        = string
-  description = "PostgreSQL engine version"
-  default     = "16.1"
-}
-
-variable "instance_class" {
-  type        = string
-  description = "RDS instance class"
-  default     = "db.t3.micro"
-}
-
-variable "allocated_storage" {
-  type        = number
-  description = "Allocated storage in GiB"
-  default     = 20
-
-  validation {
-    condition     = var.allocated_storage >= 20 && var.allocated_storage <= 65536
-    error_message = "Allocated storage must be between 20 and 65536 GiB."
-  }
-}
-
-# modules/rds/outputs.tf
-output "endpoint" {
-  value       = aws_db_instance.main.endpoint
-  description = "Connection endpoint for the RDS instance"
-}
-
-output "arn" {
-  value       = aws_db_instance.main.arn
-  description = "ARN of the RDS instance"
-}
-
-output "id" {
-  value       = aws_db_instance.main.id
-  description = "Identifier of the RDS instance"
-}
-\`\`\`
-
-### Anti-Pattern — monolithic module
-\`\`\`hcl
-# BAD: module defines VPC, subnets, EC2, RDS, S3, IAM all together
-# Problem: violates single responsibility, impossible to reuse networking separately
-module "everything" {
-  source = "./modules/infrastructure"
-  # 30+ variables for unrelated resources
-}
-\`\`\`
-
----
+- Each module focuses on a single concern (networking, compute, database)
+- Standard layout: \`main.tf\`, \`variables.tf\`, \`outputs.tf\`
+- Expose useful outputs: \`id\`, \`arn\`, \`endpoint\`, \`name\`
+- Do not hardcode provider configurations inside modules
+- Pin module versions (Git ref or registry version constraint)
 
 ## Iteration Patterns
-
-### Correct — for_each with stable keys
-\`\`\`hcl
-variable "subnets" {
-  type = map(object({
-    cidr_block        = string
-    availability_zone = string
-    public            = optional(bool, false)
-  }))
-}
-
-resource "aws_subnet" "this" {
-  for_each = var.subnets
-
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = each.value.cidr_block
-  availability_zone       = each.value.availability_zone
-  map_public_ip_on_launch = each.value.public
-
-  tags = merge(local.common_tags, {
-    Name = "\${var.project_name}-\${each.key}"
-  })
-}
-\`\`\`
-
-### Anti-Pattern — count with index-based addressing
-\`\`\`hcl
-# BAD: count-based — removing an item shifts all indices, causing destroy/recreate
-resource "aws_subnet" "this" {
-  count = length(var.subnet_cidrs)
-
-  vpc_id     = aws_vpc.main.id
-  cidr_block = var.subnet_cidrs[count.index]
-  # Problem: removing subnet_cidrs[0] forces recreation of all subsequent subnets
-}
-\`\`\`
-
----
+- Use \`for_each\` with stable map keys — never \`count\` for collections that may change order
+- \`count\` is acceptable only for conditional resource creation (0 or 1)
 
 ## State Management
-
-- ALWAYS use remote state backend with locking enabled
+- ALWAYS use remote state backend with locking enabled (e.g., S3 + DynamoDB)
 - NEVER commit .tfstate files to version control
-- Use separate state per environment (dev, staging, production)
+- Use separate state per environment
 - Enable encryption at rest on the state backend
 
-### Correct — S3 backend with DynamoDB locking
-\`\`\`hcl
-terraform {
-  backend "s3" {
-    bucket         = "company-terraform-state"
-    key            = "environments/production/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "terraform-state-lock"
-  }
-}
-\`\`\`
-
----
-
 ## Resource Lifecycle
-
-### Correct — protecting critical resources
-\`\`\`hcl
-resource "aws_db_instance" "production" {
-  # ... configuration ...
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "aws_launch_template" "web" {
-  # ... configuration ...
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# Terraform 1.1+ — refactoring without destroy
-moved {
-  from = aws_instance.web_server
-  to   = aws_instance.application_server
-}
-\`\`\`
+- Use \`prevent_destroy = true\` on critical resources (databases, S3 buckets)
+- Use \`create_before_destroy = true\` for zero-downtime replacements
+- Use \`moved\` blocks (Terraform 1.1+) for refactoring without destroy/recreate
 `,
       },
       {
@@ -363,245 +112,44 @@ moved {
         description: 'Terraform security hardening, secret management, and infrastructure safety patterns',
         content: `# Terraform Security
 
-## Why This Matters
-Terraform configurations define the security posture of your entire infrastructure. A single
-misconfigured resource can expose databases to the internet, grant excessive IAM permissions,
-or leak secrets in state files. These rules align with HashiCorp security guidance, CIS
-benchmarks, and infrastructure security best practices.
-
----
-
 ## Secret Management (MANDATORY)
-
-### Never Hardcode Secrets in Terraform Files
-\`\`\`hcl
-# CORRECT: use variables marked as sensitive
-variable "database_password" {
-  type        = string
-  description = "RDS master password"
-  sensitive   = true
-}
-
-resource "aws_db_instance" "main" {
-  password = var.database_password
-  # Value injected via environment variable, tfvars file, or secret manager
-}
-
-# CORRECT: reference secrets from a vault
-data "aws_secretsmanager_secret_version" "db_password" {
-  secret_id = "production/database/master-password"
-}
-
-resource "aws_db_instance" "main" {
-  password = data.aws_secretsmanager_secret_version.db_password.secret_string
-}
-\`\`\`
-
-### Anti-Pattern — secrets in source code
-\`\`\`hcl
-# BAD: password hardcoded — visible in source control, plan output, and state file
-resource "aws_db_instance" "main" {
-  password = "SuperSecret123!"
-  # Problem: secret in source, in state, in CI logs
-}
-
-# BAD: default value for sensitive variable
-variable "api_key" {
-  default = "sk-abc123def456"
-  # Problem: default persisted in version control
-}
-\`\`\`
-
----
+- NEVER hardcode secrets, passwords, API keys, or tokens in .tf files
+- Use variables marked with \`sensitive = true\` for credentials
+- Reference secrets from vault or secret manager data sources
+- Never set default values containing credentials
 
 ## State File Security
-
-- State files contain ALL resource attributes including passwords, keys, and certificates
+- State files contain ALL resource attributes including passwords and keys
 - ALWAYS enable encryption at rest on the state backend
-- ALWAYS restrict access to the state backend with IAM policies or RBAC
+- ALWAYS restrict access with IAM policies or RBAC
 - NEVER store state locally in production — use remote backends
 - NEVER commit \`.tfstate\` or \`.tfstate.backup\` to version control
-- Add \`.tfstate\` and \`.tfstate.backup\` to \`.gitignore\`
-
-### Correct — secure state backend
-\`\`\`hcl
-terraform {
-  backend "s3" {
-    bucket         = "company-terraform-state"
-    key            = "production/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true                          # SSE-S3 encryption at rest
-    dynamodb_table = "terraform-state-lock"        # Prevent concurrent modifications
-    # Access restricted via S3 bucket policy and IAM
-  }
-}
-\`\`\`
-
----
+- Add both to \`.gitignore\`
 
 ## IAM and Access Control
-
-### Principle of Least Privilege
-\`\`\`hcl
-# CORRECT: specific actions on specific resources
-resource "aws_iam_policy" "app_s3_access" {
-  name = "app-s3-read-only"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:ListBucket"]
-        Resource = [
-          aws_s3_bucket.app_data.arn,
-          "\${aws_s3_bucket.app_data.arn}/*"
-        ]
-      }
-    ]
-  })
-}
-\`\`\`
-
-### Anti-Pattern — overly permissive IAM
-\`\`\`hcl
-# BAD: wildcard actions and resources
-resource "aws_iam_policy" "admin" {
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = "*"
-        Resource = "*"
-        # Problem: grants full admin access — violates least privilege
-      }
-    ]
-  })
-}
-\`\`\`
-
----
+- Apply principle of least privilege — specific actions on specific resources
+- Never use wildcard \`*\` on Action or Resource in IAM policies
+- Restrict AssumeRole trust policies to specific principals
+- Use IAM roles over long-lived access keys
 
 ## Network Security
-
-### Correct — restrictive security groups
-\`\`\`hcl
-resource "aws_security_group" "web" {
-  name_prefix = "\${var.project_name}-web-"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "HTTPS from internet"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    description = "Allow all outbound"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = local.common_tags
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "aws_security_group" "database" {
-  name_prefix = "\${var.project_name}-db-"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description     = "PostgreSQL from application tier only"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.web.id]
-    # Only the web tier can access the database
-  }
-
-  tags = local.common_tags
-}
-\`\`\`
-
-### Anti-Pattern — open security groups
-\`\`\`hcl
-# BAD: database open to the entire internet
-resource "aws_security_group" "database" {
-  ingress {
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    # Problem: database accessible from any IP address
-  }
-}
-\`\`\`
-
----
+- Scope security groups to specific ports and source security groups or CIDRs
+- Never expose database ports (3306, 5432, 27017, 6379) to \`0.0.0.0/0\`
+- Add descriptions on all ingress/egress rules
+- Use \`create_before_destroy\` on security groups
 
 ## Encryption
-
-- Enable encryption for all storage resources: S3 buckets, EBS volumes, RDS instances, DynamoDB tables
+- Enable encryption for all storage: S3, EBS, RDS, DynamoDB
 - Enable encryption in transit: TLS for load balancers, SSL for databases
 - Use KMS customer-managed keys for sensitive workloads
 - Enforce S3 bucket policies that deny unencrypted uploads
+- Block public access on all S3 buckets by default
 
-### Correct — encryption at rest and in transit
-\`\`\`hcl
-resource "aws_s3_bucket_server_side_encryption_configuration" "data" {
-  bucket = aws_s3_bucket.data.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.data_encryption.arn
-    }
-    bucket_key_enabled = true
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "data" {
-  bucket = aws_s3_bucket.data.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-\`\`\`
-
----
-
-## Static Analysis Tools
-
-- Run \`tfsec\` or \`checkov\` in CI to catch security misconfigurations before apply
-- Run \`tflint\` to detect provider-specific errors and deprecated syntax
-- Use Sentinel or OPA (Open Policy Agent) for policy-as-code enforcement
-- Run \`infracost\` to estimate cost impact of infrastructure changes before apply
-
----
-
-## Security Checklist
-
-- [ ] No hardcoded secrets in any .tf file
-- [ ] All sensitive variables marked with \`sensitive = true\`
-- [ ] State backend encrypted and access-controlled
-- [ ] .tfstate and .tfstate.backup in .gitignore
-- [ ] IAM policies follow least privilege — no wildcard \`*\` on Action or Resource
-- [ ] Security groups restrict access to required ports and sources only
-- [ ] All storage resources have encryption enabled (S3, EBS, RDS, DynamoDB)
-- [ ] S3 buckets block public access by default
-- [ ] Static analysis (tfsec/checkov) integrated in CI pipeline
-- [ ] Terraform plan output reviewed before apply on production
-- [ ] Critical resources have \`prevent_destroy = true\` lifecycle
+## Static Analysis
+- Run \`tfsec\` or \`checkov\` in CI before apply
+- Run \`tflint\` for provider-specific errors
+- Use Sentinel or OPA for policy-as-code enforcement
+- Run \`infracost\` for cost impact estimation
 `,
       },
       {
@@ -611,83 +159,26 @@ resource "aws_s3_bucket_public_access_block" "data" {
         description: 'Resource tagging strategy for cost allocation, ownership tracking, and operational management',
         content: `# Terraform Tagging Strategy
 
-## Why This Matters
-Consistent resource tagging enables cost allocation, ownership tracking, environment
-identification, compliance auditing, and automated operations. Untagged resources become
-orphaned, unattributable costs that are difficult to manage or clean up.
-
----
-
 ## Required Tags
-
 Every Terraform-managed resource MUST include these tags (via \`default_tags\` or module-level):
-
-| Tag Key | Purpose | Example Values |
-|---------|---------|----------------|
-| \`Project\` | Cost allocation and ownership | \`myapp\`, \`data-pipeline\` |
-| \`Environment\` | Environment identification | \`dev\`, \`staging\`, \`production\` |
-| \`ManagedBy\` | Identify management method | \`terraform\` |
-| \`Owner\` | Team or individual responsible | \`platform-team\`, \`backend-team\` |
+- **Project**: Cost allocation and ownership (e.g., \`myapp\`, \`data-pipeline\`)
+- **Environment**: Environment identification (\`dev\`, \`staging\`, \`production\`)
+- **ManagedBy**: Management method (\`terraform\`)
+- **Owner**: Team or individual responsible (\`platform-team\`, \`backend-team\`)
 
 ## Implementation
-
-### Correct — default_tags on provider + local common tags
-\`\`\`hcl
-# providers.tf
-provider "aws" {
-  region = var.region
-
-  default_tags {
-    tags = {
-      Project     = var.project_name
-      Environment = var.environment
-      ManagedBy   = "terraform"
-      Owner       = var.team_name
-    }
-  }
-}
-
-# locals.tf
-locals {
-  common_tags = {
-    Project     = var.project_name
-    Environment = var.environment
-    ManagedBy   = "terraform"
-    Owner       = var.team_name
-  }
-}
-\`\`\`
-
-### Anti-Pattern — inconsistent or missing tags
-\`\`\`hcl
-# BAD: some resources tagged, some not, inconsistent keys
-resource "aws_instance" "web" {
-  tags = {
-    Name = "web"
-    env  = "prod"  # lowercase, inconsistent with other resources
-  }
-}
-
-resource "aws_s3_bucket" "data" {
-  # No tags at all — orphaned cost, unknown ownership
-}
-\`\`\`
-
----
+- Use provider-level \`default_tags\` block to apply tags to all resources automatically
+- Define \`local.common_tags\` for resources that need explicit tag assignment
+- Keep tag keys consistent (PascalCase) across all resources
+- Never leave resources untagged — orphaned costs are unattributable
 
 ## Optional Tags
-
-| Tag Key | Purpose | Example Values |
-|---------|---------|----------------|
-| \`CostCenter\` | Financial attribution | \`CC-1234\`, \`engineering\` |
-| \`DataClassification\` | Security and compliance | \`public\`, \`internal\`, \`confidential\` |
-| \`BackupPolicy\` | Automated backup schedules | \`daily\`, \`weekly\`, \`none\` |
-| \`ExpirationDate\` | Temporary resource cleanup | \`2024-12-31\` |
-
----
+- **CostCenter**: Financial attribution (\`CC-1234\`, \`engineering\`)
+- **DataClassification**: Security and compliance (\`public\`, \`internal\`, \`confidential\`)
+- **BackupPolicy**: Automated backup schedules (\`daily\`, \`weekly\`, \`none\`)
+- **ExpirationDate**: Temporary resource cleanup (\`2024-12-31\`)
 
 ## Enforcement
-
 - Use AWS Organizations Tag Policies or Azure Policy to enforce required tags
 - Use \`tflint\` rules or custom Sentinel policies to verify tagging in CI
 - Run tag compliance reports regularly to identify untagged resources
@@ -839,6 +330,8 @@ resource "aws_s3_bucket" "data" {
       {
         name: 'terraform-scaffold',
         description: 'Generate a production-ready Terraform project structure with modules, backends, and variable definitions',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Terraform Scaffold
 
 Generate a complete, production-ready Terraform project structure including remote state,
@@ -988,7 +481,7 @@ Generate a README.md for each module with:
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/\\.tf$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];const lines=c.split(\'\\n\');for(const l of lines){if(/^\\s*(password|secret|api_key|token|private_key)\\s*=\\s*\"[^\"]+\"/.test(l)&&!/var\\./.test(l)&&!/data\\./.test(l)&&!/local\\./.test(l))issues.push(\'CRITICAL: Possible hardcoded secret: \'+l.trim());if(/^\\s*default\\s*=\\s*\"(sk-|AKIA|ghp_|password|secret)/.test(l))issues.push(\'CRITICAL: Secret in variable default: \'+l.trim())}if(/cidr_blocks\\s*=\\s*\\[\\s*\"0\\.0\\.0\\.0\\/0\"\\s*\\]/.test(c)){const m=c.match(/from_port\\s*=\\s*(\\d+)/g);if(m)for(const p of m){const port=p.match(/\\d+/)[0];if([\'3306\',\'5432\',\'27017\',\'6379\',\'6380\',\'9200\',\'11211\'].includes(port))issues.push(\'CRITICAL: Database/cache port \'+port+\' open to 0.0.0.0/0\')}}if(/Action\\s*=\\s*\"\\*\"/.test(c)&&/Resource\\s*=\\s*\"\\*\"/.test(c))issues.push(\'WARNING: IAM policy with Action=* Resource=* — overly permissive\');if(/variable\\s+\"[^\"]+\"\\s*\\{/.test(c)){const vars=c.match(/variable\\s+\"[^\"]+\"\\s*\\{[^}]*\\}/gs)||[];for(const v of vars){if(!/type\\s*=/.test(v))issues.push(\'INFO: Variable without type constraint: \'+v.match(/variable\\s+\"([^\"]+)\"/)[1]);if(!/description\\s*=/.test(v))issues.push(\'INFO: Variable without description: \'+v.match(/variable\\s+\"([^\"]+)\"/)[1])}}issues.forEach(i=>console.log(i))" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.tf$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];const lines=c.split(\'\\n\');for(const l of lines){if(/^\\s*(password|secret|api_key|token|private_key)\\s*=\\s*\"[^\"]+\"/.test(l)&&!/var\\./.test(l)&&!/data\\./.test(l)&&!/local\\./.test(l))issues.push(\'CRITICAL: Possible hardcoded secret: \'+l.trim());if(/^\\s*default\\s*=\\s*\"(sk-|AKIA|ghp_|password|secret)/.test(l))issues.push(\'CRITICAL: Secret in variable default: \'+l.trim())}if(/cidr_blocks\\s*=\\s*\\[\\s*\"0\\.0\\.0\\.0\\/0\"\\s*\\]/.test(c)){const m=c.match(/from_port\\s*=\\s*(\\d+)/g);if(m)for(const p of m){const port=p.match(/\\d+/)[0];if([\'3306\',\'5432\',\'27017\',\'6379\',\'6380\',\'9200\',\'11211\'].includes(port))issues.push(\'CRITICAL: Database/cache port \'+port+\' open to 0.0.0.0/0\')}}if(/Action\\s*=\\s*\"\\*\"/.test(c)&&/Resource\\s*=\\s*\"\\*\"/.test(c))issues.push(\'WARNING: IAM policy with Action=* Resource=* — overly permissive\');if(/variable\\s+\"[^\"]+\"\\s*\\{/.test(c)){const vars=c.match(/variable\\s+\"[^\"]+\"\\s*\\{[^}]*\\}/gs)||[];for(const v of vars){if(!/type\\s*=/.test(v))issues.push(\'INFO: Variable without type constraint: \'+v.match(/variable\\s+\"([^\"]+)\"/)[1]);if(!/description\\s*=/.test(v))issues.push(\'INFO: Variable without description: \'+v.match(/variable\\s+\"([^\"]+)\"/)[1])}}issues.forEach(i=>console.log(i))" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -997,7 +490,7 @@ Generate a README.md for each module with:
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/\\.tf$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/(publicly_accessible|public_access)\\s*=\\s*true/.test(c))console.log(\'WARNING: Resource has public access enabled — verify this is intentional\');if(/storage_encrypted\\s*=\\s*false/.test(c))console.log(\'WARNING: Storage encryption explicitly disabled\');if(/deletion_protection\\s*=\\s*false/.test(c)&&/production|prod/.test(f))console.log(\'WARNING: Deletion protection disabled on a production resource\')" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.tf$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/(publicly_accessible|public_access)\\s*=\\s*true/.test(c))console.log(\'WARNING: Resource has public access enabled — verify this is intentional\');if(/storage_encrypted\\s*=\\s*false/.test(c))console.log(\'WARNING: Storage encryption explicitly disabled\');if(/deletion_protection\\s*=\\s*false/.test(c)&&/production|prod/.test(f))console.log(\'WARNING: Deletion protection disabled on a production resource\')" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },

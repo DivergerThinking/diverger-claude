@@ -48,161 +48,29 @@ Declarative UI framework. View composition, data flow with property wrappers.
         content: `# SwiftUI View Composition & Data Flow
 
 ## View Structure Rules
-- Keep view body under 40 lines — extract sub-views as separate structs (not helper methods that return \`some View\`)
+- Keep view body under 40 lines — extract sub-views as separate structs (not helper methods)
 - One view per file — name the file after the view struct
 - Use \`Group\`, \`Section\`, and container views for layout — avoid deeply nested modifier chains
-- Pass required data via initializers — use environment only for app-wide or system values
+- Pass required data via initializers — use environment only for app-wide/system values
 - Use \`@ViewBuilder\` for custom container views that compose child views
 
-### Correct — extracted sub-view
-
-\`\`\`swift
-struct UserProfileView: View {
-    let user: User
-
-    var body: some View {
-        ScrollView {
-            ProfileHeader(user: user)
-            ProfileStats(stats: user.stats)
-            ProfileActions(userId: user.id)
-        }
-    }
-}
-
-struct ProfileHeader: View {
-    let user: User
-
-    var body: some View {
-        VStack(spacing: 12) {
-            AsyncImage(url: user.avatarURL) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                ProgressView()
-            }
-            .frame(width: 80, height: 80)
-            .clipShape(Circle())
-
-            Text(user.displayName)
-                .font(.title2.bold())
-        }
-    }
-}
-\`\`\`
-
-### Anti-Pattern — monolithic view body
-
-\`\`\`swift
-// BAD: 100+ line body, no extraction, hard to test or preview individually
-struct UserProfileView: View {
-    let user: User
-    var body: some View {
-        ScrollView {
-            VStack {
-                // 100+ lines of inline UI code mixing header, stats, actions
-                // Problem: impossible to preview sub-sections, violates SRP
-            }
-        }
-    }
-}
-\`\`\`
-
 ## Property Wrapper Selection
-
-| Scenario | Property Wrapper | Notes |
-|----------|-----------------|-------|
-| Local value state (Bool, String, Int) | \`@State private\` | Always mark \`private\` |
-| Pass state to child (two-way) | \`@Binding\` | Child does not own the data |
-| Shared reference model (iOS 17+) | \`@Observable\` class + \`@State\` or \`@Environment\` | Replaces ObservableObject |
-| Create binding to @Observable prop | \`@Bindable\` | Wraps @Observable for $ syntax |
-| System/app-wide value | \`@Environment(\\.key)\` | Color scheme, locale, modelContext |
-| Non-sensitive user preference | \`@AppStorage("key")\` | Backed by UserDefaults (plaintext) |
-| SwiftData fetch | \`@Query\` | Auto-updates on model changes |
-| Focus tracking | \`@FocusState\` | TextField focus management |
-
-### Correct — @Observable with @State ownership
-
-\`\`\`swift
-@Observable
-class ProfileViewModel {
-    var username = ""
-    var isLoading = false
-    var error: Error?
-
-    func loadProfile() async {
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            let profile = try await ProfileService.fetch()
-            username = profile.username
-        } catch {
-            self.error = error
-        }
-    }
-}
-
-struct ProfileView: View {
-    @State private var viewModel = ProfileViewModel()
-
-    var body: some View {
-        Group {
-            if viewModel.isLoading {
-                ProgressView()
-            } else {
-                Text(viewModel.username)
-            }
-        }
-        .task {
-            await viewModel.loadProfile()
-        }
-    }
-}
-\`\`\`
-
-### Anti-Pattern — wrong wrapper for owned state
-
-\`\`\`swift
-// BAD: @ObservedObject does not own the lifecycle — object may be recreated on re-render
-struct ProfileView: View {
-    @ObservedObject var viewModel = ProfileViewModel() // recreated every re-render!
-    // Fix: use @StateObject (pre-iOS 17) or @State with @Observable (iOS 17+)
-}
-\`\`\`
+- \`@State private\` — local value state (Bool, String, Int); always mark private
+- \`@Binding\` — pass state to child (two-way); child does not own the data
+- \`@Observable\` class + \`@State\` — shared reference model (iOS 17+); replaces ObservableObject
+- \`@Bindable\` — create binding to @Observable property ($ syntax)
+- \`@Environment(\\.key)\` — system/app-wide values (color scheme, locale, modelContext)
+- \`@AppStorage("key")\` — non-sensitive user preferences (plaintext UserDefaults)
+- \`@Query\` — SwiftData fetch (auto-updates on model changes)
+- \`@FocusState\` — TextField focus management
+- Never use \`@ObservedObject\` to create new instances — object is recreated on re-render
+- Use \`@StateObject\` (pre-iOS 17) or \`@State\` + \`@Observable\` (iOS 17+) for owned state
 
 ## Navigation
-
 - Always use \`NavigationStack\` with \`.navigationDestination(for:)\` — never deprecated \`NavigationView\`
 - Define routes as an enum conforming to \`Hashable\`
 - Use \`NavigationPath\` for programmatic navigation and deep linking
-
-### Correct — type-safe navigation
-
-\`\`\`swift
-enum AppRoute: Hashable {
-    case profile(userId: String)
-    case settings
-    case productDetail(productId: String)
-}
-
-struct ContentView: View {
-    @State private var path = NavigationPath()
-
-    var body: some View {
-        NavigationStack(path: $path) {
-            HomeView()
-                .navigationDestination(for: AppRoute.self) { route in
-                    switch route {
-                    case .profile(let userId):
-                        ProfileView(userId: userId)
-                    case .settings:
-                        SettingsView()
-                    case .productDetail(let productId):
-                        ProductDetailView(productId: productId)
-                    }
-                }
-        }
-    }
-}
-\`\`\`
+- Use \`NavigationLink(value:)\` with value-driven navigation, not \`NavigationLink(destination:)\`
 `,
       },
       {
@@ -213,82 +81,31 @@ struct ContentView: View {
         content: `# SwiftUI Performance & Rendering
 
 ## Body Evaluation
-- The \`body\` property is called frequently — it must be fast and side-effect-free
-- Never perform network calls, file I/O, or heavy computation in \`body\` — use \`.task\` or \`.onAppear\`
-- Break large views into smaller sub-views — SwiftUI only re-evaluates the sub-view whose state changed
-- Use \`@Observable\` (iOS 17+) for fine-grained updates — only properties actually read in body trigger re-evaluation
-- Add \`Equatable\` conformance to view structs to let SwiftUI skip unnecessary evaluations
-
-### Correct — task modifier for async work
-
-\`\`\`swift
-struct ProductListView: View {
-    @State private var products: [Product] = []
-    @State private var isLoading = true
-
-    var body: some View {
-        List(products) { product in
-            ProductRow(product: product)
-        }
-        .overlay {
-            if isLoading { ProgressView() }
-        }
-        .task {
-            // Called when view appears, cancelled when view disappears
-            do {
-                products = try await ProductService.fetchAll()
-            } catch {
-                // handle error
-            }
-            isLoading = false
-        }
-    }
-}
-\`\`\`
-
-### Anti-Pattern — side effects in body
-
-\`\`\`swift
-// BAD: body is called on every state change — this triggers infinite re-fetches
-var body: some View {
-    let _ = Task { products = try await fetchProducts() } // side effect in body!
-    List(products) { ProductRow(product: $0) }
-}
-\`\`\`
+- \`body\` is called frequently — must be fast and side-effect-free
+- Never perform network calls, file I/O, or heavy computation in \`body\` — use \`.task\` modifier
+- Break large views into smaller sub-views — SwiftUI only re-evaluates changed sub-views
+- Use \`@Observable\` (iOS 17+) for fine-grained updates — only read properties trigger re-evaluation
+- Never use \`Task { }\` inside body — causes infinite re-fetches on state changes
 
 ## List & Scroll Performance
-- Use \`List\` for large data sets — it provides cell recycling similar to UITableView
-- Use \`LazyVStack\` / \`LazyHStack\` inside \`ScrollView\` when \`List\` styling is not needed — they load views on demand
-- Do NOT use \`VStack\` / \`HStack\` for large collections — they instantiate ALL children immediately
-- Provide explicit \`id\` in \`ForEach\` using a stable, unique identifier — never use array indices
-- Use \`.task\` on the last visible item to implement pagination / infinite scroll
-- Prefer \`List\` over \`LazyVStack\` for very large datasets — \`List\` provides view recycling; \`LazyVStack\` creates and discards
-
-### Correct — LazyVStack with stable IDs
-
-\`\`\`swift
-ScrollView {
-    LazyVStack(spacing: 8) {
-        ForEach(items, id: \\.id) { item in
-            ItemRow(item: item)
-        }
-    }
-}
-\`\`\`
+- Use \`List\` for large data sets — provides cell recycling like UITableView
+- Use \`LazyVStack\`/\`LazyHStack\` in \`ScrollView\` when List styling is not needed
+- Do NOT use \`VStack\`/\`HStack\` for large collections — instantiates ALL children immediately
+- Provide explicit \`id\` in \`ForEach\` with stable unique identifiers — never array indices
+- Use \`.task\` on last visible item for pagination / infinite scroll
+- Prefer \`List\` over \`LazyVStack\` for very large datasets (view recycling vs create/discard)
 
 ## Image Performance
-- Use \`AsyncImage\` for remote images with placeholder and error states
-- Apply \`.resizable()\` and \`.aspectRatio(contentMode:)\` before \`.frame()\` for proper sizing
-- Use \`Image(systemName:)\` for SF Symbols — they scale with Dynamic Type automatically
-- Cache images appropriately — \`AsyncImage\` does not cache by default; use a caching library for production apps
+- Use \`AsyncImage\` with placeholder and error states for remote images
+- Apply \`.resizable()\` and \`.aspectRatio(contentMode:)\` before \`.frame()\`
+- Cache images appropriately — \`AsyncImage\` does not cache by default
 
 ## Animation Performance
 - Use \`withAnimation\` for state-driven animations
-- Always use \`.animation(.default, value: someValue)\` — never \`.animation(.default)\` without a value parameter
-- Use \`matchedGeometryEffect\` for shared element transitions between views
-- Use \`PhaseAnimator\` and \`KeyframeAnimator\` (iOS 17+) for multi-step animations
-- Limit animation scope — do not animate expensive views or entire large view hierarchies
-- Use \`.contentTransition(.numericText())\` for animated number changes
+- Always use \`.animation(.default, value: someValue)\` — never without value parameter
+- Use \`matchedGeometryEffect\` for shared element transitions
+- Use \`PhaseAnimator\`/\`KeyframeAnimator\` (iOS 17+) for multi-step animations
+- Limit animation scope — do not animate expensive views or entire hierarchies
 `,
       },
       {
@@ -299,64 +116,30 @@ ScrollView {
         content: `# SwiftUI Security & Data Protection
 
 ## Sensitive Data Storage
-- NEVER store tokens, passwords, API keys, or secrets in \`@AppStorage\` / UserDefaults — it is unencrypted plaintext
-- Use iOS Keychain Services for credentials and tokens — data is encrypted and tied to device security
-- Use \`kSecAttrAccessibleWhenUnlockedThisDeviceOnly\` for maximum protection (not synced to iCloud Keychain)
+- NEVER store tokens, passwords, API keys in \`@AppStorage\`/UserDefaults — unencrypted plaintext
+- Use iOS Keychain Services for credentials and tokens — encrypted, tied to device security
+- Use \`kSecAttrAccessibleWhenUnlockedThisDeviceOnly\` for maximum protection
 - Clear Keychain items on user logout
-- Use biometric authentication (Face ID / Touch ID) with \`LAContext\` to gate access to sensitive operations
-
-### Correct — Keychain storage
-
-\`\`\`swift
-import Security
-
-func storeToken(_ token: String, forAccount account: String) throws {
-    let data = Data(token.utf8)
-    let query: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrAccount as String: account,
-        kSecValueData as String: data,
-        kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-    ]
-    let status = SecItemAdd(query as CFDictionary, nil)
-    guard status == errSecSuccess || status == errSecDuplicateItem else {
-        throw KeychainError.unhandledError(status: status)
-    }
-}
-\`\`\`
-
-### Anti-Pattern — UserDefaults for secrets
-
-\`\`\`swift
-// BAD: UserDefaults is plaintext — readable by anyone with device access
-UserDefaults.standard.set(authToken, forKey: "authToken")
-// Also BAD: @AppStorage("authToken") — same underlying storage
-\`\`\`
+- Use biometric auth (Face ID/Touch ID) with \`LAContext\` to gate sensitive operations
 
 ## Network Security
-- Use HTTPS for ALL network requests — iOS App Transport Security (ATS) enforces this by default
-- NEVER disable ATS globally in Info.plist — configure exceptions only for specific legacy domains with justification
-- Implement certificate pinning for sensitive APIs (authentication, payments, health data)
-- Pin public key hashes rather than full certificates to allow certificate rotation
+- Use HTTPS for ALL requests — ATS enforces TLS 1.2+ with forward secrecy by default
+- NEVER disable ATS globally (\`NSAllowsArbitraryLoads = YES\`) — Apple may reject submissions
+- Configure ATS exceptions only for specific legacy domains with documented justification
+- Implement certificate pinning for sensitive APIs (auth, payments, health data)
+- Pin public key hashes rather than full certificates to allow rotation
 - Validate all server responses — do not trust data format or values from the network
 
-## App Transport Security
-- ATS is enabled by default — all connections must use TLS 1.2+ with forward secrecy
-- If you must add exceptions, document the reason in the Info.plist and in code review
-- Apple may reject App Store submissions with \`NSAllowsArbitraryLoads = YES\` without justification
-
 ## Code & Binary Security
-- Never hardcode API keys, secrets, or credentials in Swift source files — use Xcode configuration files or a secrets manager
-- Enable Bitcode and App Thinning for optimized, harder-to-reverse-engineer binaries
-- Use \`@_spi(Internal)\` or access control (\`internal\`, \`fileprivate\`) to limit API surface
-- Implement jailbreak detection for sensitive apps (banking, health) — but do not rely on it as sole defense
+- Never hardcode API keys or secrets in Swift source — use Xcode config files or secrets manager
+- Use access control (\`internal\`, \`fileprivate\`) to limit API surface
+- Implement jailbreak detection for sensitive apps — but not as sole defense
 - Validate all deep link URLs — malicious apps can craft URLs targeting your scheme
 
 ## Data Protection
-- Use the correct \`NSFileProtectionComplete\` class for sensitive files on disk
-- Implement proper data classification — PII, financial data, health data require different handling
-- Encrypt sensitive data at rest using CryptoKit — do not implement custom cryptography
-- Use \`URLSession\` with proper TLS configuration — do not disable certificate validation in production
+- Use \`NSFileProtectionComplete\` for sensitive files on disk
+- Encrypt sensitive data at rest using CryptoKit — never implement custom cryptography
+- Use \`URLSession\` with proper TLS config — never disable certificate validation in production
 `,
       },
       {
@@ -585,6 +368,8 @@ UserDefaults.standard.set(authToken, forKey: "authToken")
       {
         name: 'swiftui-view-generator',
         description: 'Generate a complete SwiftUI view with proper architecture, previews, and tests',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# SwiftUI View Generator
 
 Generate a complete SwiftUI view following Apple best practices:
@@ -741,7 +526,8 @@ struct RootNavigationView: View {
         hooks: [
           {
             type: 'command',
-            command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/NavigationView\\b/.test(c)&&!/\\/\\/.*NavigationView/.test(c))console.log(\'HOOK_EXIT:1:NavigationView is deprecated. Use NavigationStack or NavigationSplitView instead (available iOS 16+).\')" -- "$CLAUDE_FILE_PATH"',
+            statusMessage: 'Checking for deprecated NavigationView in SwiftUI code',
+            command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/NavigationView\\b/.test(c)&&!/\\/\\/.*NavigationView/.test(c)){console.error(\'NavigationView is deprecated. Use NavigationStack or NavigationSplitView instead (available iOS 16+).\');process.exit(2)}" -- "$FILE_PATH" || true',
             timeout: 5,
           },
         ],
@@ -752,7 +538,8 @@ struct RootNavigationView: View {
         hooks: [
           {
             type: 'command',
-            command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/\\.animation\\s*\\([^)]*\\)/.test(c)&&!/\\.animation\\s*\\([^,]+,\\s*value:/.test(c)&&!/\\/\\//.test(c.split(\'.animation\')[0].split(\'\\n\').pop()||\'\')){console.log(\'WARNING: .animation() without value: parameter detected. Use .animation(.default, value: someValue) to scope animations and avoid unexpected behavior.\')}" -- "$CLAUDE_FILE_PATH"',
+            statusMessage: 'Checking for .animation() without value: parameter in SwiftUI code',
+            command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/\\.animation\\s*\\([^)]*\\)/.test(c)&&!/\\.animation\\s*\\([^,]+,\\s*value:/.test(c)&&!/\\/\\//.test(c.split(\'.animation\')[0].split(\'\\n\').pop()||\'\')){console.error(\'WARNING: .animation() without value: parameter detected. Use .animation(.default, value: someValue) to scope animations and avoid unexpected behavior.\');process.exit(2)}" -- "$FILE_PATH" || true',
             timeout: 5,
           },
         ],
@@ -763,7 +550,8 @@ struct RootNavigationView: View {
         hooks: [
           {
             type: 'command',
-            command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@AppStorage/.test(c)&&/(token|password|secret|credential|apiKey|api_key|accessKey|refreshToken)/i.test(c))console.log(\'HOOK_EXIT:1:SECURITY: Storing sensitive data in @AppStorage (UserDefaults — unencrypted). Use Keychain Services instead.\')" -- "$CLAUDE_FILE_PATH"',
+            statusMessage: 'Checking for sensitive data in @AppStorage',
+            command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@AppStorage/.test(c)&&/(token|password|secret|credential|apiKey|api_key|accessKey|refreshToken)/i.test(c)){console.error(\'SECURITY: Storing sensitive data in @AppStorage (UserDefaults — unencrypted). Use Keychain Services instead.\');process.exit(2)}" -- "$FILE_PATH" || true',
             timeout: 5,
           },
         ],
@@ -774,7 +562,8 @@ struct RootNavigationView: View {
         hooks: [
           {
             type: 'command',
-            command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const lines=c.split(\'\\n\');let inBody=false,depth=0,bodyLines=0,maxBody=0;for(const l of lines){if(/var\\s+body\\s*:\\s*some\\s+View/.test(l)){inBody=true;depth=0;bodyLines=0}if(inBody){if(l.includes(\'{\'))depth++;if(l.includes(\'}\'))depth--;bodyLines++;if(depth===0&&bodyLines>1){if(bodyLines>maxBody)maxBody=bodyLines;inBody=false}}}if(maxBody>50)console.log(\'WARNING: View body is \'+maxBody+\' lines. Extract sub-views to keep body under 40 lines for readability and performance.\')" -- "$CLAUDE_FILE_PATH"',
+            statusMessage: 'Checking for oversized View body in SwiftUI code',
+            command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const lines=c.split(\'\\n\');let inBody=false,depth=0,bodyLines=0,maxBody=0;for(const l of lines){if(/var\\s+body\\s*:\\s*some\\s+View/.test(l)){inBody=true;depth=0;bodyLines=0}if(inBody){if(l.includes(\'{\'))depth++;if(l.includes(\'}\'))depth--;bodyLines++;if(depth===0&&bodyLines>1){if(bodyLines>maxBody)maxBody=bodyLines;inBody=false}}}if(maxBody>50){console.error(\'WARNING: View body is \'+maxBody+\' lines. Extract sub-views to keep body under 40 lines for readability and performance.\');process.exit(2)}" -- "$FILE_PATH" || true',
             timeout: 5,
           },
         ],

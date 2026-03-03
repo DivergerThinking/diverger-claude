@@ -1,5 +1,65 @@
-import type { Profile } from '../../../core/types.js';
+import type { Profile, HookScriptDefinition } from '../../../core/types.js';
 import { PROFILE_LAYERS } from '../../../core/types.js';
+import { makeFilePatternCheckScript } from '../../hook-script-templates.js';
+
+function buildTypescriptHookScripts(): HookScriptDefinition[] {
+  return [
+    {
+      filename: 'ts-any-check.sh',
+      isPreToolUse: false,
+      content: `#!/bin/bash
+# Warn on unqualified "any" types in TypeScript files
+INPUT=$(cat)
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+if [ -z "$FILE_PATH" ]; then exit 0; fi
+echo "$FILE_PATH" | grep -qE '\\.(ts|tsx)$' || exit 0
+if grep -nE "\\bany\\b" "$FILE_PATH" | grep -vE "(// eslint-disable|// @ts-|// any:|as any // justified)" | head -5 | grep -q "."; then
+  echo "Warning: file contains unqualified \\"any\\" types — consider using \\"unknown\\" with type guards" >&2
+  exit 2
+fi
+exit 0
+`,
+    },
+    {
+      filename: 'ts-ignore-check.sh',
+      isPreToolUse: false,
+      content: makeFilePatternCheckScript({
+        filename: 'ts-ignore-check.sh',
+        pattern: '@ts-ignore',
+        message: 'Warning: @ts-ignore found — prefer @ts-expect-error with description',
+        exitCode: 2,
+        fileExtensions: ['.ts', '.tsx'],
+      }),
+    },
+    {
+      filename: 'ts-catch-unknown.sh',
+      isPreToolUse: false,
+      content: `#!/bin/bash
+# Warn on catch blocks without :unknown type annotation
+INPUT=$(cat)
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+if [ -z "$FILE_PATH" ]; then exit 0; fi
+echo "$FILE_PATH" | grep -qE '\\.(ts|tsx)$' || exit 0
+if grep -nE "\\bcatch\\s*\\(\\w+\\)" "$FILE_PATH" | grep -vE ":\\s*unknown" | head -3 | grep -q "."; then
+  echo "Warning: catch block without explicit :unknown type annotation" >&2
+  exit 2
+fi
+exit 0
+`,
+    },
+    {
+      filename: 'ts-enum-check.sh',
+      isPreToolUse: false,
+      content: makeFilePatternCheckScript({
+        filename: 'ts-enum-check.sh',
+        pattern: '^\\s*enum\\s+',
+        message: 'Warning: enum declaration found — prefer const arrays with as const and derived union types',
+        exitCode: 2,
+        fileExtensions: ['.ts', '.tsx'],
+      }),
+    },
+  ];
+}
 
 export const typescriptProfile: Profile = {
   id: 'languages/typescript',
@@ -41,6 +101,247 @@ Strict TypeScript with maximum type safety. No \`any\`, prefer \`unknown\`. Disc
         description: 'TypeScript coding conventions and type safety rules',
         paths: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'],
         content: `# TypeScript Conventions
+
+## Type Safety Rules
+
+- **Never use \`any\`** — use \`unknown\` and narrow with type guards or \`instanceof\`
+- **Discriminated unions over boolean flags** — make states explicit, use exhaustive \`switch\` with \`never\` default
+- **Use \`satisfies\`** for type-safe assignments that preserve literal inference (not type annotations that widen)
+- **Use \`as const\` arrays instead of \`enum\`** — derive union types with \`(typeof ARR)[number]\`
+- **No type assertions (\`as T\`)** unless narrowing from \`unknown\` after validation
+
+## Import Rules
+
+- Use \`import type { ... }\` for type-only imports — avoids unnecessary runtime imports
+- Prefer named exports over default exports — ensures consistent import names
+- Group imports: node builtins, external packages, internal modules, type imports
+- Barrel exports (\`index.ts\`) only at package/module boundaries
+
+## Error Handling
+
+- Always use \`catch (err: unknown)\` — narrow with \`instanceof\` before accessing properties
+- Never assume caught values are \`Error\` — they can be any type
+
+## Null Safety
+
+- Use \`??\` (nullish coalescing) not \`||\` — avoids false positives on \`0\`, \`''\`, \`false\`
+- Use \`?.\` (optional chaining) for safe property access
+
+## Function Signatures
+
+- Explicit return types on all exported functions — prevents unintended type widening
+- Use \`Promise<T>\` return type on async exported functions
+- Prefer options objects over long parameter lists (3+ params)
+
+For detailed examples and reference, invoke: /ts-conventions-guide
+`,
+      },
+      {
+        path: 'typescript/naming-and-structure.md',
+        governance: 'recommended',
+        description: 'TypeScript naming conventions and project structure guidelines',
+        paths: ['**/*.ts', '**/*.tsx'],
+        content: `# TypeScript Naming & Project Structure
+
+## Naming Conventions
+
+| Construct | Convention | Example |
+|-----------|-----------|---------|
+| Variables, functions, methods | camelCase | \`getUserById\`, \`remainingRetries\` |
+| Classes, interfaces, type aliases | PascalCase | \`UserService\`, \`ApiResponse\` |
+| Constants (compile-time / env-level) | UPPER_SNAKE_CASE | \`MAX_RETRIES\`, \`API_BASE_URL\` |
+| Config objects, module-level constants | camelCase | \`defaultConfig\`, \`routeMap\` |
+| Generic type parameters | Single uppercase or T-prefix | \`T\`, \`K\`, \`TResponse\` |
+| Boolean variables | \`is\`, \`has\`, \`should\`, \`can\` prefix | \`isActive\`, \`hasPermission\` |
+| Private class members | no underscore prefix | \`private count\` (not \`_count\`) |
+
+## Interfaces and Types
+- No \`I\` prefix on interfaces: \`User\`, not \`IUser\`
+- No \`T\` prefix on type aliases (except generics): \`ApiResponse\`, not \`TApiResponse\`
+- Interfaces describe shapes; type aliases describe unions/compositions
+
+## Files and Directories
+- kebab-case for all file names: \`user-service.ts\`, \`api-client.ts\`
+- \`.ts\` for pure TS, \`.tsx\` only for JSX files
+- Test files: \`*.test.ts\` or \`*.spec.ts\` (consistent within project)
+- Barrel \`index.ts\` only at package/module boundaries
+
+## Project Structure
+- Prefer feature-based organization (colocate service, types, tests per feature)
+- Avoid layer-based organization (controllers/, services/) — scatters related code
+
+## Declaration Order Within a File
+1. Type imports (\`import type\`)
+2. Value imports (external packages)
+3. Value imports (internal modules)
+4. Type/interface declarations
+5. Constants
+6. Exported functions/classes
+7. Internal (non-exported) functions
+
+## Generic Type Parameters
+- Simple generics: single uppercase letter (\`T\`, \`K\`, \`V\`)
+- Complex generics: descriptive T-prefixed name (\`TInput\`, \`TOutput\`)
+
+For detailed examples and reference, invoke: /ts-naming-guide
+`,
+      },
+      {
+        path: 'typescript/async-patterns.md',
+        governance: 'recommended',
+        description: 'TypeScript async/await patterns and Promise handling',
+        paths: ['**/*.ts', '**/*.tsx'],
+        content: `# TypeScript Async Patterns
+
+## Rules
+
+- **Always await or return Promises** — never fire-and-forget; unhandled rejections crash at runtime
+- **Use \`Promise.all\`** for independent concurrent operations — avoids sequential slowdown
+- **Use \`Promise.allSettled\`** when partial failure is acceptable — inspect rejected results
+- **Type async return values explicitly** — \`Promise<T>\` on exported async functions
+- **Avoid unnecessary \`async\`** — do not mark functions \`async\` if they never \`await\`
+- **Use \`async/await\`** over \`.then()\` chains for readability
+- **Handle race conditions** — use AbortController or cancellation flags in effects/fetches
+- **No floating Promises** — every Promise must be awaited, returned, or explicitly voided with \`void promise\`
+
+For detailed examples and reference, invoke: /ts-async-guide
+`,
+      },
+    ],
+    agents: [
+      {
+        name: 'ts-reviewer',
+        type: 'define',
+        model: 'sonnet',
+        description: 'Reviews TypeScript code for type safety, modern patterns, and best practices',
+        prompt: `You are a TypeScript code reviewer. Reference concrete line numbers.
+
+## Checklist
+1. **Type Safety**: no \`any\` (use \`unknown\`+narrow), \`catch (err: unknown)\`, explicit return types, \`satisfies\` over \`as T\`, exhaustive switches with \`never\`
+2. **Modern Patterns**: \`??\` not \`||\`, \`?.\`, \`as const\` arrays not \`enum\`, \`import type\`, \`satisfies\`
+3. **Async**: no fire-and-forget Promises, \`Promise.all\` for independent ops, no unnecessary \`async\`
+4. **Imports**: grouped (node → external → internal → types), named exports, no circular deps
+
+## Output: CRITICAL | WARNING | SUGGESTION | POSITIVE — explain WHY.
+
+For detailed rules, invoke: /ts-conventions-guide`,
+        skills: ['typescript-module-scaffold', 'ts-conventions-guide'],
+      },
+      {
+        name: 'test-writer',
+        type: 'enrich',
+        prompt: `## TypeScript Testing Guidelines
+- Use proper TypeScript types for fixtures and mocks — avoid \`any\` in tests
+- Test type guards, discriminated unions, error paths, null/undefined edges, and async flows
+- Do not use \`as any\` to bypass types — create proper typed fixtures
+- Only mock I/O boundaries (network, filesystem, database)`,
+      },
+      {
+        name: 'security-reviewer',
+        type: 'enrich',
+        prompt: `## TypeScript Security Review
+- No \`any\` that bypasses input validation — \`JSON.parse()\` typed as \`unknown\`
+- No \`Object.assign(target, untrustedInput)\` — prototype pollution risk
+- Use \`Map<K,V>\` for user-controlled keys
+- All external data validated with schema library (zod, valibot) or type guards
+- No \`eval()\`, \`new Function()\`, \`exec()\` with user input — use \`execFile()\` with args
+- No \`@ts-ignore\` to silence security-relevant type errors`,
+      },
+      {
+        name: 'refactor-assistant',
+        type: 'enrich',
+        skills: ['typescript-module-scaffold'],
+        prompt: `## TypeScript Refactoring Patterns
+- Replace \`any\` with \`unknown\` + type guards
+- Replace boolean flags with discriminated unions
+- Replace string enums with \`as const\` arrays and derived union types
+- Replace \`as T\` with type guards or \`satisfies\`
+- Replace \`||\` with \`??\`, \`.then()\` with \`async/await\`, sequential awaits with \`Promise.all\``,
+      },
+    ],
+    skills: [
+      {
+        name: 'typescript-module-scaffold',
+        description: 'Scaffold a new TypeScript module with types, implementation, tests, and barrel export',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
+        content: `# TypeScript Module Scaffold Skill
+
+## When to Use
+When creating a new feature module with its type definitions, implementation, unit tests,
+and exports. This ensures consistent structure across the codebase.
+
+## Steps
+
+### 1. Create the type definitions file
+\`\`\`typescript
+// src/{feature}/{feature}.types.ts
+export interface {Feature}Config {
+  // Configuration options
+}
+
+export interface {Feature}Result {
+  // Return type
+}
+
+export type {Feature}Error =
+  | { code: 'NOT_FOUND'; message: string }
+  | { code: 'VALIDATION'; message: string; field: string }
+  | { code: 'INTERNAL'; message: string; cause?: Error };
+\`\`\`
+
+### 2. Create the implementation file
+\`\`\`typescript
+// src/{feature}/{feature}.service.ts
+import type { {Feature}Config, {Feature}Result, {Feature}Error } from './{feature}.types.js';
+
+export function create{Feature}(config: {Feature}Config): {Feature}Result {
+  // Implementation
+}
+\`\`\`
+
+### 3. Create the test file
+\`\`\`typescript
+// src/{feature}/{feature}.test.ts
+import { describe, it, expect } from 'vitest'; // or jest
+import { create{Feature} } from './{feature}.service.js';
+import type { {Feature}Config } from './{feature}.types.js';
+
+describe('create{Feature}', () => {
+  it('should handle valid input', () => {
+    const config: {Feature}Config = { /* ... */ };
+    const result = create{Feature}(config);
+    expect(result).toBeDefined();
+  });
+
+  it('should throw on invalid input', () => {
+    expect(() => create{Feature}(null as any)).toThrow();
+  });
+});
+\`\`\`
+
+### 4. Create barrel export (only at module boundary)
+\`\`\`typescript
+// src/{feature}/index.ts
+export type { {Feature}Config, {Feature}Result, {Feature}Error } from './{feature}.types.js';
+export { create{Feature} } from './{feature}.service.js';
+\`\`\`
+
+## Checklist
+- [ ] Types file created with all public interfaces
+- [ ] Implementation file imports types with \`import type\`
+- [ ] Test file covers happy path, edge cases, and error cases
+- [ ] Barrel export re-exports only the public API
+- [ ] All exported functions have explicit return types
+- [ ] File names use kebab-case
+`,
+      },
+      {
+        name: 'ts-conventions-guide',
+        description: 'Detailed reference for TypeScript type safety conventions with examples',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# TypeScript Conventions — Detailed Reference
 
 ## Why This Matters
 TypeScript's type system prevents bugs at compile time, but only when used correctly.
@@ -290,11 +591,11 @@ export function calculateTotal(items: CartItem[]) {
 `,
       },
       {
-        path: 'typescript/naming-and-structure.md',
-        governance: 'recommended',
-        description: 'TypeScript naming conventions and project structure guidelines',
-        paths: ['**/*.ts', '**/*.tsx'],
-        content: `# TypeScript Naming & Project Structure
+        name: 'ts-naming-guide',
+        description: 'Detailed reference for TypeScript naming conventions and project structure',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# TypeScript Naming & Project Structure — Detailed Reference
 
 ## Why This Matters
 Consistent naming and structure eliminate ambiguity, reduce cognitive load when navigating
@@ -406,11 +707,11 @@ function transform<A, B>(input: A, fn: (val: A) => B): B {
 `,
       },
       {
-        path: 'typescript/async-patterns.md',
-        governance: 'recommended',
-        description: 'TypeScript async/await patterns and Promise handling',
-        paths: ['**/*.ts', '**/*.tsx'],
-        content: `# TypeScript Async Patterns
+        name: 'ts-async-guide',
+        description: 'Detailed reference for TypeScript async/await patterns and Promise handling',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# TypeScript Async Patterns — Detailed Reference
 
 ## Why This Matters
 Incorrect async handling is one of the most common sources of runtime bugs in TypeScript
@@ -519,190 +820,6 @@ function add(a: number, b: number): number {
 `,
       },
     ],
-    agents: [
-      {
-        name: 'code-reviewer',
-        type: 'enrich',
-        skills: ['typescript-module-scaffold'],
-        prompt: `## TypeScript-Specific Review Checklist
-
-### Type Safety
-- [ ] No \`any\` types — every \`any\` must be replaced with \`unknown\` and narrowed via type guards, \`typeof\`, \`instanceof\`, or discriminated union checks
-- [ ] All catch blocks handle \`unknown\` (not implicit \`any\`) — narrow before accessing properties
-- [ ] Exported functions have explicit return types
-- [ ] No type assertions (\`as T\`) that bypass safety — prefer type guards or \`satisfies\`
-- [ ] \`readonly\` used on properties/arrays that should not be mutated
-- [ ] Discriminated unions have exhaustive \`switch\` with \`never\` default case
-
-### Modern TypeScript Patterns
-- [ ] Uses \`??\` instead of \`||\` for default values (avoid false-positive on 0, '', false)
-- [ ] Uses \`?.\` for optional property access instead of manual null checks
-- [ ] Uses \`satisfies\` where a type annotation would widen the inferred type
-- [ ] Uses \`as const\` arrays/objects instead of \`enum\` for string literal sets
-- [ ] Uses \`import type\` for type-only imports
-- [ ] No \`enum\` unless there is a specific reason (runtime object needed, numeric bitflags)
-
-### Async & Promises
-- [ ] No fire-and-forget Promises (missing \`await\` or \`.catch()\`)
-- [ ] Independent async operations use \`Promise.all\` not sequential \`await\`
-- [ ] No unnecessary \`async\` on functions that do not \`await\` anything
-
-### Imports & Structure
-- [ ] Imports grouped: node built-ins -> external packages -> internal modules -> types
-- [ ] Named exports used (no default exports)
-- [ ] No circular imports between modules`,
-      },
-      {
-        name: 'test-writer',
-        type: 'enrich',
-        prompt: `## TypeScript Testing Guidelines
-
-### Type-Safe Testing
-- Use proper TypeScript types for test fixtures, mocks, and stubs — avoid \`any\` in tests too
-- Type mock implementations using the original interface (e.g., \`vi.fn<Parameters<typeof fn>, ReturnType<typeof fn>>()\`)
-- Use \`satisfies\` for test fixture data to validate it matches the expected type while keeping literal inference
-- Test generic functions with multiple concrete type arguments to verify polymorphic behavior
-
-### What to Test in TypeScript Code
-- Test type guard functions (\`isUser()\`, \`isAdmin()\`) with both matching and non-matching inputs
-- Test discriminated union handling — ensure all variants are covered
-- Test error paths — verify typed error classes are thrown with correct properties
-- Test null/undefined edge cases — especially with \`strictNullChecks\` enabled
-- Test async functions: success, failure, timeout, and concurrent (\`Promise.all\`) paths
-
-### Anti-Patterns in Tests
-- Do not use \`as any\` to bypass types in test data — create proper typed fixtures
-- Do not test TypeScript compiler behavior (e.g., "this should not compile") — that is the compiler's job
-- Do not over-mock: only mock I/O boundaries (network, filesystem, database)`,
-      },
-      {
-        name: 'security-checker',
-        type: 'enrich',
-        prompt: `## TypeScript Security Review
-
-### Type-Level Risks
-- [ ] No \`any\` types that bypass input validation — \`any\` from external data (API responses, user input, JSON.parse) is a common injection vector
-- [ ] \`JSON.parse()\` results typed as \`unknown\`, not cast directly to a trusted type
-- [ ] Template literals used in SQL/HTML are parameterized or sanitized — \`\`\`\${userInput}\`\`\` in queries is injection
-
-### Prototype and Object Safety
-- [ ] No \`Object.assign(target, untrustedInput)\` without validation — prototype pollution risk
-- [ ] No property access on objects from external sources without validation (\`obj[userKey]\`)
-- [ ] Use \`Map<K,V>\` instead of plain objects for user-controlled keys to avoid prototype collisions
-
-### Runtime Validation
-- [ ] All external data (API responses, file reads, env vars) is validated at the boundary using a schema library (zod, valibot, io-ts) or manual type guards
-- [ ] \`eval()\`, \`new Function()\`, and \`vm.runInNewContext()\` are never used with user input
-- [ ] \`child_process.exec()\` commands do not include unsanitized user input — use \`execFile()\` with argument arrays
-
-### Dependency Hygiene
-- [ ] No use of \`@ts-ignore\` or \`@ts-expect-error\` to silence security-relevant type errors
-- [ ] Dependencies from \`@types/\` packages are version-locked alongside their runtime counterparts`,
-      },
-      {
-        name: 'refactor-assistant',
-        type: 'enrich',
-        skills: ['typescript-module-scaffold'],
-        prompt: `## TypeScript Refactoring Patterns
-
-### Type System Refactorings
-- Replace \`any\` with \`unknown\` + type guards — the single highest-value refactoring in TypeScript
-- Replace boolean flags with discriminated unions (e.g., \`isLoading: boolean\` -> \`status: 'idle' | 'loading' | 'success' | 'error'\`)
-- Replace string enums with \`as const\` arrays and derived union types
-- Extract repeated type unions into named type aliases
-- Replace type assertions (\`as T\`) with type guards or \`satisfies\`
-- Replace \`interface\` used for unions/intersections with \`type\` (use each for its strengths)
-
-### Code Modernization
-- Replace \`||\` with \`??\` for default values
-- Replace manual null checks with \`?.\`
-- Replace \`.then()/.catch()\` chains with \`async/await\`
-- Replace \`Object.keys(obj).forEach\` with \`for...of\` over \`Object.entries()\`
-- Replace index signatures (\`{ [key: string]: T }\`) with \`Record<string, T>\`
-- Replace sequential awaits with \`Promise.all\` for independent operations
-
-### Migration Awareness
-- When upgrading to TypeScript 5.4+: leverage \`NoInfer<T>\` to control inference
-- When upgrading to TypeScript 5.5+: remove manual type predicates where the compiler now infers them
-- When enabling \`noUncheckedIndexedAccess\`: add null checks or use \`Map.get()\` patterns`,
-      },
-    ],
-    skills: [
-      {
-        name: 'typescript-module-scaffold',
-        description: 'Scaffold a new TypeScript module with types, implementation, tests, and barrel export',
-        content: `# TypeScript Module Scaffold Skill
-
-## When to Use
-When creating a new feature module with its type definitions, implementation, unit tests,
-and exports. This ensures consistent structure across the codebase.
-
-## Steps
-
-### 1. Create the type definitions file
-\`\`\`typescript
-// src/{feature}/{feature}.types.ts
-export interface {Feature}Config {
-  // Configuration options
-}
-
-export interface {Feature}Result {
-  // Return type
-}
-
-export type {Feature}Error =
-  | { code: 'NOT_FOUND'; message: string }
-  | { code: 'VALIDATION'; message: string; field: string }
-  | { code: 'INTERNAL'; message: string; cause?: Error };
-\`\`\`
-
-### 2. Create the implementation file
-\`\`\`typescript
-// src/{feature}/{feature}.service.ts
-import type { {Feature}Config, {Feature}Result, {Feature}Error } from './{feature}.types.js';
-
-export function create{Feature}(config: {Feature}Config): {Feature}Result {
-  // Implementation
-}
-\`\`\`
-
-### 3. Create the test file
-\`\`\`typescript
-// src/{feature}/{feature}.test.ts
-import { describe, it, expect } from 'vitest'; // or jest
-import { create{Feature} } from './{feature}.service.js';
-import type { {Feature}Config } from './{feature}.types.js';
-
-describe('create{Feature}', () => {
-  it('should handle valid input', () => {
-    const config: {Feature}Config = { /* ... */ };
-    const result = create{Feature}(config);
-    expect(result).toBeDefined();
-  });
-
-  it('should throw on invalid input', () => {
-    expect(() => create{Feature}(null as any)).toThrow();
-  });
-});
-\`\`\`
-
-### 4. Create barrel export (only at module boundary)
-\`\`\`typescript
-// src/{feature}/index.ts
-export type { {Feature}Config, {Feature}Result, {Feature}Error } from './{feature}.types.js';
-export { create{Feature} } from './{feature}.service.js';
-\`\`\`
-
-## Checklist
-- [ ] Types file created with all public interfaces
-- [ ] Implementation file imports types with \`import type\`
-- [ ] Test file covers happy path, edge cases, and error cases
-- [ ] Barrel export re-exports only the public API
-- [ ] All exported functions have explicit return types
-- [ ] File names use kebab-case
-`,
-      },
-    ],
     hooks: [
       {
         event: 'PostToolUse',
@@ -710,9 +827,9 @@ export { create{Feature} } from './{feature}.service.js';
         hooks: [
           {
             type: 'command',
-            command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.(ts|tsx)$" && grep -nE "\\bany\\b" "$CLAUDE_FILE_PATH" | grep -vE "(// eslint-disable|// @ts-|// any:|as any // justified)" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: file contains unqualified \\"any\\" types — consider using \\"unknown\\" with type guards" || true',
+            command: 'bash .claude/hooks/ts-any-check.sh',
             timeout: 10,
+            statusMessage: 'Checking for any types...',
           },
         ],
       },
@@ -722,9 +839,9 @@ export { create{Feature} } from './{feature}.service.js';
         hooks: [
           {
             type: 'command',
-            command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.(ts|tsx)$" && grep -nE "@ts-ignore" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: @ts-ignore found — prefer @ts-expect-error with description (auto-removed when error is fixed)" || true',
+            command: 'bash .claude/hooks/ts-ignore-check.sh',
             timeout: 5,
+            statusMessage: 'Checking for @ts-ignore...',
           },
         ],
       },
@@ -734,9 +851,9 @@ export { create{Feature} } from './{feature}.service.js';
         hooks: [
           {
             type: 'command',
-            command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.(ts|tsx)$" && grep -nE "\\bcatch\\s*\\(\\w+\\)" "$CLAUDE_FILE_PATH" | grep -vE ":\\s*unknown" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: catch block without explicit :unknown type annotation — enable useUnknownInCatchVariables or annotate manually" || true',
+            command: 'bash .claude/hooks/ts-catch-unknown.sh',
             timeout: 5,
+            statusMessage: 'Checking catch block types...',
           },
         ],
       },
@@ -746,13 +863,14 @@ export { create{Feature} } from './{feature}.service.js';
         hooks: [
           {
             type: 'command',
-            command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.(ts|tsx)$" && grep -nE "^\\s*enum\\s+" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: enum declaration found — prefer const arrays with as const and derived union types" || true',
+            command: 'bash .claude/hooks/ts-enum-check.sh',
             timeout: 5,
+            statusMessage: 'Checking for enum declarations...',
           },
         ],
       },
     ],
+    hookScripts: buildTypescriptHookScripts(),
     externalTools: [
       {
         type: 'tsconfig',

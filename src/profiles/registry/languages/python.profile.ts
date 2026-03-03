@@ -50,13 +50,6 @@ PEP 8 style, type hints mandatory (PEP 484/604). Prefer pathlib, f-strings, data
         description: 'Python coding conventions aligned with PEP 8, PEP 484, PEP 257',
         content: `# Python Coding Conventions
 
-## Why This Matters
-Python's philosophy ("Readability counts", "Explicit is better than implicit") demands
-consistent style and strong typing. These conventions are derived from PEP 8, PEP 484,
-PEP 257, and community-established best practices enforced by Ruff and mypy.
-
----
-
 ## Naming Conventions (PEP 8)
 
 | Element | Convention | Example |
@@ -66,236 +59,49 @@ PEP 257, and community-established best practices enforced by Ruff and mypy.
 | Classes | PascalCase | \`UserService\`, \`HTTPClient\` |
 | Type variables | PascalCase, short | \`T\`, \`KT\`, \`VT\`, \`ResponseT\` |
 | Private attributes | single leading underscore | \`_internal_cache\` |
-| Name-mangled attributes | double leading underscore | \`__private\` (rarely needed) |
 | Module-level dunder | double underscore both sides | \`__all__\`, \`__version__\` |
 
-### Correct
-\`\`\`python
-MAX_RETRY_COUNT = 3
-DEFAULT_TIMEOUT_SECONDS = 30
+## Type Hints (PEP 484 / PEP 604)
 
-class UserRepository:
-    def __init__(self, db_session: Session) -> None:
-        self._session = db_session
-
-    def find_by_email(self, email: str) -> User | None:
-        return self._session.query(User).filter_by(email=email).first()
-\`\`\`
-
-### Anti-Pattern
-\`\`\`python
-# Bad: inconsistent naming, no type hints, magic numbers
-maxRetry = 3  # camelCase instead of snake_case
-class userRepo:  # lowercase class name
-    def find(self, e):  # single-letter param, no return type
-        return self.s.query(User).filter_by(email=e).first()
-\`\`\`
-
----
-
-## Type Hints (PEP 484 / PEP 604 / PEP 695)
-
-### Mandatory Annotations
 - Every function must have parameter types AND return type annotated
 - Use \`-> None\` explicitly for functions that return nothing
-- Use \`from __future__ import annotations\` for forward reference support and modern syntax
-
-### Correct
-\`\`\`python
-from __future__ import annotations
-from collections.abc import Sequence
-from typing import TypeAlias
-
-UserId: TypeAlias = int
-UserMap: TypeAlias = dict[str, User]
-
-def get_active_users(
-    users: Sequence[User],
-    min_activity: int = 10,
-) -> list[User]:
-    return [u for u in users if u.activity_count >= min_activity]
-
-def find_user(user_id: UserId) -> User | None:
-    """Return user if found, None otherwise."""
-    ...
-
-async def fetch_data(url: str, *, timeout: float = 30.0) -> dict[str, Any]:
-    ...
-\`\`\`
-
-### Anti-Pattern
-\`\`\`python
-# Bad: missing annotations, using deprecated typing constructs
-from typing import Optional, List, Dict, Union
-
-def get_active_users(users, min_activity=10):  # no type hints
-    return [u for u in users if u.activity_count >= min_activity]
-
-def find_user(user_id) -> Optional[User]:  # use X | None instead
-    ...
-
-def process(data: Union[str, bytes]):  # use str | bytes instead
-    ...
-\`\`\`
-
----
+- Use \`from __future__ import annotations\` for forward reference support
+- Use \`X | None\` instead of \`Optional[X]\`, \`X | Y\` instead of \`Union[X, Y]\`
+- Use \`collections.abc\` types (\`Sequence\`, \`Mapping\`) over \`typing\` equivalents
+- Use \`TypeAlias\` for complex type aliases, \`TypedDict\` for typed dictionaries
 
 ## Docstrings (PEP 257)
 
-### Rules
 - Every public module, class, and function must have a docstring
-- Use triple double quotes (\`"""..."""\`)
-- One-line docstrings: opening and closing quotes on the same line
-- Multi-line docstrings: summary line, blank line, then details
-- Use Google-style or NumPy-style docstring format consistently within a project
-
-### Correct
-\`\`\`python
-def calculate_discount(
-    order: Order,
-    coupon: Coupon | None = None,
-) -> Decimal:
-    """Calculate the total discount for an order.
-
-    Applies the base discount rate from the order's tier, then
-    layers any coupon discount on top. Discounts do not stack
-    beyond the maximum allowed by policy.
-
-    Args:
-        order: The order to calculate discount for.
-        coupon: Optional coupon to apply.
-
-    Returns:
-        The discount amount as a Decimal, never negative.
-
-    Raises:
-        ValueError: If the order has no items.
-    """
-    ...
-\`\`\`
-
-### Anti-Pattern
-\`\`\`python
-# Bad: restates the function signature, missing structure
-def calculate_discount(order, coupon=None):
-    '''this function calculates discount'''  # single quotes, no structure, no types
-    ...
-\`\`\`
-
----
+- Use triple double quotes (\`"""..."""\`), Google-style or NumPy-style consistently
+- One-line docstrings on same line; multi-line: summary, blank line, details
+- Include Args, Returns, Raises sections for public functions
 
 ## Error Handling
 
-### Rules
 - Catch specific exception types — never bare \`except:\` or \`except Exception:\` without re-raising
-- Define custom exception classes inheriting from a project-level base exception
+- Define custom exceptions inheriting from a project-level base exception
 - Include context in error messages: what failed, which input, what state
 - Use \`raise ... from err\` to preserve the exception chain
-- Use \`logging\` module for errors — never \`print()\` in production code
-- Use \`contextlib.suppress()\` only for truly ignorable exceptions
-
-### Correct
-\`\`\`python
-class UserNotFoundError(AppError):
-    """Raised when a user lookup fails."""
-    def __init__(self, user_id: int) -> None:
-        super().__init__(f"User {user_id} not found")
-        self.user_id = user_id
-
-async def get_user(user_id: int) -> User:
-    try:
-        user = await user_repo.find_by_id(user_id)
-    except DatabaseError as err:
-        logger.error("Failed to fetch user %d: %s", user_id, err)
-        raise UserNotFoundError(user_id) from err
-    if user is None:
-        raise UserNotFoundError(user_id)
-    return user
-\`\`\`
-
-### Anti-Pattern
-\`\`\`python
-# Bad: bare except, swallowed error, print instead of logging
-def get_user(user_id):
-    try:
-        return user_repo.find_by_id(user_id)
-    except:  # catches everything including KeyboardInterrupt
-        print("error")  # no context, swallowed, uses print
-        return None  # caller has no idea what went wrong
-\`\`\`
-
----
+- Use \`logging\` module — never \`print()\` in production code
 
 ## Project Structure
 
-### Recommended Layout
-\`\`\`
-project/
-  pyproject.toml          # Project metadata, dependencies, tool config
-  src/
-    mypackage/
-      __init__.py
-      models/             # Domain models (dataclasses, Pydantic)
-      services/           # Business logic
-      repositories/       # Data access
-      api/                # API routes/endpoints
-      utils/              # Shared utilities
-      exceptions.py       # Custom exceptions
-      config.py           # Configuration loading
-  tests/
-    conftest.py           # Shared fixtures
-    unit/                 # Unit tests mirroring src/ structure
-    integration/          # Integration tests
-\`\`\`
-
-### Rules
-- Use the src layout (\`src/mypackage/\`) — prevents accidental imports of the development version
-- Put all project metadata, dependencies, and tool config in \`pyproject.toml\` (PEP 621)
-- Use \`__init__.py\` to control public API — define \`__all__\` for explicit exports
-- Separate concerns: models, services, repositories, API handlers in distinct modules
+- Use src layout (\`src/mypackage/\`) with \`pyproject.toml\` (PEP 621)
+- Define \`__all__\` in \`__init__.py\` for explicit public API
+- Separate concerns: models, services, repositories, API in distinct modules
 - Keep \`__init__.py\` files minimal — no business logic
-
----
 
 ## Security
 
-### Python-Specific Vulnerabilities
-- NEVER use \`eval()\`, \`exec()\`, or \`compile()\` with untrusted input
-- NEVER use \`pickle\` to deserialize untrusted data — use JSON, MessagePack, or Protobuf
+- NEVER use \`eval()\`, \`exec()\`, \`compile()\` with untrusted input
+- NEVER use \`pickle\` to deserialize untrusted data — use JSON or Protobuf
 - NEVER use \`os.system()\` or \`subprocess.run(shell=True)\` with user input
-- Use \`subprocess.run()\` with a list of args (not a shell string) for command execution
+- Use \`subprocess.run()\` with a list of args (not shell string)
 - Use \`secrets\` module for cryptographic randomness — not \`random\`
-- Use \`hashlib\` with \`sha256\` or \`sha3_256\` — never \`md5\` or \`sha1\` for security
-- Validate and sanitize all external input — URL params, form data, file uploads
+- Use \`hashlib\` with \`sha256\`+ — never \`md5\` or \`sha1\` for security
 - Use \`defusedxml\` for XML parsing to prevent XXE attacks
 - Use parameterized queries — never f-string or \`%\` formatting for SQL
-
-### Correct
-\`\`\`python
-import subprocess
-import secrets
-
-# Safe: argument list, no shell=True
-result = subprocess.run(
-    ["git", "log", "--oneline", "-n", "10"],
-    capture_output=True, text=True, check=True,
-)
-
-# Safe: cryptographic randomness
-token = secrets.token_urlsafe(32)
-\`\`\`
-
-### Anti-Pattern
-\`\`\`python
-import os
-import random
-
-# Dangerous: shell injection via user input
-os.system(f"git log --oneline -n {user_input}")
-
-# Dangerous: predictable randomness for security token
-token = ''.join(random.choices('abcdef0123456789', k=32))
-\`\`\`
 `,
       },
       {
@@ -305,256 +111,47 @@ token = ''.join(random.choices('abcdef0123456789', k=32))
         description: 'Advanced Python type hints, protocols, and modern patterns',
         content: `# Python Type Hints & Modern Patterns
 
-## Why This Matters
-Python's type system enables catching bugs at development time, improving code
-navigation, and making refactoring safe. Combined with mypy/pyright, it provides
-TypeScript-level safety while retaining Python's expressiveness.
-
----
-
 ## Type Checking Configuration
 
-### mypy (pyproject.toml)
-\`\`\`toml
-[tool.mypy]
-python_version = "3.12"
-strict = true
-warn_return_any = true
-warn_unreachable = true
-disallow_untyped_defs = true
-disallow_any_explicit = false
-no_implicit_reexport = true
-
-[[tool.mypy.overrides]]
-module = "third_party_lib.*"
-ignore_missing_imports = true
-\`\`\`
-
-### pyright (pyproject.toml)
-\`\`\`toml
-[tool.pyright]
-pythonVersion = "3.12"
-typeCheckingMode = "strict"
-reportMissingTypeStubs = "warning"
-\`\`\`
-
----
+- Enable strict mode in mypy (\`strict = true\`) or pyright (\`typeCheckingMode = "strict"\`)
+- Use \`disallow_untyped_defs\`, \`warn_return_any\`, \`warn_unreachable\` in mypy
+- Add \`[[tool.mypy.overrides]]\` for third-party libs missing type stubs
 
 ## Advanced Type Patterns
 
-### Protocol — Structural Subtyping
-Use \`Protocol\` for duck typing with type safety. Prefer over ABC when you only
-care about the interface, not the inheritance chain.
-
-\`\`\`python
-from typing import Protocol, runtime_checkable
-
-@runtime_checkable
-class Renderable(Protocol):
-    def render(self) -> str: ...
-
-class HtmlWidget:
-    def render(self) -> str:
-        return "<div>widget</div>"
-
-def display(item: Renderable) -> None:
-    print(item.render())
-
-# HtmlWidget satisfies Renderable without inheriting from it
-display(HtmlWidget())  # OK
-\`\`\`
-
-### TypeVar — Generic Functions
-\`\`\`python
-from typing import TypeVar
-from collections.abc import Sequence
-
-T = TypeVar("T")
-
-def first(items: Sequence[T]) -> T | None:
-    return items[0] if items else None
-\`\`\`
-
-### Overload — Multiple Signatures
-\`\`\`python
-from typing import overload
-
-@overload
-def parse(data: str) -> dict[str, Any]: ...
-@overload
-def parse(data: bytes) -> dict[str, Any]: ...
-
-def parse(data: str | bytes) -> dict[str, Any]:
-    if isinstance(data, bytes):
-        data = data.decode("utf-8")
-    return json.loads(data)
-\`\`\`
-
-### TypedDict — Typed Dictionaries
-\`\`\`python
-from typing import TypedDict, NotRequired
-
-class UserPayload(TypedDict):
-    name: str
-    email: str
-    age: NotRequired[int]
-
-def create_user(payload: UserPayload) -> User:
-    ...
-\`\`\`
-
-### Literal — Constrained Values
-\`\`\`python
-from typing import Literal
-
-LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-
-def configure_logging(level: LogLevel) -> None:
-    ...
-\`\`\`
-
-### Final — Immutable Bindings
-\`\`\`python
-from typing import Final
-
-MAX_CONNECTIONS: Final = 100
-API_VERSION: Final[str] = "v2"
-\`\`\`
-
----
+- **Protocol**: Use for structural subtyping (duck typing with safety). Prefer over ABC when only interface matters
+- **TypeVar**: Use for generic functions: \`T = TypeVar("T")\`
+- **Overload**: Use \`@overload\` to express multiple call signatures for the same function
+- **TypedDict**: Use for typed dictionaries with known keys (replaces \`Dict[str, Any]\`)
+- **Literal**: Use for constrained string/int values: \`Literal["DEBUG", "INFO"]\`
+- **Final**: Use for immutable bindings: \`MAX_CONNECTIONS: Final = 100\`
+- **Unpack + TypedDict**: Use for typed \`**kwargs\` (PEP 692, Python 3.12+)
 
 ## Dataclasses vs Pydantic
 
-### Use \`@dataclass\` for Internal Data
-\`\`\`python
-from dataclasses import dataclass, field
-
-@dataclass(frozen=True, slots=True)
-class Coordinate:
-    latitude: float
-    longitude: float
-
-@dataclass(slots=True)
-class UserConfig:
-    name: str
-    max_retries: int = 3
-    tags: list[str] = field(default_factory=list)
-\`\`\`
-
-### Use Pydantic for External Data / Validation
-\`\`\`python
-from pydantic import BaseModel, Field, field_validator
-
-class CreateUserRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-    email: str
-    age: int = Field(ge=0, le=150)
-
-    @field_validator("email")
-    @classmethod
-    def validate_email(cls, v: str) -> str:
-        if "@" not in v:
-            raise ValueError("Invalid email format")
-        return v.lower()
-\`\`\`
-
----
+- Use \`@dataclass(frozen=True, slots=True)\` for internal immutable data
+- Use \`@dataclass(slots=True)\` with \`field(default_factory=...)\` for mutable containers
+- Use Pydantic \`BaseModel\` for external data that needs validation (API input, config files)
+- Use \`field_validator\` for custom validation logic on Pydantic models
 
 ## Context Managers
 
-### When to Use
-- File I/O, database connections, network sockets, locks, temporary resources
-- Any object that needs deterministic cleanup
+- Use \`with\` / \`async with\` for all resource management (files, connections, locks)
+- Use \`@contextmanager\` / \`@asynccontextmanager\` for custom context managers
+- Any object needing deterministic cleanup should be a context manager
 
-### Custom Context Manager
-\`\`\`python
-from contextlib import contextmanager
-from typing import Generator
+## Dependency Injection
 
-@contextmanager
-def database_transaction(session: Session) -> Generator[Session, None, None]:
-    try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-# Usage
-with database_transaction(get_session()) as session:
-    session.add(new_user)
-\`\`\`
-
----
-
-## Dependency Injection Pattern
-\`\`\`python
-from typing import Protocol
-
-class EmailSender(Protocol):
-    async def send(self, to: str, subject: str, body: str) -> None: ...
-
-class UserService:
-    def __init__(self, repo: UserRepository, email: EmailSender) -> None:
-        self._repo = repo
-        self._email = email
-
-    async def register(self, name: str, email: str) -> User:
-        user = await self._repo.create(name=name, email=email)
-        await self._email.send(
-            to=email,
-            subject="Welcome",
-            body=f"Hello {name}!",
-        )
-        return user
-\`\`\`
-
----
+- Use \`Protocol\` to define service interfaces for dependency injection
+- Accept dependencies as constructor parameters — not global state
+- Inject \`Protocol\`-typed abstractions, not concrete implementations
 
 ## Performance Patterns
 
-### Use Generators for Large Data
-\`\`\`python
-# Good: processes one line at a time, constant memory
-def read_large_csv(path: Path) -> Generator[dict[str, str], None, None]:
-    with path.open() as f:
-        reader = csv.DictReader(f)
-        yield from reader
-
-# Bad: loads entire file into memory
-def read_large_csv_bad(path: Path) -> list[dict[str, str]]:
-    with path.open() as f:
-        return list(csv.DictReader(f))
-\`\`\`
-
-### Use \`__slots__\` for Memory-Efficient Classes
-\`\`\`python
-# Good: ~40% less memory per instance
-@dataclass(slots=True)
-class Point:
-    x: float
-    y: float
-
-# Or manually for non-dataclass
-class Connection:
-    __slots__ = ("host", "port", "_socket")
-    def __init__(self, host: str, port: int) -> None:
-        self.host = host
-        self.port = port
-\`\`\`
-
-### Use \`functools.lru_cache\` / \`functools.cache\` for Memoization
-\`\`\`python
-from functools import lru_cache
-
-@lru_cache(maxsize=256)
-def fibonacci(n: int) -> int:
-    if n < 2:
-        return n
-    return fibonacci(n - 1) + fibonacci(n - 2)
-\`\`\`
+- Use generators (\`yield\`) for large data — process one item at a time, constant memory
+- Use \`@dataclass(slots=True)\` or manual \`__slots__\` for memory-efficient classes
+- Use \`functools.lru_cache\` / \`functools.cache\` for memoization of pure functions
+- Use \`collections.abc\` types for function signatures (\`Sequence\`, \`Mapping\`, \`Iterable\`)
 `,
       },
       {
@@ -564,82 +161,36 @@ def fibonacci(n: int) -> int:
         description: 'Python async/await patterns and structured concurrency',
         content: `# Python Async Patterns
 
-## Why This Matters
-Modern Python applications (web APIs, data pipelines, CLI tools) benefit from
-async I/O for throughput. Incorrect async patterns cause subtle bugs: event loop
-blocking, resource leaks, and race conditions.
-
----
-
 ## Structured Concurrency (Python 3.11+)
 
-### Correct: TaskGroup
-\`\`\`python
-import asyncio
-
-async def fetch_all_users(user_ids: list[int]) -> list[User]:
-    results: list[User] = []
-
-    async with asyncio.TaskGroup() as tg:
-        for uid in user_ids:
-            tg.create_task(fetch_user(uid))
-
-    # All tasks complete or all are cancelled on first exception
-    return results
-\`\`\`
-
-### Anti-Pattern: Unstructured gather
-\`\`\`python
-# Bad: exceptions in one task don't cancel others, harder to reason about
-results = await asyncio.gather(*[fetch_user(uid) for uid in user_ids])
-# If one task raises, behavior depends on return_exceptions flag — error-prone
-\`\`\`
-
----
+- Use \`asyncio.TaskGroup\` for concurrent tasks — all complete or all cancel on first exception
+- Prefer \`TaskGroup\` over \`asyncio.gather\` for safer error propagation
+- Never use bare \`create_task()\` without tracking the task reference
 
 ## Async Context Managers
-\`\`\`python
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
-@asynccontextmanager
-async def get_db_connection() -> AsyncGenerator[Connection, None]:
-    conn = await create_connection()
-    try:
-        yield conn
-    finally:
-        await conn.close()
-
-async def query_users() -> list[User]:
-    async with get_db_connection() as conn:
-        return await conn.fetch_all("SELECT * FROM users")
-\`\`\`
-
----
+- Use \`@asynccontextmanager\` for async resource management (connections, sessions)
+- Always \`await conn.close()\` in \`finally\` blocks
+- Use \`async with\` for all async resources
 
 ## Blocking Code in Async Context
-\`\`\`python
-import asyncio
-from pathlib import Path
 
-# Correct: offload blocking I/O to thread pool
-async def read_config(path: Path) -> str:
-    return await asyncio.to_thread(path.read_text)
+- NEVER call blocking I/O (file reads, \`time.sleep\`, sync HTTP) inside async functions
+- Offload blocking I/O to thread pool: \`await asyncio.to_thread(blocking_func)\`
+- Use \`run_in_executor\` for more control over the thread pool
 
-# Anti-pattern: blocking the event loop
-async def read_config_bad(path: Path) -> str:
-    return path.read_text()  # blocks the entire event loop
-\`\`\`
+## Timeout and Cancellation
 
----
+- Use \`async with asyncio.timeout(seconds):\` for clean timeout handling (Python 3.11+)
+- Handle \`TimeoutError\` explicitly at the caller
+- Respect cancellation — check \`asyncio.current_task().cancelled()\` in long loops
 
-## Timeout Pattern
-\`\`\`python
-async def fetch_with_timeout(url: str) -> Response:
-    async with asyncio.timeout(30):
-        return await http_client.get(url)
-    # Raises TimeoutError after 30 seconds — clean cancellation
-\`\`\`
+## Anti-Patterns
+
+- Never block the event loop with synchronous I/O
+- Never use \`asyncio.gather\` without understanding \`return_exceptions\` behavior
+- Never mix completion callbacks and async/await in the same API layer
+- Never ignore the return value of \`create_task()\` — store it to prevent GC
 `,
       },
     ],
@@ -780,6 +331,8 @@ Then attach VS Code with a "Python: Remote Attach" launch configuration.
       {
         name: 'python-project-scaffold',
         description: 'Scaffold a new Python package with modern tooling (pyproject.toml, src layout, Ruff, mypy)',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Python Project Scaffold Skill
 
 ## Scaffold Steps
@@ -877,8 +430,9 @@ uv pip install -e ".[dev]"
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.py$" && grep -nE "^(import pickle|from pickle import|eval\\(|exec\\(|os\\.system\\(|__import__\\()" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:1:Dangerous Python pattern detected (pickle/eval/exec/os.system) — use safe alternatives" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "^(import pickle|from pickle import|eval\\(|exec\\(|os\\.system\\(|__import__\\()" "$FILE_PATH" && { echo "Dangerous Python pattern detected (pickle/eval/exec/os.system) — use safe alternatives" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for dangerous Python patterns',
           },
         ],
       },
@@ -889,8 +443,9 @@ uv pip install -e ".[dev]"
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.py$" && grep -nE "(yaml\\.load\\(|yaml\\.unsafe_load\\()" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:1:Unsafe YAML loading detected — use yaml.safe_load() instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "(yaml\\.load\\(|yaml\\.unsafe_load\\()" "$FILE_PATH" && { echo "Unsafe YAML loading detected — use yaml.safe_load() instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for unsafe YAML loading',
           },
         ],
       },
@@ -901,8 +456,9 @@ uv pip install -e ".[dev]"
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.py$" && grep -nE "subprocess\\.(run|call|Popen)\\(.*shell\\s*=\\s*True" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:0:Warning: subprocess with shell=True detected — verify no user input reaches the command" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "subprocess\\.(run|call|Popen)\\(.*shell\\s*=\\s*True" "$FILE_PATH" && { echo "Warning: subprocess with shell=True detected — verify no user input reaches the command" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for subprocess shell=True usage',
           },
         ],
       },
@@ -913,8 +469,9 @@ uv pip install -e ".[dev]"
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.py$" && grep -cE "^def [a-zA-Z_]+\\([^)]*\\)\\s*:" "$CLAUDE_FILE_PATH" | grep -qvE "^0$" && grep -nE "^def [a-zA-Z_]+\\([^)]*\\)\\s*:" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:0:Warning: function(s) without return type annotation detected — add -> ReturnType" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -cE "^def [a-zA-Z_]+\\([^)]*\\)\\s*:" "$FILE_PATH" | grep -qvE "^0$" && grep -nE "^def [a-zA-Z_]+\\([^)]*\\)\\s*:" "$FILE_PATH" && { echo "Warning: function(s) without return type annotation detected — add -> ReturnType" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for missing return type annotations',
           },
         ],
       },

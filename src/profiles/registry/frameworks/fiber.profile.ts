@@ -43,250 +43,35 @@ Express-inspired Go framework built on fasthttp. High throughput, familiar API.
         content: `# Fiber Routing & Middleware
 
 ## Route Organization
-- Group related routes under a common prefix using app.Group()
-- Apply authentication middleware at the group level with group.Use()
+- Group related routes with \`app.Group()\`, apply auth middleware at the group level
 - Register specific routes before wildcards — Fiber matches in declaration order
-- Use RESTful conventions: Get for reads, Post for creates, Put/Patch for updates, Delete for deletes
-- Keep handler functions small — extract data from Ctx, call services, write response
-- Name routes for URL generation: app.Get("/users", handler).Name("list-users")
-- Never add routes dynamically after app.Listen() — Fiber's router is not designed for runtime modification
+- Name routes for URL generation: \`app.Get("/users", handler).Name("list-users")\`
+- Never add routes dynamically after \`app.Listen()\`
 
-### Correct
-\`\`\`go
-func RegisterUserRoutes(app *fiber.App, h *UserHandler, auth fiber.Handler) {
-    users := app.Group("/api/v1/users")
-    users.Use(auth)
-
-    users.Get("/", h.List).Name("list-users")
-    users.Get("/:id", h.GetByID).Name("get-user")
-    users.Post("/", h.Create).Name("create-user")
-    users.Put("/:id", h.Update).Name("update-user")
-    users.Delete("/:id", h.Delete).Name("delete-user")
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`go
-// Bad: flat routes without grouping, auth applied per-route, no naming
-app.Get("/api/v1/users", authMiddleware, listUsers)
-app.Get("/api/v1/users/:id", authMiddleware, getUser)
-app.Post("/api/v1/users", authMiddleware, createUser)
-// Problem: duplicated prefix, duplicated middleware, easy to forget auth on new routes
-\`\`\`
-
----
-
-## Middleware Patterns
-- All middleware uses the fiber.Handler signature: func(c fiber.Ctx) error (v3) or func(c *fiber.Ctx) error (v2)
-- Call c.Next() to proceed to the next handler in the chain
-- Use built-in middleware from gofiber/fiber/middleware: recover, logger, cors, limiter, helmet, compress, cache, requestid, idempotency
-- Configure middleware with config structs: cors.New(cors.Config{AllowOrigins: "https://example.com"})
-- Order middleware: recover -> requestid -> logger -> helmet -> CORS -> compress -> rate-limit -> auth -> handlers
-- Create middleware factories that return fiber.Handler for configurable middleware
-
-### Correct
-\`\`\`go
-app := fiber.New(fiber.Config{
-    AppName:      "my-api",
-    ErrorHandler: customErrorHandler,
-})
-
-// Middleware ordering: recover first to catch panics, then observability, then security
-app.Use(recover.New())
-app.Use(requestid.New())
-app.Use(logger.New(logger.Config{
-    Format: "\${time} | \${status} | \${latency} | \${method} \${path} | \${reqHeader:X-Request-ID}\\n",
-}))
-app.Use(helmet.New())
-app.Use(cors.New(cors.Config{
-    AllowOrigins: "https://example.com",
-    AllowMethods: "GET,POST,PUT,DELETE",
-    AllowHeaders: "Origin,Content-Type,Authorization",
-}))
-app.Use(compress.New())
-app.Use(limiter.New(limiter.Config{
-    Max:        100,
-    Expiration: 1 * time.Minute,
-}))
-\`\`\`
-
-### Anti-Pattern
-\`\`\`go
-// Bad: recover not first, missing helmet, limiter before CORS
-app.Use(logger.New())
-app.Use(limiter.New())
-app.Use(cors.New())
-app.Use(recover.New()) // Problem: panics in logger/limiter/cors won't be caught
-\`\`\`
-
----
+## Middleware
+- Middleware signature: \`func(c fiber.Ctx) error\` (v3) or \`func(c *fiber.Ctx) error\` (v2)
+- Use built-in middleware: recover, logger, cors, limiter, helmet, compress, requestid
+- Order: recover -> requestid -> logger -> helmet -> CORS -> compress -> rate-limit -> auth -> handlers
+- Recover middleware must be FIRST — Fiber does NOT recover panics by default
+- Configure via config structs: \`cors.New(cors.Config{...})\`
 
 ## Request Parsing & Validation
-- Use c.Bind().Body() (v3) or c.BodyParser() (v2) for automatic body parsing based on Content-Type
-- Use c.Params() for path parameters, c.Query() / c.QueryInt() / c.QueryBool() for query parameters
-- Configure a StructValidator in fiber.Config to integrate go-playground/validator for automatic struct validation
-- Return 400 with descriptive validation errors on parsing or validation failure
-- Copy any fasthttp-sourced values (params, query, body bytes) if needed beyond the handler scope
-
-### Correct — v3 with StructValidator
-\`\`\`go
-import "github.com/go-playground/validator/v10"
-
-type structValidator struct {
-    validate *validator.Validate
-}
-
-func (v *structValidator) Validate(out any) error {
-    return v.validate.Struct(out)
-}
-
-app := fiber.New(fiber.Config{
-    StructValidator: &structValidator{validate: validator.New()},
-})
-
-type CreateUserRequest struct {
-    Name  string \`json:"name" validate:"required,min=2,max=100"\`
-    Email string \`json:"email" validate:"required,email"\`
-}
-
-func (h *UserHandler) Create(c fiber.Ctx) error {
-    var req CreateUserRequest
-    if err := c.Bind().Body(&req); err != nil {
-        return fiber.NewError(fiber.StatusBadRequest, err.Error())
-    }
-    // req is already validated by StructValidator
-    user, err := h.service.Create(c.Context(), req.Name, req.Email)
-    if err != nil {
-        return fmt.Errorf("create user: %w", err)
-    }
-    return c.Status(fiber.StatusCreated).JSON(user)
-}
-\`\`\`
-
-### Correct — v2 with manual validation
-\`\`\`go
-func (h *UserHandler) Create(c *fiber.Ctx) error {
-    var req CreateUserRequest
-    if err := c.BodyParser(&req); err != nil {
-        return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
-    }
-    if err := h.validator.Struct(req); err != nil {
-        return fiber.NewError(fiber.StatusBadRequest, formatValidationErrors(err))
-    }
-    user, err := h.service.Create(c.Context(), req.Name, req.Email)
-    if err != nil {
-        return fmt.Errorf("create user: %w", err)
-    }
-    return c.Status(fiber.StatusCreated).JSON(user)
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`go
-func createUser(c *fiber.Ctx) error {
-    var req CreateUserRequest
-    c.BodyParser(&req)          // Bad: error ignored
-    // No validation at all
-    db.Create(&req)             // Bad: direct DB access in handler, unvalidated input
-    return c.JSON(req)          // Bad: returns raw request as response
-}
-\`\`\`
-
----
+- Use \`c.Bind().Body()\` (v3) or \`c.BodyParser()\` (v2) for body parsing
+- Configure \`StructValidator\` in \`fiber.Config\` for automatic go-playground/validator integration
+- Always check parsing and validation errors — return 400 with descriptive messages
+- Copy fasthttp-sourced values (\`c.Body()\`, \`c.Params()\`, \`c.Query()\`) before passing to goroutines — buffers are reused
 
 ## Error Handling
-- Return errors from handlers — Fiber's ErrorHandler processes all returned errors centrally
-- Use fiber.NewError(code, message) for HTTP-level errors with specific status codes
-- Configure a custom ErrorHandler in fiber.Config for consistent error response formatting
-- Add the Recover middleware to catch panics — Fiber does NOT recover from panics by default
-- Define a standard error response struct with code, message, and optional details
-- Never expose internal error details (stack traces, SQL queries) to clients in production
-
-### Correct
-\`\`\`go
-// Standard error response shape
-type ErrorResponse struct {
-    Code    int    \`json:"code"\`
-    Message string \`json:"message"\`
-}
-
-func customErrorHandler(c fiber.Ctx, err error) error {
-    code := fiber.StatusInternalServerError
-    message := "internal server error"
-
-    var fiberErr *fiber.Error
-    if errors.As(err, &fiberErr) {
-        code = fiberErr.Code
-        message = fiberErr.Message
-    }
-
-    slog.ErrorContext(c.Context(), "request error",
-        slog.Int("status", code),
-        slog.String("method", c.Method()),
-        slog.String("path", c.Path()),
-        slog.String("error", err.Error()),
-    )
-
-    return c.Status(code).JSON(ErrorResponse{
-        Code:    code,
-        Message: message,
-    })
-}
-
-app := fiber.New(fiber.Config{
-    ErrorHandler: customErrorHandler,
-})
-\`\`\`
-
-### Anti-Pattern
-\`\`\`go
-func getUser(c *fiber.Ctx) error {
-    user, err := service.GetUser(c.Params("id"))
-    if err != nil {
-        // Bad: exposes internal error, inconsistent response shape, no logging
-        return c.Status(500).SendString(err.Error())
-    }
-    return c.JSON(user)
-}
-\`\`\`
-
----
+- Return errors from handlers — Fiber's \`ErrorHandler\` processes them centrally
+- Use \`fiber.NewError(code, message)\` for HTTP-level errors
+- Configure custom \`ErrorHandler\` in \`fiber.Config\` for consistent JSON error responses
+- Standard shape: \`{"code": int, "message": "..."}\`
+- Log errors server-side — never expose internal details to clients
 
 ## fasthttp Considerations
-- fasthttp reuses request/response byte buffers across connections for performance
-- Do NOT store references to c.Body(), c.Params(), c.Query(), c.FormValue() beyond handler return — they will be overwritten
-- Use copy(dst, src) for byte slices or string() conversion to retain values for goroutines or async operations
-- net/http middleware and handlers are NOT directly compatible — use the fiber adaptor package for interop
-- Some third-party libraries expecting net/http (e.g., pprof, Prometheus) require the adaptor
-
-### Correct
-\`\`\`go
-func (h *Handler) ProcessAsync(c fiber.Ctx) error {
-    // Copy param before passing to goroutine — fasthttp reuses the buffer
-    userID := string(c.Params("id"))
-    body := make([]byte, len(c.Body()))
-    copy(body, c.Body())
-
-    go func() {
-        // Safe: userID and body are independent copies
-        h.processor.Process(context.Background(), userID, body)
-    }()
-
-    return c.SendStatus(fiber.StatusAccepted)
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`go
-func (h *Handler) ProcessAsync(c fiber.Ctx) error {
-    go func() {
-        // DANGER: c.Params("id") and c.Body() point to reused buffers
-        // By the time this goroutine runs, the data may belong to another request
-        h.processor.Process(context.Background(), c.Params("id"), c.Body())
-    }()
-    return c.SendStatus(fiber.StatusAccepted)
-}
-\`\`\`
+- fasthttp reuses byte buffers across connections — never store references to \`c.Body()\`, \`c.Params()\`, \`c.Query()\` beyond handler return
+- Use \`copy()\` for byte slices or \`string()\` conversion when passing to goroutines
+- net/http middleware is NOT compatible — use the fiber adaptor package for interop
 `,
       },
       {
@@ -297,179 +82,34 @@ func (h *Handler) ProcessAsync(c fiber.Ctx) error {
         content: `# Fiber Project Structure & Lifecycle
 
 ## Recommended Layout
-- \`/cmd/api/main.go\` — Application entry point: wire dependencies, configure Fiber, start listener
-- \`/internal/handler/\` — HTTP handlers (Fiber-specific): extract from Ctx, call services, write response
-- \`/internal/service/\` — Business logic (framework-agnostic): pure Go, no Fiber imports
-- \`/internal/repository/\` — Data access layer: database, cache, external APIs
-- \`/internal/middleware/\` — Custom Fiber middleware
-- \`/internal/model/\` — Domain models and DTOs (request/response structs with json + validate tags)
-- \`/internal/config/\` — Configuration loading (env vars, config files)
-- \`/pkg/\` — Reusable library code for external consumption
-
-### Correct
-\`\`\`
-cmd/
-  api/main.go
-internal/
-  handler/
-    user.go           # UserHandler struct with Fiber handlers
-    user_test.go      # Handler integration tests with app.Test()
-    routes.go         # RegisterRoutes(app, handlers)
-  service/
-    user.go           # UserService with business logic (no Fiber imports)
-    user_test.go      # Unit tests with mocked repository
-  repository/
-    user.go           # UserRepository (database access)
-    user_test.go
-  middleware/
-    auth.go           # Custom JWT auth middleware
-    ratelimit.go      # Custom rate-limit per user
-  model/
-    user.go           # User, CreateUserRequest, UserResponse
-  config/
-    config.go         # AppConfig struct, LoadFromEnv()
-\`\`\`
-
-### Anti-Pattern
-\`\`\`
-main.go             # Everything in one file
-handlers.go         # All handlers in one file
-db.go               # Global database connection
-# Problem: no separation of concerns, untestable, global mutable state
-\`\`\`
-
----
+- \`cmd/api/main.go\` — Entry point: wire deps, configure Fiber, start listener
+- \`internal/handler/\` — HTTP handlers (Fiber-specific) + \`routes.go\` for route registration
+- \`internal/service/\` — Business logic (framework-agnostic, no Fiber imports)
+- \`internal/repository/\` — Data access layer
+- \`internal/middleware/\` — Custom Fiber middleware
+- \`internal/model/\` — Domain models and DTOs (json + validate tags)
+- \`internal/config/\` — Configuration loading
 
 ## Handler Pattern
-- Create handler structs that accept service interfaces via constructors
-- Handlers extract data from fiber.Ctx, call services, and write the response — nothing else
-- Never import Fiber in service or repository packages — keep services framework-agnostic
-- Register routes in a dedicated function: func RegisterRoutes(app *fiber.App, h *UserHandler)
+- Create handler structs accepting service interfaces via constructors
+- Handlers: extract from \`fiber.Ctx\`, call services, write response — nothing else
+- Define service interfaces in the handler package (consumer-side)
+- Never import Fiber in service or repository packages
+- Register routes in a dedicated function: \`RegisterRoutes(app, handler)\`
+- Map domain errors to \`fiber.NewError()\` — wrap unexpected errors with \`fmt.Errorf\`
 
-### Correct
-\`\`\`go
-// internal/handler/user.go
-type UserHandler struct {
-    service UserService // interface, not concrete type
-}
+## fiber.Config
+- Set AppName, ErrorHandler, StructValidator (v3), ReadTimeout, WriteTimeout, IdleTimeout, BodyLimit
+- Use Prefork cautiously — in-memory state is NOT shared across worker processes
 
-// UserService — defined in handler package (consumer-side interface)
-type UserService interface {
-    Create(ctx context.Context, name, email string) (*model.User, error)
-    GetByID(ctx context.Context, id string) (*model.User, error)
-}
+## Graceful Shutdown
+- Handle SIGINT/SIGTERM with \`signal.Notify\`, call \`app.ShutdownWithContext(ctx)\`
+- Register OnPreShutdown/OnPostShutdown hooks for cleanup (close DB, flush buffers)
+- Never just call \`app.Listen()\` without shutdown handling
 
-func NewUserHandler(svc UserService) *UserHandler {
-    return &UserHandler{service: svc}
-}
-
-func (h *UserHandler) GetByID(c fiber.Ctx) error {
-    id := c.Params("id")
-    user, err := h.service.GetByID(c.Context(), id)
-    if err != nil {
-        if errors.Is(err, service.ErrNotFound) {
-            return fiber.NewError(fiber.StatusNotFound, "user not found")
-        }
-        return fmt.Errorf("get user %s: %w", id, err)
-    }
-    return c.JSON(user)
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`go
-// Bad: handler directly accesses database, no service layer, imports gorm in handler
-func GetUser(c *fiber.Ctx) error {
-    var user User
-    db.First(&user, c.Params("id"))  // Bad: global db, no error handling, no service
-    return c.JSON(user)
-}
-\`\`\`
-
----
-
-## Configuration & Lifecycle
-
-### fiber.Config
-- Set AppName for identification in logs and monitoring
-- Configure ErrorHandler for centralized error responses
-- Set StructValidator for automatic request validation (v3)
-- Set ReadTimeout, WriteTimeout, and IdleTimeout for production hardening
-- Use BodyLimit to cap request body size (default 4MB)
-- Use Prefork cautiously — it spawns multiple processes; shared mutable state (in-memory caches) will NOT be shared between processes
-
-### Correct
-\`\`\`go
-app := fiber.New(fiber.Config{
-    AppName:         "my-api v1.0.0",
-    ErrorHandler:    customErrorHandler,
-    StructValidator: &structValidator{validate: validator.New()},
-    ReadTimeout:     5 * time.Second,
-    WriteTimeout:    10 * time.Second,
-    IdleTimeout:     120 * time.Second,
-    BodyLimit:       2 * 1024 * 1024, // 2 MB
-})
-\`\`\`
-
-### Graceful Shutdown
-- Use signal handling with app.ShutdownWithContext() for graceful shutdown
-- Register OnPreShutdown and OnPostShutdown hooks for cleanup (close DB connections, flush buffers)
-- In v3, OnShutdown is replaced by OnPreShutdown + OnPostShutdown
-
-### Correct
-\`\`\`go
-func main() {
-    app := fiber.New(fiber.Config{...})
-
-    app.Hooks().OnPreShutdown(func() error {
-        slog.Info("server shutting down, closing connections...")
-        return nil
-    })
-    app.Hooks().OnPostShutdown(func(err error) error {
-        if err != nil {
-            slog.Error("shutdown error", slog.String("error", err.Error()))
-        }
-        slog.Info("server stopped")
-        return nil
-    })
-
-    // Start server in goroutine
-    go func() {
-        if err := app.Listen(":3000"); err != nil {
-            slog.Error("server error", slog.String("error", err.Error()))
-        }
-    }()
-
-    // Wait for interrupt signal
-    quit := make(chan os.Signal, 1)
-    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-    <-quit
-
-    // Graceful shutdown with 10-second timeout
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
-    if err := app.ShutdownWithContext(ctx); err != nil {
-        slog.Error("forced shutdown", slog.String("error", err.Error()))
-    }
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`go
-func main() {
-    app := fiber.New()
-    // ...
-    app.Listen(":3000") // Bad: no graceful shutdown, connections dropped on SIGTERM
-}
-\`\`\`
-
----
-
-## Static Files & Templates
-- Use app.Static() for serving static files from a directory
-- Configure MaxAge in static config for browser caching in production
-- Use template engines via fiber's template package if server-side rendering is needed
-- Serve SPA applications with app.Static and a NotFound fallback to index.html
+## Static Files
+- Use \`app.Static()\` with MaxAge for browser caching in production
+- Serve SPA with NotFound fallback to index.html
 `,
       },
       {
@@ -480,74 +120,23 @@ func main() {
         content: `# Fiber Security & Production Hardening
 
 ## Security Middleware
-- Use Helmet middleware to set security headers (X-Content-Type-Options, X-Frame-Options, etc.)
-- Configure CORS restrictively — never use AllowOrigins: "*" in production
-- Use Limiter middleware on authentication endpoints and public APIs
+- Use Helmet for security headers (X-Content-Type-Options, X-Frame-Options, etc.)
+- Configure CORS restrictively — never \`AllowOrigins: "*"\` in production
+- Use Limiter on auth endpoints (e.g., 10/15min by IP) and public APIs
 - Use CSRF middleware for form-based state-changing operations
-- Use RequestID middleware for tracing and correlation in logs
-
-### Correct
-\`\`\`go
-// Restrictive CORS for production
-app.Use(cors.New(cors.Config{
-    AllowOrigins:     "https://app.example.com,https://admin.example.com",
-    AllowMethods:     "GET,POST,PUT,DELETE",
-    AllowHeaders:     "Origin,Content-Type,Authorization,X-Request-ID",
-    AllowCredentials: true,
-    MaxAge:           86400,
-}))
-
-// Rate limiting on auth endpoints
-authGroup := app.Group("/auth")
-authGroup.Use(limiter.New(limiter.Config{
-    Max:        10,
-    Expiration: 15 * time.Minute,
-    KeyGenerator: func(c fiber.Ctx) string {
-        return c.IP() // Rate limit by IP
-    },
-}))
-\`\`\`
-
-### Anti-Pattern
-\`\`\`go
-// Bad: wildcard CORS, no rate limiting
-app.Use(cors.New(cors.Config{
-    AllowOrigins: "*",          // Allows any origin
-    AllowHeaders: "*",          // Allows any header
-}))
-\`\`\`
-
----
+- Use RequestID for tracing and correlation in logs
 
 ## Production Configuration
-- Set ReadTimeout, WriteTimeout, and IdleTimeout to prevent slow-loris attacks
-- Set BodyLimit to prevent oversized request payloads
-- Disable fiber.Config.DisableStartupMessage only if you have alternative startup logging
-- Use Prefork with caution: it multiplies memory usage and in-memory state is NOT shared across workers
-- Enable ProxyHeader when behind a reverse proxy (e.g., "X-Forwarded-For") for correct client IP detection
-- Set EnableTrustedProxyCheck and TrustedProxies to prevent IP spoofing
-
-### Correct
-\`\`\`go
-app := fiber.New(fiber.Config{
-    ReadTimeout:             5 * time.Second,
-    WriteTimeout:            10 * time.Second,
-    IdleTimeout:             120 * time.Second,
-    BodyLimit:               2 * 1024 * 1024,
-    ProxyHeader:             "X-Forwarded-For",
-    EnableTrustedProxyCheck: true,
-    TrustedProxies:          []string{"10.0.0.0/8", "172.16.0.0/12"},
-})
-\`\`\`
-
----
+- Set ReadTimeout, WriteTimeout, IdleTimeout to prevent slow-loris attacks
+- Set BodyLimit to prevent oversized payloads
+- Enable \`ProxyHeader\` + \`EnableTrustedProxyCheck\` + \`TrustedProxies\` when behind a reverse proxy
+- Use Prefork cautiously — in-memory state is NOT shared across workers
 
 ## Input Safety
-- Always validate and sanitize path parameters, query strings, and request bodies
-- Never pass raw user input to SQL queries, shell commands, or file system operations
-- Use parameterized queries via database/sql or an ORM — never concatenate user input
-- Validate file uploads: check MIME type, enforce size limits, sanitize filenames
-- Use c.Bind().Body() (v3) or c.BodyParser() (v2) with struct validation — never parse raw body manually unless absolutely necessary
+- Validate and sanitize all path params, query strings, and request bodies
+- Use parameterized queries — never concatenate user input into SQL
+- Validate file uploads: MIME type, size limits, sanitized filenames
+- Use struct-level validation via StructValidator — never parse raw body manually
 `,
       },
     ],
@@ -669,6 +258,8 @@ func TestGetUser_Success(t *testing.T) {
       {
         name: 'fiber-handler-generator',
         description: 'Generate Fiber HTTP handlers with validation, error handling, and tests',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Fiber Handler Generator
 
 Generate a complete Fiber HTTP handler following these steps:
@@ -707,6 +298,8 @@ Generate a complete Fiber HTTP handler following these steps:
       {
         name: 'fiber-middleware-generator',
         description: 'Generate custom Fiber middleware with config pattern',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Fiber Middleware Generator
 
 Generate custom Fiber middleware following the config pattern:
@@ -773,8 +366,9 @@ func configDefault(config ...Config) Config {
         hooks: [
           {
             type: 'command',
+            statusMessage: 'Checking for fasthttp buffer references passed to goroutines',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.go$" && grep -nE "c\\.(Body|Params|Query|FormValue)\\(" "$CLAUDE_FILE_PATH" | grep -E "go\\s+func|chan\\s|<-" > /dev/null 2>&1 && echo "HOOK_EXIT:0:Warning: possible fasthttp buffer reference passed to goroutine or channel — verify values are copied" || true',
+              'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.go$" && grep -nE "c\\.(Body|Params|Query|FormValue)\\(" "$FILE_PATH" | grep -E "go\\s+func|chan\\s|<-" > /dev/null 2>&1 && { echo "Warning: possible fasthttp buffer reference passed to goroutine or channel — verify values are copied" >&2; exit 2; } || exit 0',
             timeout: 5,
           },
         ],

@@ -136,6 +136,8 @@ export interface ProfileContributions {
   skills?: SkillDefinition[];
   /** Hook definitions */
   hooks?: HookDefinition[];
+  /** External hook scripts to generate as .claude/hooks/*.sh */
+  hookScripts?: HookScriptDefinition[];
   /** MCP server configs */
   mcp?: McpServerConfig[];
   /** External tool configs */
@@ -159,6 +161,7 @@ export interface ClaudeSettings {
   permissions: {
     allow?: string[];
     deny?: string[];
+    additionalDirectories?: string[];
   };
   sandbox?: {
     filesystem?: {
@@ -199,6 +202,10 @@ export interface AgentContribution {
   model?: string;
   /** Agent description */
   description?: string;
+  /** Explicit tool list (overrides DEFAULT_TOOLS when provided) */
+  tools?: string[];
+  /** Memory mode for the agent */
+  memory?: 'project';
 }
 
 export interface AgentDefinition {
@@ -212,6 +219,10 @@ export interface AgentDefinition {
   model?: string;
   /** Description */
   description: string;
+  /** Explicit tool list (when set, used instead of DEFAULT_TOOLS) */
+  tools?: string[];
+  /** Memory mode for the agent */
+  memory?: 'project';
 }
 
 // --- Skill Types ---
@@ -223,6 +234,16 @@ export interface SkillDefinition {
   content: string;
   /** Description */
   description: string;
+  /** If true, skill body is static and the model is not invoked to process it */
+  disableModelInvocation?: boolean;
+  /** Tools the skill is allowed to use */
+  allowedTools?: string[];
+  /** Whether the user can invoke this skill directly (e.g. /skill-name) */
+  userInvocable?: boolean;
+  /** Hint text shown for the slash-command argument (e.g. "component name") */
+  argumentHint?: string;
+  /** Fork context so the skill gets its own conversation branch */
+  context?: 'fork';
 }
 
 // --- Hook Types ---
@@ -262,6 +283,19 @@ export interface HookCommandEntry {
   command: string;
   /** Timeout in seconds */
   timeout?: number;
+  /** Status message shown while this hook runs */
+  statusMessage?: string;
+}
+
+// --- Hook Script Types ---
+
+export interface HookScriptDefinition {
+  /** Filename for the script, e.g. 'secret-scanner.sh' */
+  filename: string;
+  /** Bash script content */
+  content: string;
+  /** Whether this is a PreToolUse script (outputs JSON) or PostToolUse (exit codes) */
+  isPreToolUse: boolean;
 }
 
 // --- MCP Types ---
@@ -311,6 +345,8 @@ export interface ComposedConfig {
   skills: SkillDefinition[];
   /** All hook definitions */
   hooks: HookDefinition[];
+  /** External hook scripts to write as .claude/hooks/*.sh */
+  hookScripts: HookScriptDefinition[];
   /** All MCP configs */
   mcp: McpServerConfig[];
   /** External tool configs */

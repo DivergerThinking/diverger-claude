@@ -7,6 +7,7 @@ import { generateSkills } from './generators/skills.js';
 import { generateMcp } from './generators/mcp.js';
 import { generateSecurityConfig } from './generators/security.js';
 import { generateExternalTools } from './generators/external-tools.js';
+import { generateHookScripts } from './generators/hook-scripts.js';
 import { generateReactNativeTemplate } from './templates/react-native-template.js';
 import { generateExpoTemplate } from './templates/expo-template.js';
 import { generateFlutterTemplate } from './templates/flutter-template.js';
@@ -77,6 +78,10 @@ export class GenerationEngine {
     // 6. Skills
     onProgress?.('Generando skills...');
     files.push(...generateSkills(mergedConfig, projectRoot));
+
+    // 6b. Hook scripts (.claude/hooks/*.sh)
+    onProgress?.('Generando hook scripts...');
+    files.push(...generateHookScripts(mergedConfig, projectRoot));
 
     // 7. MCP
     onProgress?.('Generando configuración MCP...');

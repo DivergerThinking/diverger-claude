@@ -51,71 +51,24 @@ Cross-platform mobile with React patterns. Native modules for platform-specific 
 ## New Architecture: TurboModules + Fabric
 
 ### TurboModule Workflow
-1. Define a TypeScript spec in \`specs/Native<Name>.ts\` extending \`TurboModule\`
+1. Define TypeScript spec in \`specs/Native<Name>.ts\` extending \`TurboModule\`
 2. Configure Codegen in \`package.json\` under \`codegenConfig\`
-3. Implement platform-specific code (Kotlin/ObjC++) extending the generated spec class
+3. Implement platform-specific code (Kotlin/ObjC++) extending generated spec class
 4. Register the package in \`MainApplication.kt\` (Android) / AppDelegate (iOS)
-
-### Correct — TurboModule spec
-
-\`\`\`tsx
-// specs/NativeDeviceInfo.ts
-import type { TurboModule } from 'react-native';
-import { TurboModuleRegistry } from 'react-native';
-
-export interface Spec extends TurboModule {
-  getDeviceModel(): string;
-  getBatteryLevel(): Promise<number>;
-  getLocale(): string;
-}
-
-export default TurboModuleRegistry.getEnforcing<Spec>('NativeDeviceInfo');
-\`\`\`
-
-### Anti-Pattern — untyped native module access
-
-\`\`\`tsx
-// BAD: no type safety, no Codegen, native crashes are silent
-import { NativeModules } from 'react-native';
-const { DeviceInfo } = NativeModules; // any type, no compile-time checks
-const model = DeviceInfo.getDeviceModel(); // could crash at runtime if method missing
-\`\`\`
+- Use \`TurboModuleRegistry.getEnforcing<Spec>()\` for strict typed access
+- Never use untyped \`NativeModules\` — no compile-time checks, silent native crashes
 
 ## Native Bridge Safety
 - Always handle errors crossing the native bridge — unhandled native exceptions crash the app
 - Never pass non-serializable data across the bridge (functions, class instances, circular refs)
-- Use Promises or callbacks for async native methods — never block the JS thread waiting for native
+- Use Promises or callbacks for async native methods — never block the JS thread
 - Batch bridge calls when possible — each call has overhead even with JSI
 - Validate return types from native modules — native may return null/undefined unexpectedly
-
-### Correct — safe bridge call with error handling
-
-\`\`\`tsx
-async function getDeviceBattery(): Promise<number> {
-  try {
-    const level = await NativeDeviceInfo.getBatteryLevel();
-    if (typeof level !== 'number' || level < 0 || level > 100) {
-      throw new Error(\`Invalid battery level: \${level}\`);
-    }
-    return level;
-  } catch (error) {
-    console.error('Failed to get battery level:', error);
-    return -1; // fallback value
-  }
-}
-\`\`\`
-
-### Anti-Pattern — unguarded bridge call
-
-\`\`\`tsx
-// BAD: no error handling, no validation — native crash = app crash
-const level = await NativeDeviceInfo.getBatteryLevel();
-setText(\`Battery: \${level}%\`); // level could be null, crashing the render
-\`\`\`
+- Wrap all bridge calls in try/catch with fallback values
 
 ## Fabric Renderer
 - Fabric enables synchronous access to the native view hierarchy from JavaScript
-- Use Fabric-compatible third-party libraries — check library compatibility before adopting
+- Use Fabric-compatible third-party libraries — check compatibility before adopting
 - Fabric enables concurrent rendering features from React 18+ (Suspense, transitions)
 - View flattening in Fabric automatically reduces the native view hierarchy depth
 `,
@@ -129,116 +82,42 @@ setText(\`Battery: \${level}%\`); // level could be null, crashing the render
 
 ## Frame Rate Targets
 - Target 60 FPS minimum — monitor both JS thread and UI thread frame rates
-- JS thread handles business logic, React rendering, API calls, and touch event processing
-- UI thread handles native rendering, scrolling, and native animations
 - Always measure performance in release builds — dev mode adds significant overhead
 
 ## List Performance
-
-### Correct — optimized FlatList
-
-\`\`\`tsx
-interface Item {
-  id: string;
-  title: string;
-  height: number;
-}
-
-function ItemRow({ item }: { item: Item }) {
-  return (
-    <View style={styles.row}>
-      <Text>{item.title}</Text>
-    </View>
-  );
-}
-
-const MemoizedRow = React.memo(ItemRow);
-
-function ProductList({ products }: { products: Item[] }) {
-  const getItemLayout = useCallback(
-    (_data: Item[] | null | undefined, index: number) => ({
-      length: ROW_HEIGHT,
-      offset: ROW_HEIGHT * index,
-      index,
-    }),
-    [],
-  );
-
-  const keyExtractor = useCallback((item: Item) => item.id, []);
-
-  const renderItem = useCallback(
-    ({ item }: { item: Item }) => <MemoizedRow item={item} />,
-    [],
-  );
-
-  return (
-    <FlatList
-      data={products}
-      renderItem={renderItem}
-      keyExtractor={keyExtractor}
-      getItemLayout={getItemLayout}
-      windowSize={5}
-      maxToRenderPerBatch={10}
-      removeClippedSubviews={true}
-      initialNumToRender={10}
-    />
-  );
-}
-\`\`\`
-
-### Anti-Pattern — unoptimized list
-
-\`\`\`tsx
-// BAD: ScrollView for long lists, no memoization, inline renderItem
-function ProductList({ products }: { products: Item[] }) {
-  return (
-    <ScrollView>
-      {products.map((item) => (
-        <View key={item.id} style={{ padding: 16 }}> {/* inline style */}
-          <Text>{item.title}</Text>
-        </View>
-      ))}
-    </ScrollView>
-  );
-  // Problems: renders ALL items at once, no recycling, inline styles, no memo
-}
-\`\`\`
-
-- Use \`FlatList\` / \`SectionList\` for all lists — never \`ScrollView\` with \`.map()\` for >20 items
+- Use \`FlatList\`/\`SectionList\` for all lists — never \`ScrollView\` with \`.map()\` for >20 items
 - Implement \`getItemLayout\` for fixed-height rows to skip measurement
 - Use \`keyExtractor\` with stable unique IDs — never array indices
-- Set \`windowSize\`, \`maxToRenderPerBatch\`, and \`initialNumToRender\` for tuning
+- Set \`windowSize\`, \`maxToRenderPerBatch\`, \`initialNumToRender\` for tuning
 - Use \`React.memo\` on list item components — FlatList re-renders items frequently
-- Consider FlashList or Legend List as drop-in replacements for even better recycling performance
+- Use \`useCallback\` for \`renderItem\` and \`keyExtractor\` to prevent unnecessary re-renders
+- Consider FlashList or Legend List as drop-in replacements for better recycling
 
 ## Animation Performance
-- Use Reanimated for animations that run on the UI thread — JS-driven animations cause frame drops
-- Use \`useNativeDriver: true\` with the built-in \`Animated\` API to offload to the native thread
+- Use Reanimated for UI-thread animations — JS-driven animations cause frame drops
+- Use \`useNativeDriver: true\` with built-in \`Animated\` API
 - Use \`LayoutAnimation\` for simple fire-and-forget layout transitions
-- Use \`transform: [{ scale }]\` instead of animating \`width\`/\`height\` on images — avoids expensive re-scaling
-- Use \`InteractionManager.runAfterInteractions()\` (or \`requestIdleCallback\`) to defer heavy work until after animations complete
+- Use \`transform\` instead of animating \`width\`/\`height\` — avoids expensive re-scaling
+- Defer heavy work with \`InteractionManager.runAfterInteractions()\`
 
 ## Startup Optimization
 - Enable Hermes engine — precompiled bytecode reduces parse time by up to 50%
-- Lazy-load screens not needed at startup using React Navigation lazy loading
-- Minimize the initial bundle — use \`metro-bundle-analyzer\` to identify large imports
-- Pre-load critical assets (fonts, images) during the splash screen phase
-- Avoid synchronous \`require()\` calls in the startup path — use dynamic \`import()\` for non-critical modules
+- Lazy-load screens not needed at startup
+- Minimize initial bundle — use \`metro-bundle-analyzer\` to identify large imports
+- Pre-load critical assets during splash screen phase
+- Use dynamic \`import()\` for non-critical modules
 
 ## Rendering Optimization
-- Use \`React.memo\` for components that re-render frequently with the same props
-- Avoid creating new objects/arrays/functions inline in JSX props — extract to useMemo/useCallback
+- Use \`React.memo\` for components that re-render frequently with same props
+- Avoid inline objects/arrays/functions in JSX props — use \`useMemo\`/\`useCallback\`
 - Remove \`console.log\` in production — use \`babel-plugin-transform-remove-console\`
-- Use \`requestAnimationFrame\` to wrap expensive \`onPress\` handlers for responsive touch feedback
-- Use \`renderToHardwareTextureAndroid\` and \`shouldRasterizeIOS\` for complex views that animate as a unit
 - Use \`removeClippedSubviews\` on large off-screen view hierarchies
 
 ## Memory Management
-- Clean up all subscriptions, timers, and event listeners in \`useEffect\` cleanup functions
-- Use an image caching library (react-native-fast-image or expo-image) — avoid re-downloading
+- Clean up subscriptions, timers, and event listeners in \`useEffect\` cleanup
+- Use image caching library (react-native-fast-image or expo-image)
 - Monitor memory with Xcode Instruments (iOS) and Android Profiler (Android)
-- Watch for retained closures in event handlers that capture large objects
-- Use \`Image.prefetch()\` for images that will be displayed soon
+- Watch for retained closures capturing large objects
 `,
       },
       {
@@ -249,83 +128,25 @@ function ProductList({ products }: { products: Item[] }) {
         content: `# React Navigation & Deep Linking
 
 ## Type-Safe Navigation
-
-### Correct — typed navigation setup
-
-\`\`\`tsx
-// navigation/types.ts
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-
-export type RootStackParamList = {
-  Home: undefined;
-  Profile: { userId: string };
-  Settings: undefined;
-  ProductDetail: { productId: string; fromSearch?: boolean };
-};
-
-export type RootStackScreenProps<T extends keyof RootStackParamList> =
-  NativeStackScreenProps<RootStackParamList, T>;
-
-// Typing useNavigation globally
-declare global {
-  namespace ReactNavigation {
-    interface RootParamList extends RootStackParamList {}
-  }
-}
-\`\`\`
-
-\`\`\`tsx
-// screens/ProfileScreen.tsx
-import type { RootStackScreenProps } from '../navigation/types';
-
-export function ProfileScreen({ route, navigation }: RootStackScreenProps<'Profile'>) {
-  const { userId } = route.params; // fully typed
-  // ...
-}
-\`\`\`
-
-### Anti-Pattern — untyped navigation
-
-\`\`\`tsx
-// BAD: no type safety on params — runtime crashes when params are missing
-function ProfileScreen({ route }: any) {
-  const userId = route.params.userId; // could be undefined, no TS warning
-  navigation.navigate('SomeScreen', { typo: true }); // no error for wrong screen name
-}
-\`\`\`
+- Define \`RootStackParamList\` type mapping screen names to their param types
+- Use \`NativeStackScreenProps<RootStackParamList, 'ScreenName'>\` for typed route/navigation props
+- Declare global \`ReactNavigation.RootParamList\` for typed \`useNavigation()\` everywhere
+- Never use \`any\` type for route params — runtime crashes when params are missing
 
 ## Deep Linking Configuration
-- Configure deep linking from the start — it is extremely hard to retrofit later
-- Define a \`linking\` config that maps URL paths to screen names
+- Configure deep linking from the start — extremely hard to retrofit later
+- Define a \`linking\` config mapping URL paths to screen names with param extraction
 - Handle both universal links (iOS) and app links (Android) for production apps
-- Test deep links on both platforms using \`npx uri-scheme open\` or \`adb shell am start\`
-
-\`\`\`tsx
-const linking = {
-  prefixes: ['myapp://', 'https://myapp.com'],
-  config: {
-    screens: {
-      Home: '',
-      Profile: 'user/:userId',
-      ProductDetail: 'product/:productId',
-      Settings: 'settings',
-    },
-  },
-};
-
-// In NavigationContainer
-<NavigationContainer linking={linking} fallback={<ActivityIndicator />}>
-  {/* ... */}
-</NavigationContainer>
-\`\`\`
+- Test deep links on both platforms: \`npx uri-scheme open\` or \`adb shell am start\`
+- Validate and sanitize incoming URL parameters — malicious apps can send crafted URLs
 
 ## Android Back Button
-- Handle hardware back button with \`BackHandler\` or React Navigation's \`beforeRemove\` listener
-- Confirm exit on the root screen — do not let the app close silently on accidental back press
-- Nested navigators must handle back correctly — test the full back stack flow
+- Handle hardware back with \`BackHandler\` or React Navigation's \`beforeRemove\` listener
+- Confirm exit on root screen — prevent accidental app close
+- Test the full back stack flow with nested navigators
 
 ## Navigation Best Practices
-- Use \`@react-navigation/native-stack\` over \`@react-navigation/stack\` — native stack uses platform navigation controllers
+- Use \`@react-navigation/native-stack\` over \`@react-navigation/stack\` — uses platform navigation controllers
 - Use \`navigation.replace()\` instead of \`navigate()\` for auth flows to prevent going back to login
 - Pass minimal serializable data in params — fetch full data on the target screen
 - Use \`useFocusEffect\` for data refreshing when a screen receives focus
@@ -339,66 +160,23 @@ const linking = {
         content: `# Gestures & Animations
 
 ## Gesture Handling
-- Use \`react-native-gesture-handler\` for all complex gestures — it processes gestures on the native thread
+- Use \`react-native-gesture-handler\` for complex gestures — processes on the native thread
 - Prefer \`Gesture\` composable API (RNGH v2+) over the old handler-based API
 - Always assign \`testID\` to gesture-enabled components for E2E testing
 - Combine gesture handlers with Reanimated shared values for fluid gesture-driven animations
 
-### Correct — swipe-to-dismiss with RNGH + Reanimated
-
-\`\`\`tsx
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  runOnJS,
-} from 'react-native-reanimated';
-
-function SwipeableCard({ onDismiss }: { onDismiss: () => void }) {
-  const translateX = useSharedValue(0);
-
-  const panGesture = Gesture.Pan()
-    .onUpdate((event) => {
-      translateX.value = event.translationX;
-    })
-    .onEnd((event) => {
-      if (Math.abs(event.translationX) > SWIPE_THRESHOLD) {
-        translateX.value = withSpring(
-          Math.sign(event.translationX) * SCREEN_WIDTH,
-        );
-        runOnJS(onDismiss)();
-      } else {
-        translateX.value = withSpring(0);
-      }
-    });
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
-  return (
-    <GestureDetector gesture={panGesture}>
-      <Animated.View style={[styles.card, animatedStyle]}>
-        {/* card content */}
-      </Animated.View>
-    </GestureDetector>
-  );
-}
-\`\`\`
-
 ## Reanimated Best Practices
-- Define animations in worklets (functions running on the UI thread) — never run animation logic on the JS thread
-- Use \`useSharedValue\` for values that drive animations — it communicates between threads without serialization
+- Define animations in worklets (UI thread) — never run animation logic on JS thread
+- Use \`useSharedValue\` for values that drive animations — no serialization overhead
 - Use \`useAnimatedStyle\` to create styles driven by shared values
 - Use \`withSpring\`, \`withTiming\`, \`withDecay\` for declarative animation curves
-- Use \`runOnJS\` to call JS-thread functions from worklets (e.g. state updates, navigation)
+- Use \`runOnJS\` to call JS-thread functions from worklets (state updates, navigation)
 
 ## Animated API (built-in)
-- Always set \`useNativeDriver: true\` when using the built-in \`Animated\` API
-- Native driver supports: \`transform\`, \`opacity\` — it does NOT support \`width\`, \`height\`, \`padding\`, \`margin\`
+- Always set \`useNativeDriver: true\` — supports \`transform\` and \`opacity\` only
+- Native driver does NOT support \`width\`, \`height\`, \`padding\`, \`margin\`
 - Use \`Animated.event\` with native driver for scroll-driven animations
-- Use \`LayoutAnimation.configureNext()\` for simple layout transitions (add/remove/update)
+- Use \`LayoutAnimation.configureNext()\` for simple layout transitions
 `,
       },
       {
@@ -409,35 +187,10 @@ function SwipeableCard({ onDismiss }: { onDismiss: () => void }) {
         content: `# React Native Mobile Security
 
 ## Sensitive Data Storage
-- NEVER store secrets, tokens, or passwords in AsyncStorage — it is unencrypted plaintext
+- NEVER store secrets, tokens, or passwords in AsyncStorage — unencrypted plaintext
 - Use \`react-native-keychain\` (iOS Keychain / Android Keystore) for credentials and tokens
 - Use \`react-native-encrypted-storage\` for sensitive data that must persist
-- Clear secure storage on user logout and app uninstall (where platform supports it)
-
-### Correct
-
-\`\`\`tsx
-import * as Keychain from 'react-native-keychain';
-
-async function storeAuthToken(token: string): Promise<void> {
-  await Keychain.setGenericPassword('auth', token, {
-    accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-  });
-}
-
-async function getAuthToken(): Promise<string | null> {
-  const credentials = await Keychain.getGenericPassword();
-  return credentials ? credentials.password : null;
-}
-\`\`\`
-
-### Anti-Pattern
-
-\`\`\`tsx
-// BAD: AsyncStorage is NOT encrypted — any rooted/jailbroken device can read it
-import AsyncStorage from '@react-native-async-storage/async-storage';
-await AsyncStorage.setItem('authToken', token); // plaintext on disk
-\`\`\`
+- Clear secure storage on user logout
 
 ## Network Security
 - Use TLS (HTTPS) for ALL network requests — no exceptions
@@ -448,14 +201,13 @@ await AsyncStorage.setItem('authToken', token); // plaintext on disk
 ## Code Security
 - Enable ProGuard/R8 obfuscation for Android release builds
 - Do not bundle API keys or secrets in the JavaScript bundle — they are extractable
-- Use environment-specific configs (dev/staging/prod) via \`react-native-config\` — never hardcode URLs
-- Enable Hermes bytecode — it is harder to reverse-engineer than plain JavaScript
+- Use environment-specific configs via \`react-native-config\` — never hardcode URLs
+- Enable Hermes bytecode — harder to reverse-engineer than plain JavaScript
 
 ## App Integrity
 - Implement jailbreak/root detection for sensitive apps (banking, health)
 - Use code signing verification to detect tampering
-- Implement SSL pinning to prevent man-in-the-middle attacks
-- Set \`android:allowBackup="false"\` in AndroidManifest.xml to prevent data extraction via backup
+- Set \`android:allowBackup="false"\` in AndroidManifest.xml to prevent data extraction
 `,
       },
     ],
@@ -586,6 +338,8 @@ await AsyncStorage.setItem('authToken', token); // plaintext on disk
       {
         name: 'rn-turbomodule-generator',
         description: 'Generate a complete TurboModule with TypeScript spec, Codegen config, and platform implementations',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# React Native TurboModule Generator
 
 Generate a complete TurboModule following the New Architecture patterns:
@@ -640,6 +394,8 @@ export default TurboModuleRegistry.getEnforcing<Spec>('Native<Name>');
       {
         name: 'rn-screen-generator',
         description: 'Generate a complete React Native screen with navigation, styling, and testing',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# React Native Screen Generator
 
 Generate a complete screen following React Native conventions:
@@ -681,7 +437,8 @@ Generate a complete screen following React Native conventions:
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/style=\\{\\{/.test(c)&&!/StyleSheet/.test(c)){const count=(c.match(/style=\\{\\{/g)||[]).length;if(count>=2)console.log(\'WARNING: \'+count+\' inline style objects detected. Use StyleSheet.create() for better performance and memory efficiency.\')}" -- "$CLAUDE_FILE_PATH"',
+          statusMessage: 'Checking for inline style objects in React Native code',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/style=\\{\\{/.test(c)&&!/StyleSheet/.test(c)){const count=(c.match(/style=\\{\\{/g)||[]).length;if(count>=2){console.error(\'WARNING: \'+count+\' inline style objects detected. Use StyleSheet.create() for better performance and memory efficiency.\');process.exit(2)}}" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -690,7 +447,8 @@ Generate a complete screen following React Native conventions:
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx|ts|js)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/AsyncStorage\\.setItem/.test(c)&&/(token|password|secret|credential|apiKey|api_key)/i.test(c))console.log(\'HOOK_EXIT:1:SECURITY: Storing sensitive data in AsyncStorage (unencrypted). Use react-native-keychain or react-native-encrypted-storage instead.\')" -- "$CLAUDE_FILE_PATH"',
+          statusMessage: 'Checking for sensitive data in AsyncStorage',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx|ts|js)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/AsyncStorage\\.setItem/.test(c)&&/(token|password|secret|credential|apiKey|api_key)/i.test(c)){console.error(\'SECURITY: Storing sensitive data in AsyncStorage (unencrypted). Use react-native-keychain or react-native-encrypted-storage instead.\');process.exit(2)}" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -699,7 +457,8 @@ Generate a complete screen following React Native conventions:
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/<ScrollView[^>]*>[\\s\\S]*\\.map\\s*\\(/m.test(c))console.log(\'WARNING: ScrollView with .map() detected. Use FlatList or SectionList for lists to enable view recycling and better memory usage.\')" -- "$CLAUDE_FILE_PATH"',
+          statusMessage: 'Checking for ScrollView with .map() in React Native code',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/<ScrollView[^>]*>[\\s\\S]*\\.map\\s*\\(/m.test(c)){console.error(\'WARNING: ScrollView with .map() detected. Use FlatList or SectionList for lists to enable view recycling and better memory usage.\');process.exit(2)}" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -708,7 +467,8 @@ Generate a complete screen following React Native conventions:
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/TouchableOpacity|TouchableHighlight|TouchableWithoutFeedback|TouchableNativeFeedback/.test(c)&&!/Pressable/.test(c))console.log(\'WARNING: Deprecated Touchable* component detected. Migrate to Pressable for better customization and future compatibility.\')" -- "$CLAUDE_FILE_PATH"',
+          statusMessage: 'Checking for deprecated Touchable* components in React Native code',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/TouchableOpacity|TouchableHighlight|TouchableWithoutFeedback|TouchableNativeFeedback/.test(c)&&!/Pressable/.test(c)){console.error(\'WARNING: Deprecated Touchable* component detected. Migrate to Pressable for better customization and future compatibility.\');process.exit(2)}" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },

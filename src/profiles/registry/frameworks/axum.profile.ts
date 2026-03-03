@@ -48,206 +48,33 @@ Tower-based async web framework. Extractors for request parsing, middleware via 
         content: `# Axum Architecture
 
 ## Handler Patterns
-
-Handlers are async functions whose parameters are extractors. The return type must implement \`IntoResponse\`.
-
-\`\`\`rust
-use axum::{extract::{Path, State, Json}, http::StatusCode, response::IntoResponse};
-
-async fn get_user(
-    State(db): State<DbPool>,
-    Path(user_id): Path<i64>,
-) -> Result<Json<User>, AppError> {
-    let user = db.find_user(user_id).await?;
-    Ok(Json(user))
-}
-
-async fn create_user(
-    State(db): State<DbPool>,
-    Json(payload): Json<CreateUserRequest>,  // body extractor LAST
-) -> Result<(StatusCode, Json<User>), AppError> {
-    let user = db.create_user(payload).await?;
-    Ok((StatusCode::CREATED, Json(user)))
-}
-\`\`\`
-
-### Anti-Pattern: manual body parsing
-
-\`\`\`rust
-// Wrong: manual body consumption — use Json<T> extractor instead
-async fn bad_handler(request: Request) -> impl IntoResponse {
-    let body = axum::body::to_bytes(request.into_body(), 1024).await.unwrap();
-    let payload: CreateUserRequest = serde_json::from_slice(&body).unwrap();
-    // ...
-}
-\`\`\`
+- Handlers are async functions whose parameters are extractors; return type must implement \`IntoResponse\`
+- Body-consuming extractors (\`Json\`, \`Form\`, \`Bytes\`, \`String\`) must be the LAST handler parameter
+- Return \`Result<T, AppError>\` where both T and AppError implement \`IntoResponse\`
+- Keep handlers thin — business logic lives in domain/service modules
 
 ## Routing (0.8+ Syntax)
-
-\`\`\`rust
-use axum::{Router, routing::{get, post, put, delete}};
-
-fn app(state: AppState) -> Router {
-    let users = Router::new()
-        .route("/", get(list_users).post(create_user))
-        .route("/{id}", get(get_user).put(update_user).delete(delete_user))
-        .route("/{id}/profile", get(get_profile));
-
-    let health = Router::new()
-        .route("/health", get(health_check))
-        .route("/ready", get(readiness_check));
-
-    Router::new()
-        .nest("/api/v1/users", users)
-        .merge(health)
-        .fallback(handler_404)
-        .with_state(state)
-}
-\`\`\`
-
-### Anti-Pattern: old colon syntax (removed in 0.8)
-
-\`\`\`rust
-// Wrong (0.8+): colon path params no longer compile
-Router::new().route("/users/:id", get(get_user));
-
-// Correct (0.8+): use brace syntax
-Router::new().route("/users/{id}", get(get_user));
-\`\`\`
+- Use brace syntax for path params: \`/{id}\` — colon syntax \`/:id\` was removed in 0.8
+- Compose routes: \`.route("/", get(list).post(create))\`, \`.route("/{id}", get(show).put(update).delete(destroy))\`
+- Use \`.nest("/prefix", sub_router)\` for route grouping, \`.merge()\` for combining routers
+- Set \`.fallback(handler_404)\` for unmatched routes
+- Wildcard routes use \`/{*rest}\` not \`/*rest\`
 
 ## Application State
-
-\`\`\`rust
-use axum::extract::FromRef;
-
-#[derive(Clone)]
-struct AppState {
-    db: PgPool,          // sqlx pool is already Arc internally
-    cache: Arc<Cache>,   // expensive-to-clone → wrap in Arc
-    config: AppConfig,   // cheap to clone → no Arc needed
-}
-
-// Derive sub-states so handlers extract only what they need
-#[derive(Clone)]
-struct DbState(PgPool);
-
-impl FromRef<AppState> for DbState {
-    fn from_ref(state: &AppState) -> Self {
-        DbState(state.db.clone())
-    }
-}
-\`\`\`
-
-### Anti-Pattern: Extension instead of State
-
-\`\`\`rust
-// Wrong: Extension is untyped at the router level and panics if missing
-async fn handler(Extension(db): Extension<PgPool>) -> impl IntoResponse { /* ... */ }
-
-// Correct: State is compile-time checked via Router::with_state()
-async fn handler(State(db): State<PgPool>) -> impl IntoResponse { /* ... */ }
-\`\`\`
+- Use \`State<T>\` extractor with \`Router::with_state()\` — NOT \`Extension<T>\` (untyped, panics if missing)
+- Wrap expensive-to-clone fields in \`Arc\` (caches, HTTP clients); pools like \`PgPool\` are already Arc internally
+- Use \`FromRef\` derive for sub-states so handlers extract only what they need
 
 ## Extractors
-
-### Built-in Extractors
-| Extractor | Source | Consumes Body? |
-|-----------|--------|----------------|
-| \`Path<T>\` | URL path parameters | No |
-| \`Query<T>\` | URL query string | No |
-| \`State<T>\` | Application state | No |
-| \`HeaderMap\` | All request headers | No |
-| \`Json<T>\` | JSON request body | Yes |
-| \`Form<T>\` | URL-encoded body | Yes |
-| \`Bytes\` | Raw body bytes | Yes |
-| \`String\` | Body as UTF-8 string | Yes |
-| \`Request\` | Full request | Yes |
-
-### Custom Extractors
-
-\`\`\`rust
-use axum::extract::FromRequestParts;
-use http::request::Parts;
-
-struct AuthUser {
-    user_id: i64,
-    role: Role,
-}
-
-impl<S> FromRequestParts<S> for AuthUser
-where
-    S: Send + Sync,
-{
-    type Rejection = AppError;
-
-    async fn from_request_parts(
-        parts: &mut Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
-        let token = parts
-            .headers
-            .get("Authorization")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "))
-            .ok_or(AppError::Unauthorized)?;
-
-        let claims = verify_jwt(token).map_err(|_| AppError::Unauthorized)?;
-        Ok(AuthUser { user_id: claims.sub, role: claims.role })
-    }
-}
-
-// Now usable as an extractor in any handler
-async fn protected(user: AuthUser, Json(body): Json<Payload>) -> impl IntoResponse {
-    // user is authenticated, body is parsed
-}
-\`\`\`
+- Built-in: \`Path<T>\`, \`Query<T>\`, \`State<T>\`, \`HeaderMap\` (non-consuming); \`Json<T>\`, \`Form<T>\`, \`Bytes\`, \`String\`, \`Request\` (consuming)
+- Custom extractors: implement \`FromRequestParts<S>\` (non-consuming) or \`FromRequest<S>\` (consuming)
+- Auth extractors: implement \`FromRequestParts\` to extract and validate JWT/token from Authorization header
 
 ## Error Handling
-
-\`\`\`rust
-use axum::{http::StatusCode, response::IntoResponse, Json};
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-enum AppError {
-    #[error("not found: {0}")]
-    NotFound(String),
-    #[error("unauthorized")]
-    Unauthorized,
-    #[error("validation failed: {0}")]
-    Validation(String),
-    #[error("internal error")]
-    Internal(#[from] anyhow::Error),
-}
-
-impl IntoResponse for AppError {
-    fn into_response(self) -> axum::response::Response {
-        let (status, code) = match &self {
-            AppError::NotFound(_) => (StatusCode::NOT_FOUND, "NOT_FOUND"),
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED"),
-            AppError::Validation(_) => (StatusCode::UNPROCESSABLE_ENTITY, "VALIDATION_ERROR"),
-            AppError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
-        };
-        let body = serde_json::json!({
-            "error": code,
-            "message": self.to_string(),
-        });
-        (status, Json(body)).into_response()
-    }
-}
-\`\`\`
-
-### Anti-Pattern: leaking internal errors
-
-\`\`\`rust
-// Wrong: exposes internal details to the client
-impl IntoResponse for AppError {
-    fn into_response(self) -> axum::response::Response {
-        let body = format!("{:?}", self); // Debug output with stack trace
-        (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
-    }
-}
-\`\`\`
+- Define a single \`AppError\` enum with \`thiserror\` derives implementing \`IntoResponse\`
+- Map errors to structured JSON: \`{ "error": "CODE", "message": "..." }\` with appropriate HTTP status codes
+- Use \`#[from]\` for automatic error conversions from external crates
+- Never leak internal error details to clients — log details server-side, return generic messages
 `,
       },
       {
@@ -258,116 +85,18 @@ impl IntoResponse for AppError {
         content: `# Axum Middleware & Tower Layers
 
 ## Tower Layer System
+- Axum delegates middleware to Tower \`Layer\` + \`Service\` traits — entire Tower ecosystem available
+- Compose layers with \`ServiceBuilder::new().layer(...).layer(...)\`
+- Key tower-http layers: \`TraceLayer\`, \`CorsLayer\`, \`CompressionLayer\`, \`TimeoutLayer\`, \`RequestBodyLimitLayer\`, \`SetResponseHeaderLayer\`
 
-Axum delegates middleware to Tower's \`Layer\` and \`Service\` traits. This means the entire Tower ecosystem is available out of the box.
-
-### Applying Layers
-
-\`\`\`rust
-use axum::Router;
-use tower::ServiceBuilder;
-use tower_http::{
-    trace::TraceLayer,
-    cors::CorsLayer,
-    compression::CompressionLayer,
-    timeout::TimeoutLayer,
-    set_header::SetResponseHeaderLayer,
-    limit::RequestBodyLimitLayer,
-};
-use std::time::Duration;
-use http::header;
-
-fn app(state: AppState) -> Router {
-    let middleware = ServiceBuilder::new()
-        .layer(TraceLayer::new_for_http())
-        .layer(CompressionLayer::new())
-        .layer(CorsLayer::permissive()) // tighten in production
-        .layer(TimeoutLayer::new(Duration::from_secs(30)))
-        .layer(RequestBodyLimitLayer::new(1024 * 1024)) // 1 MB
-        .layer(SetResponseHeaderLayer::overriding(
-            header::X_CONTENT_TYPE_OPTIONS,
-            "nosniff".parse().unwrap(),
-        ));
-
-    Router::new()
-        .nest("/api", api_routes())
-        .layer(middleware)
-        .with_state(state)
-}
-\`\`\`
-
-## Custom Middleware with from_fn
-
-\`\`\`rust
-use axum::{middleware::{self, Next}, extract::Request, response::Response};
-
-async fn log_request(request: Request, next: Next) -> Response {
-    let method = request.method().clone();
-    let uri = request.uri().clone();
-    let start = std::time::Instant::now();
-
-    let response = next.run(request).await;
-
-    tracing::info!(
-        method = %method,
-        uri = %uri,
-        status = %response.status(),
-        latency_ms = %start.elapsed().as_millis(),
-    );
-    response
-}
-
-// Apply:
-Router::new()
-    .route("/api/{*path}", get(handler))
-    .layer(middleware::from_fn(log_request));
-\`\`\`
-
-## Middleware with State
-
-\`\`\`rust
-use axum::{middleware, extract::State};
-
-async fn require_auth(
-    State(auth): State<AuthService>,
-    mut request: Request,
-    next: Next,
-) -> Result<Response, AppError> {
-    let token = request
-        .headers()
-        .get("Authorization")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or(AppError::Unauthorized)?;
-
-    let user = auth.verify(token).await.map_err(|_| AppError::Unauthorized)?;
-    request.extensions_mut().insert(user);
-    Ok(next.run(request).await)
-}
-
-// Apply with state:
-Router::new()
-    .route("/protected", get(handler))
-    .layer(middleware::from_fn_with_state(state.clone(), require_auth));
-\`\`\`
+## Custom Middleware
+- Simple: \`middleware::from_fn(async fn(req, next) -> Response)\`
+- With state: \`middleware::from_fn_with_state(state, async fn(State(s), req, next) -> Result<Response, Error>)\`
+- Insert user/context into request extensions via \`request.extensions_mut().insert(value)\`
 
 ## Per-Scope Middleware
-
-\`\`\`rust
-let public_routes = Router::new()
-    .route("/health", get(health_check))
-    .route("/login", post(login));
-
-let protected_routes = Router::new()
-    .route("/users", get(list_users))
-    .route("/users/{id}", get(get_user))
-    .layer(middleware::from_fn_with_state(state.clone(), require_auth));
-
-Router::new()
-    .merge(public_routes)
-    .merge(protected_routes)
-    .with_state(state)
-\`\`\`
+- Apply auth middleware only to protected route groups using \`.layer()\` on specific routers
+- Merge public and protected routers: \`Router::new().merge(public).merge(protected).with_state(state)\`
 
 ## Recommended Layer Ordering
 1. **TraceLayer** — outermost, captures full request lifecycle
@@ -377,21 +106,11 @@ Router::new()
 5. **RequestBodyLimitLayer** — protect against oversized payloads
 6. **Auth middleware** — closest to handlers, runs after all cross-cutting concerns
 
-## Anti-Pattern: blocking in middleware
-
-\`\`\`rust
-// Wrong: std::thread::sleep blocks the Tokio runtime
-async fn slow_middleware(req: Request, next: Next) -> Response {
-    std::thread::sleep(Duration::from_secs(1)); // blocks!
-    next.run(req).await
-}
-
-// Correct: use async sleep
-async fn slow_middleware(req: Request, next: Next) -> Response {
-    tokio::time::sleep(Duration::from_secs(1)).await;
-    next.run(req).await
-}
-\`\`\`
+## Critical Rules
+- Never use \`CorsLayer::permissive()\` in production — use specific allowed origins
+- Never block the async runtime — use \`tokio::time::sleep\`, not \`std::thread::sleep\`
+- Always set \`RequestBodyLimitLayer\` to prevent oversized payload attacks
+- Always set \`TimeoutLayer\` to enforce request deadlines
 `,
       },
       {
@@ -402,128 +121,37 @@ async fn slow_middleware(req: Request, next: Next) -> Response {
         content: `# Axum Project Structure & Production Patterns
 
 ## Recommended Project Layout
+- \`main.rs\` — entry point: build state, bind listener, serve with graceful shutdown
+- \`lib.rs\` — \`app(state) -> Router\` function for testability
+- \`config.rs\` — configuration from env/files (serde + envy/config crate)
+- \`error.rs\` — \`AppError\` enum + \`IntoResponse\` impl
+- \`state.rs\` — \`AppState\` struct + \`FromRef\` sub-states
+- \`routes/\` — handler modules + route composition functions returning Router
+- \`middleware/\` — auth middleware, request ID injection
+- \`domain/\` — business logic, models, services
+- \`db/\` — pool setup, migrations, query modules by entity
+- \`tests/\` — \`common/mod.rs\` for TestApp, \`api/\` for endpoint integration tests
 
-\`\`\`
-src/
-  main.rs              # entry point: build state, bind listener, serve
-  lib.rs               # app() function returning Router (for testability)
-  config.rs            # configuration from env/files (serde + envy/config crate)
-  error.rs             # AppError enum + IntoResponse impl
-  state.rs             # AppState struct + FromRef sub-states
-  routes/
-    mod.rs             # re-export route modules, compose Router
-    users.rs           # user handlers + route fn
-    auth.rs            # auth handlers + route fn
-    health.rs          # health/readiness endpoints
-  middleware/
-    mod.rs
-    auth.rs            # authentication middleware
-    request_id.rs      # X-Request-Id injection
-  domain/
-    mod.rs
-    user.rs            # User model, business logic
-    auth.rs            # token verification, password hashing
-  db/
-    mod.rs
-    pool.rs            # database pool setup (sqlx, diesel, sea-orm)
-    migrations.rs      # migration runner
-    queries/           # query modules by entity
-      users.rs
-tests/
-  common/
-    mod.rs             # shared test setup (TestApp, test state)
-  api/
-    users_test.rs      # integration tests for user endpoints
-    auth_test.rs       # integration tests for auth endpoints
-\`\`\`
+## Entry Point Pattern
+- Initialize structured JSON logging with \`tracing\` + \`tracing-subscriber\`
+- Load config from environment, build database pool and \`AppState\`
+- Build app via \`lib.rs::app(state)\`, bind \`TcpListener\`, serve with \`with_graceful_shutdown()\`
+- Shutdown signal: \`tokio::select!\` on ctrl_c + SIGTERM
 
-## Entry Point
-
-\`\`\`rust
-use tokio::net::TcpListener;
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .json()
-        .init();
-
-    // Load config
-    let config = AppConfig::from_env()?;
-
-    // Build state
-    let db = PgPool::connect(&config.database_url).await?;
-    let state = AppState { db, config };
-
-    // Build app
-    let app = my_app::app(state);
-
-    // Bind and serve
-    let addr = format!("0.0.0.0:{}", config.port);
-    let listener = TcpListener::bind(&addr).await?;
-    tracing::info!("listening on {addr}");
-
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
-
-    Ok(())
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = tokio::signal::ctrl_c();
-    let mut sigterm = tokio::signal::unix::signal(
-        tokio::signal::unix::SignalKind::terminate(),
-    ).expect("failed to install SIGTERM handler");
-
-    tokio::select! {
-        _ = ctrl_c => tracing::info!("received CTRL+C"),
-        _ = sigterm.recv() => tracing::info!("received SIGTERM"),
-    }
-}
-\`\`\`
-
-## testability: app() in lib.rs
-
-\`\`\`rust
-// src/lib.rs
-pub fn app(state: AppState) -> Router {
-    Router::new()
-        .nest("/api/v1", routes::api_router())
-        .merge(routes::health_router())
-        .layer(TraceLayer::new_for_http())
-        .with_state(state)
-}
-\`\`\`
-
-## Health & Readiness Endpoints
-
-\`\`\`rust
-async fn health_check() -> StatusCode {
-    StatusCode::OK
-}
-
-async fn readiness_check(State(db): State<PgPool>) -> StatusCode {
-    match sqlx::query("SELECT 1").fetch_one(&db).await {
-        Ok(_) => StatusCode::OK,
-        Err(_) => StatusCode::SERVICE_UNAVAILABLE,
-    }
-}
-\`\`\`
+## Health & Readiness
+- \`/health\` — returns 200 OK (liveness)
+- \`/ready\` — checks database connectivity, returns 200 or 503
 
 ## Production Checklist
-- [ ] Graceful shutdown with timeout: \`tokio::time::timeout(Duration::from_secs(30), serve)\`
-- [ ] Structured JSON logging with \`tracing\` + \`tracing-subscriber\`
-- [ ] Request body size limits via \`RequestBodyLimitLayer\`
-- [ ] Request timeout via \`TimeoutLayer\`
-- [ ] CORS locked to specific origins (not \`permissive()\`)
-- [ ] Security headers: \`X-Content-Type-Options\`, \`Strict-Transport-Security\`, \`X-Frame-Options\`
-- [ ] Database connection pool with limits and idle timeouts
-- [ ] Health check (\`/health\`) and readiness check (\`/ready\`) endpoints
-- [ ] Run behind reverse proxy (nginx/traefik) for TLS termination
-- [ ] Build with \`--release\` and \`lto = true\` in Cargo.toml for production
+- Graceful shutdown with timeout
+- Structured JSON logging with \`tracing\`
+- Request body size limits via \`RequestBodyLimitLayer\`
+- Request timeout via \`TimeoutLayer\`
+- CORS locked to specific origins (not \`permissive()\`)
+- Security headers: X-Content-Type-Options, Strict-Transport-Security, X-Frame-Options
+- Database connection pool with limits and idle timeouts
+- Run behind reverse proxy (nginx/traefik) for TLS termination
+- Build with \`--release\` and \`lto = true\` for production
 `,
       },
       {
@@ -534,165 +162,33 @@ async fn readiness_check(State(db): State<PgPool>) -> StatusCode {
         content: `# Axum Testing Patterns
 
 ## Integration Testing with tower::ServiceExt
-
-Axum's Router implements \`tower::Service\`, so you can test it directly without starting an HTTP server.
-
-\`\`\`rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use axum::body::Body;
-    use axum::http::{Request, StatusCode};
-    use http_body_util::BodyExt;
-    use tower::ServiceExt; // for oneshot
-
-    fn test_state() -> AppState {
-        AppState {
-            db: create_test_pool().await,
-            config: AppConfig::test_defaults(),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_health_check() {
-        let app = app(test_state());
-
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/health")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-    }
-
-    #[tokio::test]
-    async fn test_create_user_returns_201() {
-        let app = app(test_state());
-        let payload = serde_json::json!({
-            "name": "Alice",
-            "email": "alice@example.com"
-        });
-
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/v1/users")
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(serde_json::to_vec(&payload).unwrap()))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::CREATED);
-
-        let body = response.into_body().collect().await.unwrap().to_bytes();
-        let user: User = serde_json::from_slice(&body).unwrap();
-        assert_eq!(user.name, "Alice");
-    }
-
-    #[tokio::test]
-    async fn test_get_nonexistent_user_returns_404() {
-        let app = app(test_state());
-
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/api/v1/users/99999")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    }
-
-    #[tokio::test]
-    async fn test_invalid_json_returns_422() {
-        let app = app(test_state());
-
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/v1/users")
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(r#"{"invalid"#))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-    }
-}
-\`\`\`
+- Build the full Router with test state and use \`tower::ServiceExt::oneshot(request)\`
+- Construct requests with \`Request::builder()\` from the \`http\` crate
+- Read response body with \`http_body_util::BodyExt::collect().await.to_bytes()\`
+- Clone the Router for each oneshot call — oneshot consumes the service
+- Do NOT start a real TCP server for unit/integration tests — use oneshot
 
 ## Test Helper Pattern
+- Create a \`TestApp\` struct with convenience methods (\`get\`, \`post_json\`, etc.)
+- Build test state with test database pool and test config defaults
+- Each test builds its own Router instance with fresh state — no shared mutable state
 
-\`\`\`rust
-// tests/common/mod.rs
-pub struct TestApp {
-    pub app: Router,
-    pub db: PgPool,
-}
+## What to Test
+- Happy path: valid request -> expected status code + response body
+- Validation: invalid JSON -> 422, missing required fields -> 400
+- Not found: nonexistent resource -> 404 with structured error body
+- Authentication: missing/invalid token -> 401, expired token -> 401
+- Authorization: forbidden action -> 403
+- Error responses: verify JSON error body shape matches \`{ "error": "CODE", "message": "..." }\`
+- Middleware: auth rejects unauthenticated, CORS headers present, timeout works
 
-impl TestApp {
-    pub async fn new() -> Self {
-        let db = setup_test_database().await;
-        let state = AppState { db: db.clone(), config: AppConfig::test_defaults() };
-        let app = my_app::app(state);
-        TestApp { app, db }
-    }
-
-    pub async fn get(&self, uri: &str) -> axum::response::Response {
-        self.app
-            .clone()
-            .oneshot(Request::get(uri).body(Body::empty()).unwrap())
-            .await
-            .unwrap()
-    }
-
-    pub async fn post_json(&self, uri: &str, body: &impl serde::Serialize) -> axum::response::Response {
-        self.app
-            .clone()
-            .oneshot(
-                Request::post(uri)
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(serde_json::to_vec(body).unwrap()))
-                    .unwrap(),
-            )
-            .await
-            .unwrap()
-    }
-}
-\`\`\`
-
-## Testing Middleware
-
-\`\`\`rust
-#[tokio::test]
-async fn test_auth_middleware_rejects_unauthenticated() {
-    let app = Router::new()
-        .route("/protected", get(|| async { "secret" }))
-        .layer(middleware::from_fn_with_state(test_state(), require_auth))
-        .with_state(test_state());
-
-    let response = app
-        .oneshot(Request::get("/protected").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-}
-\`\`\`
+## Test Conventions
+- Use \`#[tokio::test]\` for all async test functions
+- Use \`assert_eq!\` on \`response.status()\` for clear failure messages
+- Deserialize response bodies and assert on specific fields, not raw strings
+- Test error responses by verifying both status code and body structure
+- Do not share mutable state between tests
+- Do not assert on exact error message strings — assert on error codes/status
 `,
       },
     ],
@@ -825,6 +321,8 @@ async fn test_auth_middleware_rejects_unauthenticated() {
       {
         name: 'axum-handler-generator',
         description: 'Generate Axum HTTP handlers with extractors, error types, and tests',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Axum Handler Generator
 
 Generate a complete Axum handler with:
@@ -983,8 +481,9 @@ where
         hooks: [
           {
             type: 'command',
+            statusMessage: 'Checking for colon path parameters in Axum routes',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "\\broute\\s*\\(\\s*\"[^\"]*:[^\"]*\"" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: colon path parameters detected — Axum 0.8+ requires brace syntax: /{param} not /:param" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "\\broute\\s*\\(\\s*\"[^\"]*:[^\"]*\"" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: colon path parameters detected — Axum 0.8+ requires brace syntax: /{param} not /:param" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -995,8 +494,9 @@ where
         hooks: [
           {
             type: 'command',
+            statusMessage: 'Checking for CorsLayer::permissive() in Axum code',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "CorsLayer\\s*::\\s*permissive\\s*\\(\\)" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: CorsLayer::permissive() detected — use specific allowed origins in production" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "CorsLayer\\s*::\\s*permissive\\s*\\(\\)" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: CorsLayer::permissive() detected — use specific allowed origins in production" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -1007,8 +507,9 @@ where
         hooks: [
           {
             type: 'command',
+            statusMessage: 'Checking for Extension<T> usage in Axum code',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "Extension\\s*<" "$CLAUDE_FILE_PATH" | grep -v "extensions_mut" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: Extension<T> detected — prefer State<T> with Router::with_state() for compile-time safety" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "Extension\\s*<" "$FILE_PATH" | grep -v "extensions_mut" | head -3 | grep -q "." && { echo "Warning: Extension<T> detected — prefer State<T> with Router::with_state() for compile-time safety" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],

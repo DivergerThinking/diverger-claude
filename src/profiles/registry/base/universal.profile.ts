@@ -1,6 +1,63 @@
-import type { Profile } from '../../../core/types.js';
+import type { Profile, HookScriptDefinition } from '../../../core/types.js';
 import { PROFILE_LAYERS } from '../../../core/types.js';
 import { SENSITIVE_PATTERNS } from '../../../core/constants.js';
+import {
+  makePreToolUseBlockerScript,
+  makeFilePatternCheckScript,
+} from '../../hook-script-templates.js';
+
+function buildUniversalHookScripts(): HookScriptDefinition[] {
+  return [
+    {
+      filename: 'secret-scanner.sh',
+      isPreToolUse: true,
+      content: makePreToolUseBlockerScript({
+        filename: 'secret-scanner.sh',
+        inputField: '.tool_input.content',
+        pattern: '(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk-[0-9a-zA-Z]{48}|ghp_[0-9a-zA-Z]{36}|-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----|password\\s*[:=]\\s*["\x27][^"\x27]{4,}|secret\\s*[:=]\\s*["\x27][^"\x27]{4,}|api[_-]?key\\s*[:=]\\s*["\x27][^"\x27]{4,})',
+        reason: 'Potential secret or API key detected — blocked before writing',
+      }),
+    },
+    {
+      filename: 'destructive-cmd-blocker.sh',
+      isPreToolUse: true,
+      content: makePreToolUseBlockerScript({
+        filename: 'destructive-cmd-blocker.sh',
+        inputField: '.tool_input.command',
+        pattern: '(git\\s+push\\s+--force|git\\s+push\\s+-f\\b|git\\s+reset\\s+--hard|rm\\s+-rf\\s+/|git\\s+clean\\s+-fd|git\\s+checkout\\s+--\\s+\\.|curl\\s+.*\\|\\s*(bash|sh|sudo)|wget\\s+.*\\|\\s*(bash|sh|sudo))',
+        reason: 'Destructive or dangerous command detected — blocked for safety',
+      }),
+    },
+    {
+      filename: 'check-long-lines.sh',
+      isPreToolUse: false,
+      content: makeFilePatternCheckScript({
+        filename: 'check-long-lines.sh',
+        pattern: '^.{300,}$',
+        message: 'Warning: file contains lines over 300 characters — consider wrapping',
+        exitCode: 2,
+      }),
+    },
+    {
+      filename: 'check-trailing-newline.sh',
+      isPreToolUse: false,
+      content: `#!/bin/bash
+# Check that file ends with a newline
+INPUT=$(cat)
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+if [ -z "$FILE_PATH" ]; then exit 0; fi
+if [ -s "$FILE_PATH" ]; then
+  LAST_CHAR=$(tail -c 1 "$FILE_PATH" 2>/dev/null | od -An -tx1 | tr -d ' ')
+  if [ "$LAST_CHAR" != "0a" ] && [ "$LAST_CHAR" != "" ]; then
+    echo "Warning: file does not end with a newline" >&2
+    exit 2
+  fi
+fi
+exit 0
+`,
+    },
+  ];
+}
 
 export const universalProfile: Profile = {
   id: 'base/universal',
@@ -32,27 +89,42 @@ Clean Code, SOLID, and security-first development. Conventional Commits for all 
       },
     },
     hooks: [
+      // C1: Secret scanner fires BEFORE write to block it
       {
-        event: 'PostToolUse',
+        event: 'PreToolUse',
         matcher: 'Write',
         hooks: [
           {
             type: 'command',
-            command:
-              'grep -riEn "(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk-[0-9a-zA-Z]{48}|ghp_[0-9a-zA-Z]{36}|-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----|password\\s*[:=]\\s*[\"\\x27][^\"\\x27]{4,}|secret\\s*[:=]\\s*[\"\\x27][^\"\\x27]{4,}|api[_-]?key\\s*[:=]\\s*[\"\\x27][^\"\\x27]{4,})" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:1:Potential secret or API key detected in written file" || true',
+            command: 'bash .claude/hooks/secret-scanner.sh',
             timeout: 10,
+            statusMessage: 'Scanning for secrets...',
           },
         ],
       },
+      // S4: Destructive commands blocked BEFORE execution
       {
-        event: 'PostToolUse',
+        event: 'PreToolUse',
         matcher: 'Bash',
         hooks: [
           {
             type: 'command',
-            command:
-              'echo "$CLAUDE_TOOL_INPUT" | grep -qE "(git\\s+push\\s+--force|git\\s+push\\s+-f\\b|git\\s+reset\\s+--hard|rm\\s+-rf\\s+/|git\\s+clean\\s+-fd|git\\s+checkout\\s+--\\s+\\.)" && echo "HOOK_EXIT:1:Destructive command detected — review carefully" || true',
+            command: 'bash .claude/hooks/destructive-cmd-blocker.sh',
             timeout: 10,
+            statusMessage: 'Checking for destructive commands...',
+          },
+        ],
+      },
+      // Post-write quality checks (exit codes)
+      {
+        event: 'PostToolUse',
+        matcher: 'Write',
+        hooks: [
+          {
+            type: 'command',
+            command: 'bash .claude/hooks/check-long-lines.sh',
+            timeout: 5,
+            statusMessage: 'Checking line lengths...',
           },
         ],
       },
@@ -62,37 +134,14 @@ Clean Code, SOLID, and security-first development. Conventional Commits for all 
         hooks: [
           {
             type: 'command',
-            command:
-              'grep -cEn "^.{300,}$" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:0:Warning: file contains lines over 300 characters — consider wrapping" || true',
+            command: 'bash .claude/hooks/check-trailing-newline.sh',
             timeout: 5,
-          },
-        ],
-      },
-      {
-        event: 'PostToolUse',
-        matcher: 'Write',
-        hooks: [
-          {
-            type: 'command',
-            command:
-              'tail -c 1 "$CLAUDE_FILE_PATH" | grep -q "[^[:space:]]" && echo "HOOK_EXIT:0:Warning: file does not end with a newline" || true',
-            timeout: 5,
-          },
-        ],
-      },
-      {
-        event: 'PostToolUse',
-        matcher: 'Bash',
-        hooks: [
-          {
-            type: 'command',
-            command:
-              'echo "$CLAUDE_TOOL_INPUT" | grep -qE "(curl|wget)\\s+.*\\|\\s*(bash|sh|sudo)" && echo "HOOK_EXIT:1:Piping remote scripts to shell detected — security risk" || true',
-            timeout: 5,
+            statusMessage: 'Checking trailing newline...',
           },
         ],
       },
     ],
+    hookScripts: buildUniversalHookScripts(),
     rules: [
       {
         path: 'architecture-and-style.md',
@@ -100,82 +149,22 @@ Clean Code, SOLID, and security-first development. Conventional Commits for all 
         description: 'Universal architecture, naming, and code style rules',
         content: `# Architecture & Code Style Rules
 
-## Why This Matters
-Consistent architecture and naming reduce cognitive load, make code self-documenting,
-and prevent the most common maintenance problems. These rules reflect Clean Code principles
-and SOLID design, applied universally regardless of language or framework.
-
----
-
 ## Project Structure
 - Organize code by feature/domain, not by technical layer when the project grows beyond trivial size
 - Keep entry points thin: they wire dependencies and delegate to domain logic
 - Separate I/O (filesystem, network, database) from pure business logic
 - Configuration should live at the top level, not be scattered through the code
 
-### Correct
-\`\`\`
-src/
-  auth/
-    auth.service.ts
-    auth.controller.ts
-    auth.types.ts
-    auth.test.ts
-  orders/
-    orders.service.ts
-    orders.repository.ts
-    orders.test.ts
-\`\`\`
-
-### Anti-Pattern
-\`\`\`
-src/
-  controllers/
-    auth.controller.ts
-    orders.controller.ts
-  services/
-    auth.service.ts
-    orders.service.ts
-  # Problem: changing one feature requires touching many directories
-\`\`\`
-
----
-
 ## Naming Conventions
-
-### Variables & Functions
 - Names must reveal intent: \`remainingRetries\` not \`r\` or \`cnt\`
 - Boolean variables: \`isActive\`, \`hasPermission\`, \`shouldRetry\`, \`canEdit\`
-- Functions describe WHAT they do: \`calculateTotalPrice()\` not \`process()\` or \`doStuff()\`
-- Event handlers: \`onUserLogin\`, \`handlePaymentComplete\`
-- Avoid mental mapping: no single-letter variables except loop counters (\`i\`, \`j\`)
-
-### Classes & Types
-- PascalCase for classes, interfaces, types, enums
+- Functions describe WHAT they do: \`calculateTotalPrice()\` not \`process()\`
+- PascalCase for classes/interfaces/types/enums
 - Avoid generic names: \`Manager\`, \`Handler\`, \`Processor\`, \`Helper\`, \`Utils\` — be specific
-- Name interfaces by capability: \`Serializable\`, \`Cacheable\`, \`Retryable\`
-
-### Constants & Configuration
-- UPPER_SNAKE_CASE for true constants (compile-time or environment-level)
-- Replace magic numbers with named constants: \`MAX_RETRY_COUNT = 3\` not just \`3\`
-
-### Anti-Pattern Examples
-\`\`\`
-// Bad: meaningless names
-const d = new Date();
-const x = getItems().filter(i => i.a > 5);
-function proc(data) { /* ... */ }
-
-// Good: intention-revealing names
-const signupDeadline = new Date();
-const expensiveItems = getItems().filter(item => item.price > MIN_PRICE);
-function filterExpiredSubscriptions(subscriptions) { /* ... */ }
-\`\`\`
-
----
+- UPPER_SNAKE_CASE for true constants; replace magic numbers with named constants
+- No single-letter variables except loop counters (\`i\`, \`j\`)
 
 ## Function Design
-
 - **Single responsibility**: one function = one task
 - **Max 30 lines**: if longer, extract sub-functions
 - **Max 3 parameters**: use an options/config object for more
@@ -183,85 +172,20 @@ function filterExpiredSubscriptions(subscriptions) { /* ... */ }
 - **No side effects**: a function named \`getUser\` must not modify state
 - **Guard clauses**: validate inputs early and return, avoiding deep nesting
 
-### Correct
-\`\`\`
-function calculateDiscount(order) {
-  if (!order.items.length) return 0;
-  if (order.isEmployee) return order.total * 0.30;
-  if (order.total > 100) return order.total * 0.10;
-  return 0;
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`
-function calculateDiscount(order) {
-  let discount = 0;
-  if (order.items.length > 0) {
-    if (order.isEmployee) {
-      discount = order.total * 0.30;
-    } else {
-      if (order.total > 100) {
-        discount = order.total * 0.10;
-      }
-    }
-  }
-  return discount;
-  // Problem: deep nesting, harder to follow, easier to introduce bugs
-}
-\`\`\`
-
----
-
 ## Comments
 - Code should be self-documenting — comments explain "why", never "what"
 - Use comments for: business rule context, non-obvious trade-offs, TODO with ticket reference
 - Delete commented-out code — version control is the history
 - Keep comments updated — stale comments are worse than no comments
 
-### Correct
-\`\`\`
-// Rate limit applies only to free-tier users per billing agreement (PROJ-1234)
-if (user.tier === 'free' && requestCount > RATE_LIMIT) { ... }
-\`\`\`
-
-### Anti-Pattern
-\`\`\`
-// Check if user is free and request count is greater than rate limit
-if (user.tier === 'free' && requestCount > RATE_LIMIT) { ... }
-// Problem: comment restates the code, adds no information
-\`\`\`
-
----
-
 ## Error Handling
 - Never use empty catch blocks — always log or rethrow with context
 - Always handle Promise rejections and async errors
 - Use specific error types over generic ones
-- Distinguish operational errors (expected: network timeout) from programmer errors (bugs: null reference)
+- Distinguish operational errors (expected) from programmer errors (bugs)
 - Do not use exceptions for control flow
 
-### Correct
-\`\`\`
-try {
-  const user = await userRepository.findById(id);
-  if (!user) throw new NotFoundError(\`User \${id} not found\`);
-  return user;
-} catch (error) {
-  if (error instanceof NotFoundError) throw error;
-  throw new DatabaseError('Failed to fetch user', { cause: error, userId: id });
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`
-try {
-  const user = await userRepository.findById(id);
-  return user;
-} catch (error) {
-  // silently swallowed — caller never knows the operation failed
-}
-\`\`\`
+For detailed examples and reference, invoke: /architecture-style-guide
 `,
       },
       {
@@ -270,155 +194,49 @@ try {
         description: 'Universal security rules aligned with OWASP Top 10 2025',
         content: `# Security Rules (OWASP Top 10 2025)
 
-## Why This Matters
-Security vulnerabilities are the costliest defects. These rules cover the OWASP Top 10 2025
-categories, adapted as coding guidelines that apply universally across all languages and frameworks.
-
----
-
 ## A01: Broken Access Control
-- Deny access by default — explicitly grant permissions, never rely on absence of restriction
-- Enforce authorization checks on every request, not just in the UI
-- Validate that the current user owns the resource being accessed (prevent IDOR)
-- Use centralized access control — do not scatter authorization logic across handlers
-
-### Correct
-\`\`\`
-async function getOrder(orderId, currentUser) {
-  const order = await orderRepo.findById(orderId);
-  if (!order) throw new NotFoundError('Order not found');
-  if (order.userId !== currentUser.id && !currentUser.hasRole('admin')) {
-    throw new ForbiddenError('Access denied');
-  }
-  return order;
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`
-async function getOrder(orderId) {
-  // No authorization check — any authenticated user can access any order
-  return await orderRepo.findById(orderId);
-}
-\`\`\`
-
----
+- Deny access by default; enforce authorization on every request, not just the UI
+- Validate resource ownership (prevent IDOR); centralize access control logic
 
 ## A02: Security Misconfiguration
-- Never use default credentials or configurations in production
-- Disable debug modes, verbose error pages, and directory listings in production
-- Set security headers: Content-Security-Policy, X-Content-Type-Options, Strict-Transport-Security
-- Keep dependencies and runtime patched
-
----
+- No default credentials in production; disable debug modes and verbose errors
+- Set security headers: CSP, X-Content-Type-Options, HSTS
 
 ## A03: Software Supply Chain Failures
-- Pin dependency versions — avoid \`latest\` or floating ranges in production
-- Audit dependencies regularly: \`npm audit\`, \`pip audit\`, \`cargo audit\`
-- Verify package integrity (lockfile hashes, checksums)
-- Minimize the number of dependencies — prefer standard library when feasible
-- Never import packages from untrusted registries or sources
-
----
+- Pin dependency versions; audit regularly; verify lockfile integrity
+- Minimize dependencies — prefer standard library when feasible
 
 ## A04: Cryptographic Failures
-- Never implement custom cryptography — use established libraries
-- Use strong algorithms: AES-256 for encryption, bcrypt/Argon2 for passwords, SHA-256+ for hashing
-- Never store passwords in plaintext or with reversible encryption
-- Use TLS 1.2+ for all data in transit
-- Do not hardcode encryption keys or salts in source code
-
----
+- Use established libraries only (AES-256, bcrypt/Argon2, SHA-256+)
+- Never store passwords in plaintext; TLS 1.2+ for data in transit
+- Never hardcode encryption keys or salts in source code
 
 ## A05: Injection
-- ALWAYS use parameterized queries — never concatenate user input into queries
-- Validate and sanitize all external input (user input, API responses, file uploads)
-- Use allowlists over denylists for input validation
-- Encode output according to context (HTML, URL, SQL, OS command)
-
-### Correct
-\`\`\`
-// Parameterized query — safe from injection
-const user = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
-\`\`\`
-
-### Anti-Pattern
-\`\`\`
-// String concatenation — SQL injection vulnerability
-const user = await db.query('SELECT * FROM users WHERE id = ' + userId);
-\`\`\`
-
----
+- ALWAYS use parameterized queries — never concatenate user input
+- Validate all external input; use allowlists over denylists
 
 ## A06: Insecure Design
-- Apply threat modeling during design — identify trust boundaries and attack surfaces
-- Follow the principle of least privilege for all system components
-- Implement rate limiting for authentication and sensitive endpoints
-- Design for failure: assume any external input or service can be malicious
-
----
+- Least privilege for all components; rate limiting on sensitive endpoints
 
 ## A07: Authentication Failures
-- Enforce strong password policies (minimum 12 characters, check against breached password lists)
-- Implement multi-factor authentication for sensitive operations
-- Use secure session management — HttpOnly, Secure, SameSite cookie attributes
-- Implement account lockout or throttling after failed login attempts
-- Never expose authentication details in error messages ("Invalid credentials", not "Wrong password")
-
----
+- Strong passwords (min 12 chars), MFA for sensitive operations
+- Secure sessions (HttpOnly, Secure, SameSite); throttle failed logins
 
 ## A08: Software or Data Integrity Failures
-- Verify signatures on updates, serialized data, and CI/CD artifacts
-- Never deserialize untrusted data without validation
-- Protect CI/CD pipelines — use signed commits, require code review before merge
-- Use subresource integrity (SRI) for third-party scripts
-
----
+- Verify signatures on updates/artifacts; never deserialize untrusted data
 
 ## A09: Security Logging & Alerting Failures
-- Log all authentication events, access control failures, and input validation failures
-- Never log sensitive data (passwords, tokens, PII, credit card numbers)
-- Use structured logging with correlation IDs for tracing
-- Ensure log integrity — logs should be append-only and tamper-evident
-
----
+- Log auth events and access control failures; never log sensitive data
 
 ## A10: Mishandling of Exceptional Conditions
-- Handle all error paths — no unhandled exceptions in production
-- Do not expose stack traces, internal paths, or debug info to end users
-- Fail securely: on error, deny access rather than granting it
-- Validate all assumptions — never trust that external data is in the expected format
-
-### Correct
-\`\`\`
-try {
-  const result = await paymentGateway.charge(amount);
-  return { success: true, transactionId: result.id };
-} catch (error) {
-  logger.error('Payment failed', { amount, errorCode: error.code });
-  return { success: false, message: 'Payment could not be processed' };
-  // User sees generic message; details are logged server-side
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`
-try {
-  const result = await paymentGateway.charge(amount);
-  return { success: true, transactionId: result.id };
-} catch (error) {
-  return { success: false, message: error.stack };
-  // Leaks internal stack trace, file paths, and library versions to the client
-}
-\`\`\`
-
----
+- Handle all error paths; fail securely; never expose internals to users
 
 ## Sensitive Data Protection
 - NEVER read, log, or output API keys, passwords, tokens, or private keys
-- Do not access .env files, .pem files, or credential stores from application code that could expose them
+- Use environment variables or secret managers — never hardcode credentials
 - Handle PII with care — minimize collection, encrypt at rest, restrict access
-- Use environment variables or secret managers for credentials — never hardcode them
+
+For detailed examples and reference, invoke: /security-guide
 `,
       },
       {
@@ -427,69 +245,10 @@ try {
         description: 'Git workflow and Conventional Commits guidelines',
         content: `# Git Workflow & Conventional Commits
 
-## Why This Matters
-A disciplined Git workflow enables reliable releases, meaningful changelogs, and painless
-collaboration. Conventional Commits provide a structured format that can be parsed by
-tooling for automatic versioning and changelog generation.
-
----
-
 ## Conventional Commits Format (v1.0.0)
-
-\`\`\`
-<type>[optional scope]: <description>
-
-[optional body]
-
-[optional footer(s)]
-\`\`\`
-
-### Types
-| Type | Purpose | SemVer Impact |
-|------|---------|---------------|
-| feat | New feature | MINOR |
-| fix | Bug fix | PATCH |
-| docs | Documentation only | None |
-| style | Formatting, whitespace | None |
-| refactor | Code restructuring, no behavior change | None |
-| perf | Performance improvement | None |
-| test | Adding or correcting tests | None |
-| chore | Maintenance, deps, config | None |
-| ci | CI/CD configuration | None |
-| build | Build system changes | None |
-| revert | Revert a previous commit | Varies |
-
-### Breaking Changes
-Two equivalent approaches:
-- Footer: \`BREAKING CHANGE: description\`
-- Prefix: \`feat(api)!: remove deprecated endpoint\`
-
-Breaking changes trigger a MAJOR version bump.
-
-### Examples
-\`\`\`
-feat(auth): add OAuth2 login with Google provider
-
-Implements the OAuth2 authorization code flow for Google.
-Includes token refresh and session persistence.
-
-Closes #142
-
----
-
-fix(parser): handle empty input without crashing
-
-Previously, passing an empty string caused an uncaught TypeError.
-Now returns an empty result object.
-
----
-
-refactor!: rename UserService to AuthenticationService
-
-BREAKING CHANGE: all imports of UserService must be updated to AuthenticationService.
-\`\`\`
-
----
+- Format: \`<type>[optional scope]: <description>\`
+- Types: feat (MINOR), fix (PATCH), docs, style, refactor, perf, test, chore, ci, build, revert
+- Breaking changes: footer \`BREAKING CHANGE: desc\` or \`feat(api)!: desc\` (triggers MAJOR)
 
 ## Branch Discipline
 - Keep commits atomic — one logical change per commit
@@ -499,14 +258,14 @@ BREAKING CHANGE: all imports of UserService must be updated to AuthenticationSer
 - Never commit generated files, build artifacts, or OS-specific files (.DS_Store, Thumbs.db)
 - Never force-push to shared branches (main, develop, release/*)
 
----
-
 ## Pre-Commit Checklist
-- [ ] Code compiles without errors
-- [ ] All tests pass
-- [ ] No secrets or credentials in the diff
-- [ ] Commit message follows Conventional Commits format
-- [ ] Changes are scoped to one logical change
+- Code compiles without errors
+- All tests pass
+- No secrets or credentials in the diff
+- Commit message follows Conventional Commits format
+- Changes are scoped to one logical change
+
+For detailed examples and reference, invoke: /git-workflow-guide
 `,
       },
     ],
@@ -514,62 +273,23 @@ BREAKING CHANGE: all imports of UserService must be updated to AuthenticationSer
       {
         name: 'code-reviewer',
         type: 'define',
+        model: 'sonnet',
+        memory: 'project',
         description: 'Reviews code for quality, security, and best practices',
-        prompt: `You are an expert code reviewer with deep knowledge of Clean Code principles, SOLID design, and OWASP security guidelines. Your reviews are thorough, specific, and always reference concrete line numbers or code snippets.
+        prompt: `You are an expert code reviewer. Reference concrete line numbers in every finding.
 
-## Review Checklist
+## Checklist
+1. **Architecture**: SRP, OCP, DIP, no god objects, I/O separated from logic
+2. **Quality**: intent-revealing names, functions <30 lines/<4 params, no nesting >3, no dead code, no magic numbers
+3. **Errors**: no empty catch, async errors handled, context in errors, no leaked internals
+4. **Security**: no hardcoded secrets, input validation, parameterized queries, output encoding, access control, no PII in logs
+5. **Performance**: no O(n²) when O(n) works, no allocations in loops, paginate large data
+6. **Tests**: new logic has tests covering happy path + edge + error cases
 
-### 1. Architecture & Design
-- [ ] Single Responsibility: each function/class does one thing
-- [ ] Open/Closed: new behavior via extension, not modification
-- [ ] Dependency Inversion: depends on abstractions, not concretions
-- [ ] No god objects or god functions (>100 lines)
-- [ ] Proper separation of concerns (I/O vs business logic)
+## Output: CRITICAL | WARNING | SUGGESTION | POSITIVE — explain WHY, not just WHAT.
 
-### 2. Code Quality
-- [ ] Names reveal intent — no abbreviations, no generic names (data, info, temp, item)
-- [ ] Functions < 30 lines, < 4 parameters
-- [ ] No deep nesting (max 3 levels) — use guard clauses
-- [ ] No code duplication (DRY) — but no premature abstraction either
-- [ ] No dead code (unused variables, imports, functions, commented-out blocks)
-- [ ] No magic numbers — use named constants
-
-### 3. Error Handling
-- [ ] No empty catch blocks
-- [ ] All async operations have error handling
-- [ ] Errors include sufficient context for debugging
-- [ ] User-facing error messages do not leak internals
-- [ ] Operational vs programmer errors are distinguished
-
-### 4. Security (OWASP Top 10 2025)
-- [ ] No hardcoded secrets, API keys, or credentials
-- [ ] Input validation on all external data
-- [ ] Parameterized queries for database operations
-- [ ] Output encoding to prevent XSS
-- [ ] Access control checks on every sensitive operation
-- [ ] No sensitive data in logs (passwords, tokens, PII)
-- [ ] Dependencies are pinned and audited
-
-### 5. Performance
-- [ ] No O(n^2) or worse where O(n) or O(n log n) is possible
-- [ ] No unnecessary allocations in loops
-- [ ] Large data sets use pagination or streaming
-- [ ] No unbounded caches or growing memory leaks
-
-### 6. Testing
-- [ ] New logic has corresponding tests
-- [ ] Tests cover happy path, edge cases, and error cases
-- [ ] Tests are deterministic and independent
-
-## Output Format
-Categorize every finding:
-- CRITICAL: Must fix before merge — bugs, security issues, data loss risks
-- WARNING: Should fix — code smells, missing tests, unclear naming
-- SUGGESTION: Nice to have — style improvements, minor refactoring opportunities
-- POSITIVE: Call out good patterns worth keeping
-
-Always explain WHY a change is needed, not just WHAT to change.`,
-        skills: [],
+For detailed rules, invoke: /architecture-style-guide, /security-guide`,
+        skills: ['architecture-style-guide', 'security-guide'],
       },
       {
         name: 'test-writer',
@@ -617,83 +337,29 @@ For every function/module, write tests covering:
         skills: [],
       },
       {
-        name: 'security-checker',
+        name: 'security-reviewer',
         type: 'define',
-        description: 'Checks code for security vulnerabilities aligned with OWASP Top 10 2025',
-        prompt: `You are a senior application security engineer. You perform security reviews following the OWASP Top 10 2025 framework and secure coding practices.
+        model: 'sonnet',
+        description: 'Reviews code for security vulnerabilities (OWASP Top 10 2025)',
+        prompt: `You are a senior application security engineer reviewing code against OWASP Top 10 2025.
 
-## OWASP Top 10 2025 Review Checklist
+## Quick Checklist
+- A01: Authorization on every endpoint, IDOR prevention, deny-by-default
+- A02: No debug in prod, no default creds, security headers set
+- A03: Pinned deps, lockfile committed, no untrusted packages
+- A04: No plaintext passwords, strong crypto, no hardcoded keys, CSPRNG
+- A05: Parameterized queries, no input concatenation in SQL/shell, output encoding
+- A06: Rate limiting, input size limits, least privilege
+- A07: No credential leaks, secure sessions, login throttling
+- A08: No unsafe deserialization, CI/CD integrity
+- A09: Auth events logged, no PII in logs, structured format
+- A10: All error paths handled, fail securely, generic user errors
 
-### A01: Broken Access Control
-- [ ] Every endpoint enforces authorization — not just authentication
-- [ ] Resource access validates ownership (no IDOR: Insecure Direct Object Reference)
-- [ ] Deny by default — access requires explicit grant
-- [ ] CORS is configured restrictively (not \`*\` in production)
-- [ ] Directory traversal paths are rejected (sanitize \`../\` in user input)
+## Severity: CRITICAL > HIGH > MEDIUM > LOW
+Report: severity, location, description, impact, remediation.
 
-### A02: Security Misconfiguration
-- [ ] Debug modes disabled in production code
-- [ ] Default credentials removed
-- [ ] Error responses do not reveal stack traces or internal paths
-- [ ] Security headers present (CSP, HSTS, X-Content-Type-Options)
-- [ ] Unnecessary features/endpoints disabled
-
-### A03: Software Supply Chain Failures
-- [ ] Dependencies are pinned to specific versions
-- [ ] No known vulnerabilities in dependencies (check advisories)
-- [ ] Lockfile is committed and integrity-checked
-- [ ] No imports from unverified or suspicious packages
-
-### A04: Cryptographic Failures
-- [ ] No plaintext storage of passwords or secrets
-- [ ] Strong hashing algorithms (bcrypt, Argon2 for passwords; SHA-256+ for integrity)
-- [ ] TLS enforced for data in transit
-- [ ] No hardcoded encryption keys or secrets in source code
-- [ ] Proper random number generation (CSPRNG, not Math.random)
-
-### A05: Injection
-- [ ] All database queries use parameterized statements
-- [ ] User input is never concatenated into SQL, shell commands, or LDAP queries
-- [ ] Output is encoded for the appropriate context (HTML, URL, JS)
-- [ ] File paths from user input are validated and sandboxed
-
-### A06: Insecure Design
-- [ ] Rate limiting on authentication and sensitive endpoints
-- [ ] Input size limits enforced (file uploads, request body)
-- [ ] Principle of least privilege applied to service accounts and components
-- [ ] Threat model considered for new features
-
-### A07: Authentication Failures
-- [ ] No credential leakage in logs, URLs, or error messages
-- [ ] Session tokens are cryptographically random and rotated
-- [ ] Failed login attempts are rate-limited
-- [ ] Password requirements enforced server-side
-
-### A08: Software or Data Integrity Failures
-- [ ] Deserialization of untrusted data is avoided or validated
-- [ ] CI/CD pipeline integrity protected (signed commits, approval gates)
-- [ ] Subresource integrity (SRI) for third-party assets
-
-### A09: Security Logging & Alerting Failures
-- [ ] Authentication events are logged (login, logout, failure)
-- [ ] Access control failures are logged
-- [ ] Sensitive data is NOT logged (passwords, tokens, PII)
-- [ ] Logs use structured format with correlation IDs
-
-### A10: Mishandling of Exceptional Conditions
-- [ ] All error paths are handled — no unhandled exceptions in production
-- [ ] Errors fail securely (deny on error, not grant)
-- [ ] Error messages to users are generic; details go to logs
-- [ ] External input assumptions are validated, not trusted
-
-## Severity Levels
-- **CRITICAL**: Exploitable vulnerability — must fix immediately (injection, auth bypass, secret exposure)
-- **HIGH**: Significant risk requiring prompt remediation (missing access control, weak crypto)
-- **MEDIUM**: Defense-in-depth gap (missing headers, verbose errors)
-- **LOW**: Hardening opportunity (logging improvement, config tightening)
-
-Report each finding with: severity, location, description, impact, and specific remediation steps.`,
-        skills: [],
+For detailed rules, invoke: /security-guide`,
+        skills: ['security-guide'],
       },
       {
         name: 'doc-writer',
@@ -797,6 +463,426 @@ Report each finding with: severity, location, description, impact, and specific 
 - Have a rollback plan documented before starting
 - Prefer codemods or automated migration scripts over manual find-and-replace`,
         skills: [],
+      },
+    ],
+    skills: [
+      {
+        name: 'architecture-style-guide',
+        description: 'Detailed reference for architecture, naming, and code style conventions with examples',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Architecture & Code Style Rules — Full Reference
+
+## Why This Matters
+Consistent architecture and naming reduce cognitive load, make code self-documenting,
+and prevent the most common maintenance problems. These rules reflect Clean Code principles
+and SOLID design, applied universally regardless of language or framework.
+
+---
+
+## Project Structure
+- Organize code by feature/domain, not by technical layer when the project grows beyond trivial size
+- Keep entry points thin: they wire dependencies and delegate to domain logic
+- Separate I/O (filesystem, network, database) from pure business logic
+- Configuration should live at the top level, not be scattered through the code
+
+### Correct
+\\\`\\\`\\\`
+src/
+  auth/
+    auth.service.ts
+    auth.controller.ts
+    auth.types.ts
+    auth.test.ts
+  orders/
+    orders.service.ts
+    orders.repository.ts
+    orders.test.ts
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`
+src/
+  controllers/
+    auth.controller.ts
+    orders.controller.ts
+  services/
+    auth.service.ts
+    orders.service.ts
+  # Problem: changing one feature requires touching many directories
+\\\`\\\`\\\`
+
+---
+
+## Naming Conventions
+
+### Variables & Functions
+- Names must reveal intent: \\\`remainingRetries\\\` not \\\`r\\\` or \\\`cnt\\\`
+- Boolean variables: \\\`isActive\\\`, \\\`hasPermission\\\`, \\\`shouldRetry\\\`, \\\`canEdit\\\`
+- Functions describe WHAT they do: \\\`calculateTotalPrice()\\\` not \\\`process()\\\` or \\\`doStuff()\\\`
+- Event handlers: \\\`onUserLogin\\\`, \\\`handlePaymentComplete\\\`
+- Avoid mental mapping: no single-letter variables except loop counters (\\\`i\\\`, \\\`j\\\`)
+
+### Classes & Types
+- PascalCase for classes, interfaces, types, enums
+- Avoid generic names: \\\`Manager\\\`, \\\`Handler\\\`, \\\`Processor\\\`, \\\`Helper\\\`, \\\`Utils\\\` — be specific
+- Name interfaces by capability: \\\`Serializable\\\`, \\\`Cacheable\\\`, \\\`Retryable\\\`
+
+### Constants & Configuration
+- UPPER_SNAKE_CASE for true constants (compile-time or environment-level)
+- Replace magic numbers with named constants: \\\`MAX_RETRY_COUNT = 3\\\` not just \\\`3\\\`
+
+### Anti-Pattern Examples
+\\\`\\\`\\\`
+// Bad: meaningless names
+const d = new Date();
+const x = getItems().filter(i => i.a > 5);
+function proc(data) { /* ... */ }
+
+// Good: intention-revealing names
+const signupDeadline = new Date();
+const expensiveItems = getItems().filter(item => item.price > MIN_PRICE);
+function filterExpiredSubscriptions(subscriptions) { /* ... */ }
+\\\`\\\`\\\`
+
+---
+
+## Function Design
+
+- **Single responsibility**: one function = one task
+- **Max 30 lines**: if longer, extract sub-functions
+- **Max 3 parameters**: use an options/config object for more
+- **No flag parameters**: prefer two separate functions over a boolean that changes behavior
+- **No side effects**: a function named \\\`getUser\\\` must not modify state
+- **Guard clauses**: validate inputs early and return, avoiding deep nesting
+
+### Correct
+\\\`\\\`\\\`
+function calculateDiscount(order) {
+  if (!order.items.length) return 0;
+  if (order.isEmployee) return order.total * 0.30;
+  if (order.total > 100) return order.total * 0.10;
+  return 0;
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`
+function calculateDiscount(order) {
+  let discount = 0;
+  if (order.items.length > 0) {
+    if (order.isEmployee) {
+      discount = order.total * 0.30;
+    } else {
+      if (order.total > 100) {
+        discount = order.total * 0.10;
+      }
+    }
+  }
+  return discount;
+  // Problem: deep nesting, harder to follow, easier to introduce bugs
+}
+\\\`\\\`\\\`
+
+---
+
+## Comments
+- Code should be self-documenting — comments explain "why", never "what"
+- Use comments for: business rule context, non-obvious trade-offs, TODO with ticket reference
+- Delete commented-out code — version control is the history
+- Keep comments updated — stale comments are worse than no comments
+
+### Correct
+\\\`\\\`\\\`
+// Rate limit applies only to free-tier users per billing agreement (PROJ-1234)
+if (user.tier === 'free' && requestCount > RATE_LIMIT) { ... }
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`
+// Check if user is free and request count is greater than rate limit
+if (user.tier === 'free' && requestCount > RATE_LIMIT) { ... }
+// Problem: comment restates the code, adds no information
+\\\`\\\`\\\`
+
+---
+
+## Error Handling
+- Never use empty catch blocks — always log or rethrow with context
+- Always handle Promise rejections and async errors
+- Use specific error types over generic ones
+- Distinguish operational errors (expected: network timeout) from programmer errors (bugs: null reference)
+- Do not use exceptions for control flow
+
+### Correct
+\\\`\\\`\\\`
+try {
+  const user = await userRepository.findById(id);
+  if (!user) throw new NotFoundError(\\\`User \\\${id} not found\\\`);
+  return user;
+} catch (error) {
+  if (error instanceof NotFoundError) throw error;
+  throw new DatabaseError('Failed to fetch user', { cause: error, userId: id });
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`
+try {
+  const user = await userRepository.findById(id);
+  return user;
+} catch (error) {
+  // silently swallowed — caller never knows the operation failed
+}
+\\\`\\\`\\\`
+`,
+      },
+      {
+        name: 'security-guide',
+        description: 'Detailed reference for OWASP Top 10 2025 security rules with examples',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Security Rules (OWASP Top 10 2025) — Full Reference
+
+## Why This Matters
+Security vulnerabilities are the costliest defects. These rules cover the OWASP Top 10 2025
+categories, adapted as coding guidelines that apply universally across all languages and frameworks.
+
+---
+
+## A01: Broken Access Control
+- Deny access by default — explicitly grant permissions, never rely on absence of restriction
+- Enforce authorization checks on every request, not just in the UI
+- Validate that the current user owns the resource being accessed (prevent IDOR)
+- Use centralized access control — do not scatter authorization logic across handlers
+
+### Correct
+\\\`\\\`\\\`
+async function getOrder(orderId, currentUser) {
+  const order = await orderRepo.findById(orderId);
+  if (!order) throw new NotFoundError('Order not found');
+  if (order.userId !== currentUser.id && !currentUser.hasRole('admin')) {
+    throw new ForbiddenError('Access denied');
+  }
+  return order;
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`
+async function getOrder(orderId) {
+  // No authorization check — any authenticated user can access any order
+  return await orderRepo.findById(orderId);
+}
+\\\`\\\`\\\`
+
+---
+
+## A02: Security Misconfiguration
+- Never use default credentials or configurations in production
+- Disable debug modes, verbose error pages, and directory listings in production
+- Set security headers: Content-Security-Policy, X-Content-Type-Options, Strict-Transport-Security
+- Keep dependencies and runtime patched
+
+---
+
+## A03: Software Supply Chain Failures
+- Pin dependency versions — avoid \\\`latest\\\` or floating ranges in production
+- Audit dependencies regularly: \\\`npm audit\\\`, \\\`pip audit\\\`, \\\`cargo audit\\\`
+- Verify package integrity (lockfile hashes, checksums)
+- Minimize the number of dependencies — prefer standard library when feasible
+- Never import packages from untrusted registries or sources
+
+---
+
+## A04: Cryptographic Failures
+- Never implement custom cryptography — use established libraries
+- Use strong algorithms: AES-256 for encryption, bcrypt/Argon2 for passwords, SHA-256+ for hashing
+- Never store passwords in plaintext or with reversible encryption
+- Use TLS 1.2+ for all data in transit
+- Do not hardcode encryption keys or salts in source code
+
+---
+
+## A05: Injection
+- ALWAYS use parameterized queries — never concatenate user input into queries
+- Validate and sanitize all external input (user input, API responses, file uploads)
+- Use allowlists over denylists for input validation
+- Encode output according to context (HTML, URL, SQL, OS command)
+
+### Correct
+\\\`\\\`\\\`
+// Parameterized query — safe from injection
+const user = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`
+// String concatenation — SQL injection vulnerability
+const user = await db.query('SELECT * FROM users WHERE id = ' + userId);
+\\\`\\\`\\\`
+
+---
+
+## A06: Insecure Design
+- Apply threat modeling during design — identify trust boundaries and attack surfaces
+- Follow the principle of least privilege for all system components
+- Implement rate limiting for authentication and sensitive endpoints
+- Design for failure: assume any external input or service can be malicious
+
+---
+
+## A07: Authentication Failures
+- Enforce strong password policies (minimum 12 characters, check against breached password lists)
+- Implement multi-factor authentication for sensitive operations
+- Use secure session management — HttpOnly, Secure, SameSite cookie attributes
+- Implement account lockout or throttling after failed login attempts
+- Never expose authentication details in error messages ("Invalid credentials", not "Wrong password")
+
+---
+
+## A08: Software or Data Integrity Failures
+- Verify signatures on updates, serialized data, and CI/CD artifacts
+- Never deserialize untrusted data without validation
+- Protect CI/CD pipelines — use signed commits, require code review before merge
+- Use subresource integrity (SRI) for third-party scripts
+
+---
+
+## A09: Security Logging & Alerting Failures
+- Log all authentication events, access control failures, and input validation failures
+- Never log sensitive data (passwords, tokens, PII, credit card numbers)
+- Use structured logging with correlation IDs for tracing
+- Ensure log integrity — logs should be append-only and tamper-evident
+
+---
+
+## A10: Mishandling of Exceptional Conditions
+- Handle all error paths — no unhandled exceptions in production
+- Do not expose stack traces, internal paths, or debug info to end users
+- Fail securely: on error, deny access rather than granting it
+- Validate all assumptions — never trust that external data is in the expected format
+
+### Correct
+\\\`\\\`\\\`
+try {
+  const result = await paymentGateway.charge(amount);
+  return { success: true, transactionId: result.id };
+} catch (error) {
+  logger.error('Payment failed', { amount, errorCode: error.code });
+  return { success: false, message: 'Payment could not be processed' };
+  // User sees generic message; details are logged server-side
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`
+try {
+  const result = await paymentGateway.charge(amount);
+  return { success: true, transactionId: result.id };
+} catch (error) {
+  return { success: false, message: error.stack };
+  // Leaks internal stack trace, file paths, and library versions to the client
+}
+\\\`\\\`\\\`
+
+---
+
+## Sensitive Data Protection
+- NEVER read, log, or output API keys, passwords, tokens, or private keys
+- Do not access .env files, .pem files, or credential stores from application code that could expose them
+- Handle PII with care — minimize collection, encrypt at rest, restrict access
+- Use environment variables or secret managers for credentials — never hardcode them
+`,
+      },
+      {
+        name: 'git-workflow-guide',
+        description: 'Detailed reference for Git workflow and Conventional Commits with examples',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Git Workflow & Conventional Commits — Full Reference
+
+## Why This Matters
+A disciplined Git workflow enables reliable releases, meaningful changelogs, and painless
+collaboration. Conventional Commits provide a structured format that can be parsed by
+tooling for automatic versioning and changelog generation.
+
+---
+
+## Conventional Commits Format (v1.0.0)
+
+\\\`\\\`\\\`
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+\\\`\\\`\\\`
+
+### Types
+| Type | Purpose | SemVer Impact |
+|------|---------|---------------|
+| feat | New feature | MINOR |
+| fix | Bug fix | PATCH |
+| docs | Documentation only | None |
+| style | Formatting, whitespace | None |
+| refactor | Code restructuring, no behavior change | None |
+| perf | Performance improvement | None |
+| test | Adding or correcting tests | None |
+| chore | Maintenance, deps, config | None |
+| ci | CI/CD configuration | None |
+| build | Build system changes | None |
+| revert | Revert a previous commit | Varies |
+
+### Breaking Changes
+Two equivalent approaches:
+- Footer: \\\`BREAKING CHANGE: description\\\`
+- Prefix: \\\`feat(api)!: remove deprecated endpoint\\\`
+
+Breaking changes trigger a MAJOR version bump.
+
+### Examples
+\\\`\\\`\\\`
+feat(auth): add OAuth2 login with Google provider
+
+Implements the OAuth2 authorization code flow for Google.
+Includes token refresh and session persistence.
+
+Closes #142
+
+---
+
+fix(parser): handle empty input without crashing
+
+Previously, passing an empty string caused an uncaught TypeError.
+Now returns an empty result object.
+
+---
+
+refactor!: rename UserService to AuthenticationService
+
+BREAKING CHANGE: all imports of UserService must be updated to AuthenticationService.
+\\\`\\\`\\\`
+
+---
+
+## Branch Discipline
+- Keep commits atomic — one logical change per commit
+- Write commit subjects in imperative mood: "add feature" not "added feature"
+- Subject line max 72 characters; body wraps at 80
+- Squash WIP commits before merging to main
+- Never commit generated files, build artifacts, or OS-specific files (.DS_Store, Thumbs.db)
+- Never force-push to shared branches (main, develop, release/*)
+
+---
+
+## Pre-Commit Checklist
+- [ ] Code compiles without errors
+- [ ] All tests pass
+- [ ] No secrets or credentials in the diff
+- [ ] Commit message follows Conventional Commits format
+- [ ] Changes are scoped to one logical change
+`,
       },
     ],
   },

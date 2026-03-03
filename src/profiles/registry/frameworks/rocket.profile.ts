@@ -46,241 +46,37 @@ Type-driven web framework. Request guards for validation, fairings for middlewar
         content: `# Rocket Architecture
 
 ## Route Patterns
-
-### Handler Declaration
-Define routes with attribute macros and typed parameters:
-
-\`\`\`rust
-#[get("/users/<id>")]
-async fn get_user(id: i64, db: &State<DbPool>) -> Result<Json<User>, Status> {
-    let user = db.find_user(id).await.map_err(|_| Status::InternalServerError)?;
-    user.map(Json).ok_or(Status::NotFound)
-}
-
-#[post("/users", data = "<input>")]
-async fn create_user(
-    input: Json<CreateUserRequest>,
-    db: &State<DbPool>,
-    auth: AuthenticatedUser,
-) -> Result<(Status, Json<User>), ApiError> {
-    let user = db.create_user(input.into_inner(), auth.id).await?;
-    Ok((Status::Created, Json(user)))
-}
-\`\`\`
-
-### Path and Query Parameters
-- Path segment: \`<id>\` maps to a parameter implementing \`FromParam\`
-- Multiple segments: \`<path..>\` maps to \`PathBuf\` or custom \`FromSegments\` type
-- Query string: \`?<page>&<per_page>\` with \`FromForm\` — supports optional (\`Option<T>\`) and default values
-
-\`\`\`rust
-#[get("/search?<q>&<page>&<per_page>")]
-async fn search(
-    q: &str,
-    page: Option<u32>,
-    per_page: Option<u32>,
-) -> Json<SearchResults> {
-    let page = page.unwrap_or(1);
-    let per_page = per_page.unwrap_or(20).min(100);
-    // ...
-}
-\`\`\`
-
-### Route Ranking
-When multiple routes could match, use \`rank\` to disambiguate:
-
-\`\`\`rust
-#[get("/users/<id>", rank = 1)]
-async fn get_user_by_id(id: i64) -> Json<User> { /* ... */ }
-
-#[get("/users/<name>", rank = 2)]
-async fn get_user_by_name(name: &str) -> Json<User> { /* ... */ }
-\`\`\`
+- Define routes with attribute macros: \`#[get]\`, \`#[post]\`, \`#[put]\`, \`#[delete]\`
+- Use \`data = "<param>"\` attribute for body-consuming routes
+- Path segment: \`<id>\` maps to \`FromParam\`; multiple: \`<path..>\` maps to \`PathBuf\`
+- Query string: \`?<page>&<per_page>\` with \`FromForm\` — supports \`Option<T>\` and defaults
+- Use \`rank\` to disambiguate when multiple routes could match
+- Return \`Result<T, ApiError>\` where both implement \`Responder\`
 
 ## Application State
-
-### Managed State
-Register state at build time, access via \`&State<T>\` guard:
-
-\`\`\`rust
-struct AppConfig {
-    api_key: String,
-    max_retries: u32,
-}
-
-#[launch]
-fn rocket() -> _ {
-    let config = AppConfig {
-        api_key: std::env::var("API_KEY").expect("API_KEY required"),
-        max_retries: 3,
-    };
-
-    rocket::build()
-        .manage(config)
-        .mount("/api", routes![handler])
-}
-
-#[get("/status")]
-fn handler(config: &State<AppConfig>) -> String {
-    format!("Max retries: {}", config.max_retries)
-}
-\`\`\`
-
-### Database Pools with rocket_db_pools
-\`\`\`rust
-use rocket_db_pools::{Database, Connection, sqlx};
-
-#[derive(Database)]
-#[database("app_db")]
-struct AppDb(sqlx::PgPool);
-
-#[get("/users/<id>")]
-async fn get_user(mut db: Connection<AppDb>, id: i64) -> Result<Json<User>, Status> {
-    sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&mut **db)
-        .await
-        .map_err(|_| Status::InternalServerError)?
-        .map(Json)
-        .ok_or(Status::NotFound)
-}
-\`\`\`
-
-Configure in \`Rocket.toml\`:
-\`\`\`toml
-[default.databases.app_db]
-url = "postgres://user:pass@localhost/mydb"
-max_connections = 10
-\`\`\`
+- Register state at build time with \`.manage(T)\`, access via \`&State<T>\` guard
+- Use \`rocket_db_pools\` with \`#[derive(Database)]\` for connection pooling
+- Configure database pools in \`Rocket.toml\` under \`[default.databases.<name>]\`
+- \`Sentinel\` types (\`State\`, \`Connection\`) catch missing state at launch time
 
 ## Route Organization
-- Mount route groups with path prefixes for modularity
+- Mount route groups with path prefixes: \`.mount("/api/v1/users", routes::users::routes())\`
 - Keep \`routes![]\` macro calls in a central location or per-module function
-
-\`\`\`rust
-// src/routes/users.rs
-pub fn routes() -> Vec<rocket::Route> {
-    routes![list_users, get_user, create_user, update_user, delete_user]
-}
-
-// src/main.rs
-#[launch]
-fn rocket() -> _ {
-    rocket::build()
-        .mount("/api/v1/users", routes::users::routes())
-        .mount("/api/v1/orders", routes::orders::routes())
-        .register("/", catchers![not_found, internal_error])
-}
-\`\`\`
+- Register catchers: \`.register("/", catchers![not_found, internal_error])\`
 
 ## Error Handling
-
-### Catchers
-Register catchers for common HTTP error codes:
-
-\`\`\`rust
-#[catch(404)]
-fn not_found(req: &Request) -> Json<ErrorResponse> {
-    Json(ErrorResponse {
-        code: 404,
-        message: format!("Resource not found: {}", req.uri()),
-    })
-}
-
-#[catch(422)]
-fn unprocessable(req: &Request) -> Json<ErrorResponse> {
-    Json(ErrorResponse {
-        code: 422,
-        message: "Invalid request data".into(),
-    })
-}
-
-#[catch(500)]
-fn internal_error() -> Json<ErrorResponse> {
-    Json(ErrorResponse {
-        code: 500,
-        message: "Internal server error".into(),
-    })
-}
-\`\`\`
-
-### Custom Error Types with Responder
-\`\`\`rust
-use rocket::response::Responder;
-
-#[derive(Debug, Responder)]
-pub enum ApiError {
-    #[response(status = 400)]
-    BadRequest(Json<ErrorResponse>),
-    #[response(status = 404)]
-    NotFound(Json<ErrorResponse>),
-    #[response(status = 409)]
-    Conflict(Json<ErrorResponse>),
-    #[response(status = 500)]
-    Internal(Json<ErrorResponse>),
-}
-
-impl From<sqlx::Error> for ApiError {
-    fn from(e: sqlx::Error) -> Self {
-        tracing::error!("Database error: {e}");
-        ApiError::Internal(Json(ErrorResponse {
-            code: 500,
-            message: "Internal server error".into(),
-        }))
-    }
-}
-\`\`\`
+- Register catchers for common HTTP codes (400, 404, 422, 500) using \`#[catch(N)]\`
+- Use \`#[derive(Responder)]\` with \`#[response(status = N)]\` for custom error types
+- Implement \`From<ExternalError>\` for seamless \`?\` conversion to \`ApiError\`
+- Return structured JSON error bodies: \`{ "code": 404, "message": "..." }\`
+- Log internal errors before mapping to generic HTTP responses
 
 ## Fairings (Middleware)
-
-### Built-in Fairings
-- \`Shield\` — security headers (enabled by default: X-Content-Type-Options, X-Frame-Options, Permissions-Policy)
-- Use \`AdHoc\` for simple lifecycle hooks without a dedicated struct
-
-### Custom Fairing Example
-\`\`\`rust
-use rocket::fairing::{Fairing, Info, Kind};
-use rocket::{Request, Response, Data};
-
-pub struct RequestTimer;
-
-#[rocket::async_trait]
-impl Fairing for RequestTimer {
-    fn info(&self) -> Info {
-        Info {
-            name: "Request Timer",
-            kind: Kind::Request | Kind::Response,
-        }
-    }
-
-    async fn on_request(&self, req: &mut Request<'_>, _data: &mut Data<'_>) {
-        req.local_cache(|| std::time::Instant::now());
-    }
-
-    async fn on_response<'r>(&self, req: &'r Request<'_>, res: &mut Response<'r>) {
-        let start = req.local_cache(|| std::time::Instant::now());
-        let duration = start.elapsed();
-        res.set_raw_header("X-Response-Time", format!("{duration:.2?}"));
-    }
-}
-\`\`\`
-
-### AdHoc Fairings
-\`\`\`rust
-use rocket::fairing::AdHoc;
-
-rocket::build()
-    .attach(AdHoc::on_ignite("DB Migrations", |rocket| async {
-        // Run migrations at startup
-        let db = AppDb::fetch(&rocket).expect("database");
-        sqlx::migrate!().run(&**db).await.expect("migrations");
-        rocket
-    }))
-    .attach(AdHoc::on_liftoff("Startup Log", |_| Box::pin(async {
-        tracing::info!("Application launched successfully");
-    })))
-    .attach(AdHoc::config::<AppConfig>())
-\`\`\`
+- \`Shield\` — security headers (enabled by default) — do not accidentally remove it
+- Use \`AdHoc\` fairings for simple lifecycle hooks (migrations, config loading, startup logging)
+- Custom fairings: implement \`Fairing\` trait with \`on_request\`/\`on_response\` for cross-cutting concerns
+- Use \`local_cache\` on Request for per-request caching of computed values (e.g., request timing)
+- Fairings are for globally applicable concerns — use request guards for per-route auth
 `,
       },
       {
@@ -291,201 +87,32 @@ rocket::build()
         content: `# Rocket Request Guards & Data Validation
 
 ## Request Guards
-Request guards are Rocket's primary mechanism for authentication, authorization, and request validation.
-A guard runs before the handler — failure short-circuits with an error or forward.
-
-### Implementing FromRequest
-\`\`\`rust
-use rocket::request::{self, FromRequest, Request, Outcome};
-use rocket::http::Status;
-
-pub struct AuthenticatedUser {
-    pub id: i64,
-    pub role: UserRole,
-}
-
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for AuthenticatedUser {
-    type Error = AuthError;
-
-    async fn from_request(req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
-        let token = req.headers().get_one("Authorization")
-            .and_then(|h| h.strip_prefix("Bearer "));
-
-        match token {
-            Some(token) => match validate_jwt(token).await {
-                Ok(claims) => Outcome::Success(AuthenticatedUser {
-                    id: claims.sub,
-                    role: claims.role,
-                }),
-                Err(e) => Outcome::Error((Status::Unauthorized, AuthError::InvalidToken(e))),
-            },
-            None => Outcome::Error((Status::Unauthorized, AuthError::MissingToken)),
-        }
-    }
-}
-\`\`\`
-
-### Chaining Multiple Guards
-Layer guards in a handler signature for multi-step validation:
-
-\`\`\`rust
-#[delete("/admin/users/<id>")]
-async fn delete_user(
-    auth: AuthenticatedUser,   // 1st: must be authenticated
-    admin: AdminGuard,         // 2nd: must be admin role
-    id: i64,                   // 3rd: path parameter
-    db: &State<DbPool>,       // state access
-) -> Result<Status, ApiError> {
-    db.delete_user(id).await?;
-    Ok(Status::NoContent)
-}
-\`\`\`
-
-### Outcome Variants
+- Guards are the primary mechanism for auth, authorization, and request validation
+- Implement \`FromRequest\` trait — guard runs before the handler
 - \`Outcome::Success(value)\` — guard succeeded, handler receives the value
 - \`Outcome::Error((status, error))\` — guard failed, Rocket calls the matching catcher
 - \`Outcome::Forward(status)\` — guard cannot determine, try next matching route
+- Chain multiple guards in handler signature for multi-step validation (auth → role → params)
+- Return generic error messages from guards — do not leak auth internals
 
 ## Data Guards
+- \`Json<T>\` — JSON request body (T must derive \`Deserialize\` with \`#[serde(crate = "rocket::serde")]\`)
+- \`Form<T>\` — URL-encoded form data; use \`#[field(validate = ...)]\` for input validation
+- \`Strict<Form<T>>\` — rejects extra fields (use where unexpected data should be rejected)
+- \`TempFile\` — multipart file uploads with \`#[field(validate = len(..SIZE))]\` for size limits
+- Use \`input.into_inner()\` to extract the deserialized struct from \`Json<T>\`
 
-### JSON Bodies
-\`\`\`rust
-use rocket::serde::json::Json;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Deserialize)]
-#[serde(crate = "rocket::serde")]
-pub struct CreateUserRequest {
-    pub name: String,
-    pub email: String,
-}
-
-#[post("/users", data = "<input>")]
-async fn create_user(input: Json<CreateUserRequest>) -> (Status, Json<User>) {
-    // input.into_inner() extracts the deserialized struct
-    // ...
-}
-\`\`\`
-
-### Form Data with Validation
-\`\`\`rust
-use rocket::form::{FromForm, Strict};
-
-#[derive(Debug, FromForm)]
-pub struct LoginForm<'r> {
-    #[field(validate = len(3..=64))]
-    username: &'r str,
-    #[field(validate = len(8..))]
-    password: &'r str,
-    #[field(default = false)]
-    remember_me: bool,
-}
-
-#[post("/login", data = "<form>")]
-async fn login(form: Form<LoginForm<'_>>) -> Result<Json<Token>, Status> {
-    // Form validation happens automatically via #[field(validate)]
-    // ...
-}
-
-// Use Strict<Form<T>> to reject extra fields
-#[post("/strict-login", data = "<form>")]
-async fn strict_login(form: Strict<Form<LoginForm<'_>>>) -> Result<Json<Token>, Status> {
-    // ...
-}
-\`\`\`
-
-### Multipart File Uploads
-\`\`\`rust
-use rocket::fs::TempFile;
-use rocket::form::Form;
-
-#[derive(FromForm)]
-pub struct Upload<'r> {
-    #[field(validate = len(..5_000_000))]  // 5MB limit
-    file: TempFile<'r>,
-    description: String,
-}
-
-#[post("/upload", data = "<upload>")]
-async fn upload_file(mut upload: Form<Upload<'_>>) -> Result<String, std::io::Error> {
-    let path = format!("uploads/{}", upload.file.name().unwrap_or("unknown"));
-    upload.file.persist_to(&path).await?;
-    Ok(format!("Uploaded to {path}"))
-}
-\`\`\`
-
-### Custom FromParam
-\`\`\`rust
-use rocket::request::FromParam;
-
-pub struct UserId(i64);
-
-impl<'r> FromParam<'r> for UserId {
-    type Error = &'r str;
-
-    fn from_param(param: &'r str) -> Result<Self, Self::Error> {
-        param.parse::<i64>()
-            .map(UserId)
-            .map_err(|_| param)
-    }
-}
-
-#[get("/users/<id>")]
-async fn get_user(id: UserId) -> Json<User> {
-    // id.0 is the validated i64
-    // ...
-}
-\`\`\`
+## Custom FromParam
+- Implement \`FromParam\` for type-safe path parameter parsing (e.g., validated \`UserId(i64)\`)
+- Rocket's built-in \`FromParam\` for \`PathBuf\` is safe against directory traversal by default
 
 ## Configuration
-
-### Rocket.toml Profiles
-\`\`\`toml
-[default]
-address = "127.0.0.1"
-port = 8000
-limits = { form = "64 kB", json = "1 MiB", data-form = "10 MiB" }
-
-[debug]
-log_level = "debug"
-
-[release]
-address = "0.0.0.0"
-port = 8080
-log_level = "normal"
-secret_key = "generate-with-openssl-rand-base64-32"
-
-[default.databases.app_db]
-url = "postgres://user:pass@localhost/mydb"
-\`\`\`
-
-### Environment Variable Overrides
-- \`ROCKET_PORT=9000\` overrides the port
-- \`ROCKET_ADDRESS=0.0.0.0\` overrides the bind address
-- \`ROCKET_LOG_LEVEL=off\` disables logging
-- \`ROCKET_SECRET_KEY=...\` sets the secret key for private cookies
-- \`ROCKET_PROFILE=release\` selects the configuration profile
-
-### Custom Configuration Structs
-\`\`\`rust
-use rocket::serde::Deserialize;
-use rocket::fairing::AdHoc;
-
-#[derive(Debug, Deserialize)]
-#[serde(crate = "rocket::serde")]
-struct AppConfig {
-    external_api_url: String,
-    max_upload_size: u64,
-    feature_flags: FeatureFlags,
-}
-
-#[launch]
-fn rocket() -> _ {
-    rocket::build()
-        .attach(AdHoc::config::<AppConfig>())
-}
-\`\`\`
+- Define profiles in \`Rocket.toml\`: \`[default]\`, \`[debug]\`, \`[release]\`
+- Set \`limits\` for request body sizes: \`{ form = "64 kB", json = "1 MiB", data-form = "10 MiB" }\`
+- Environment overrides: \`ROCKET_PORT\`, \`ROCKET_ADDRESS\`, \`ROCKET_LOG_LEVEL\`, \`ROCKET_SECRET_KEY\`, \`ROCKET_PROFILE\`
+- Use \`AdHoc::config::<T>()\` for custom configuration structs deserialized from Rocket.toml
+- Set \`secret_key\` in \`[release]\` profile (required for private cookies) — prefer \`ROCKET_SECRET_KEY\` env var
+- Use environment variables for secrets — never commit them in Rocket.toml
 `,
       },
       {
@@ -496,102 +123,32 @@ fn rocket() -> _ {
         content: `# Rocket Deployment & Performance
 
 ## Production Deployment
-
-### Reverse Proxy
-Rocket does not include built-in DDoS mitigation. In production, always deploy behind a reverse proxy:
-- Use nginx, HAProxy, or Traefik for TLS termination, rate limiting, and load balancing
+- Always deploy behind a reverse proxy (nginx, HAProxy, Traefik) for TLS termination, rate limiting, and load balancing
 - Set \`address = "0.0.0.0"\` and the desired port in the \`[release]\` profile
 - Always compile with \`--release\` for production — debug builds are significantly slower
+- Use multi-stage Docker builds: builder stage with Rust toolchain, runtime stage with minimal base
 
-### Docker Deployment
-\`\`\`dockerfile
-# Build stage
-FROM rust:1.80 AS builder
-WORKDIR /app
-COPY . .
-RUN --mount=type=cache,target=/usr/local/cargo/registry \\
-    --mount=type=cache,target=/app/target \\
-    cargo build --release && cp target/release/myapp /myapp
-
-# Runtime stage
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /myapp /usr/local/bin/myapp
-COPY Rocket.toml /etc/myapp/Rocket.toml
-ENV ROCKET_PROFILE=release
-ENV ROCKET_ADDRESS=0.0.0.0
-EXPOSE 8080
-CMD ["myapp"]
-\`\`\`
-
-### Configuration Checklist
-- Set \`secret_key\` in release profile (required for private cookies) — generate with \`openssl rand -base64 32\`
+## Configuration Checklist
+- Set \`secret_key\` in release profile — generate with \`openssl rand -base64 32\`
 - Set \`log_level\` to \`"normal"\` or \`"critical"\` in production
 - Configure \`limits\` for request body sizes to prevent abuse
 - Set database pool \`max_connections\` appropriately
 - Use environment variables for secrets — never commit them in Rocket.toml
 
 ## Streaming Responses
-
-### Server-Sent Events (SSE)
-\`\`\`rust
-use rocket::response::stream::{EventStream, Event};
-use rocket::tokio::time::{self, Duration};
-
-#[get("/events")]
-fn events() -> EventStream![] {
-    EventStream! {
-        let mut interval = time::interval(Duration::from_secs(1));
-        loop {
-            let now = time::Instant::now();
-            yield Event::data(format!("ping at {now:?}"));
-            interval.tick().await;
-        }
-    }
-}
-\`\`\`
-
-### WebSockets (rocket_ws)
-\`\`\`rust
-use rocket_ws::{WebSocket, Stream, Message};
-
-#[get("/ws/chat")]
-fn chat(ws: WebSocket) -> Stream!['static] {
-    Stream! { ws =>
-        for await message in ws {
-            match message {
-                Ok(Message::Text(text)) => {
-                    yield Message::Text(format!("Echo: {text}"));
-                }
-                Ok(Message::Close(_)) => break,
-                _ => {}
-            }
-        }
-    }
-}
-\`\`\`
+- Use \`EventStream!\` for Server-Sent Events (SSE) with async generators
+- Use \`rocket_ws\` with \`Stream!\` for WebSocket connections
+- Use streaming responses for large payloads instead of buffering into memory
 
 ## Graceful Shutdown
-Rocket v0.5 supports configurable graceful shutdown:
-- Default behavior: stop accepting new connections and wait for in-flight requests
+- Rocket v0.5 stops accepting new connections and waits for in-flight requests
 - Configure grace period in \`Rocket.toml\` or via the \`Shutdown\` config
 - Use \`on_shutdown\` fairing to clean up resources (close DB connections, flush logs)
 - Use \`Shutdown\` request guard to trigger programmatic shutdown
 
-\`\`\`rust
-use rocket::Shutdown;
-
-#[get("/admin/shutdown")]
-fn shutdown(shutdown: Shutdown, _admin: AdminGuard) -> &'static str {
-    shutdown.notify();
-    "Shutting down..."
-}
-\`\`\`
-
 ## Performance Considerations
 - Use \`&str\` over \`String\` in form fields and query parameters (zero-copy borrowing)
 - Use \`rocket_db_pools\` for connection pooling — avoid creating connections per request
-- Use streaming responses for large payloads instead of buffering into memory
 - Set appropriate \`limits\` in Rocket.toml to prevent oversized request bodies
 - Use \`local_cache\` on Request for per-request caching of computed values
 - Compile with \`--release\` and LTO (\`[profile.release] lto = true\`) for production binaries
@@ -724,6 +281,8 @@ fn test_get_user() {
       {
         name: 'rocket-handler-generator',
         description: 'Generate Rocket route handlers with guards, responders, catchers, and tests',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Rocket Handler Generator
 
 Generate a complete Rocket handler following these steps:
@@ -808,6 +367,8 @@ mod tests {
       {
         name: 'rocket-guard-generator',
         description: 'Generate Rocket request guards for authentication, authorization, and custom extraction',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Rocket Request Guard Generator
 
 Generate a custom request guard:
@@ -904,8 +465,9 @@ async fn delete_user(admin: AdminGuard, id: i64) -> Status { /* ... */ }
         hooks: [
           {
             type: 'command',
+            statusMessage: 'Checking for unregistered Rocket catchers',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "#\\[catch\\(" "$CLAUDE_FILE_PATH" | grep -q "." && ! grep -qE "register\\(" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:0:Warning: #[catch] found but no register() call — catchers must be registered with rocket.register()" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "#\\[catch\\(" "$FILE_PATH" | grep -q "." && ! grep -qE "register\\(" "$FILE_PATH" && { echo "Warning: #[catch] found but no register() call — catchers must be registered with rocket.register()" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -916,8 +478,9 @@ async fn delete_user(admin: AdminGuard, id: i64) -> Status { /* ... */ }
         hooks: [
           {
             type: 'command',
+            statusMessage: 'Checking for secret_key in Rocket.toml',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "Rocket\\.toml$" && grep -qE "secret_key" "$CLAUDE_FILE_PATH" && grep -vqE "^\\s*#" "$CLAUDE_FILE_PATH" | grep -qE "secret_key\\s*=\\s*\"[^\"]{10,}\"" && echo "HOOK_EXIT:0:Warning: secret_key found in Rocket.toml — prefer ROCKET_SECRET_KEY environment variable for production" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "Rocket\\.toml$" && grep -qE "secret_key" "$FILE_PATH" && grep -vqE "^\\s*#" "$FILE_PATH" | grep -qE "secret_key\\s*=\\s*\"[^\"]{10,}\"" && { echo "Warning: secret_key found in Rocket.toml — prefer ROCKET_SECRET_KEY environment variable for production" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],

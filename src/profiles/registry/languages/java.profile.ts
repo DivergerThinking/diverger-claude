@@ -46,175 +46,47 @@ Modern Java (17+) with strong typing, records, sealed classes, and pattern match
         description: 'Java coding conventions aligned with Google Java Style Guide and Oracle conventions',
         content: `# Java Conventions
 
-## Naming (Google Java Style Guide Section 5)
-- Classes and interfaces: PascalCase — nouns or noun phrases
-  \`UserService\`, \`PaymentGateway\`, \`Serializable\`
-- Methods: camelCase — verbs or verb phrases
-  \`getUserById()\`, \`calculateDiscount()\`, \`isValid()\`
-- Variables and parameters: camelCase — descriptive, no abbreviations
-  \`remainingRetries\`, \`orderTotal\` — not \`r\`, \`cnt\`, \`val\`
-- Constants: SCREAMING_SNAKE_CASE — only for deeply immutable \`static final\` fields
-  \`MAX_RETRY_COUNT\`, \`DEFAULT_TIMEOUT_MS\`
-- Packages: all lowercase, reverse domain notation, no underscores
-  \`com.example.auth.service\` — not \`com.example.Auth_Service\`
-- Type parameters: single uppercase letter or uppercase letter + digit
-  \`T\`, \`E\`, \`K\`, \`V\`, \`T2\` — or descriptive like \`RequestT\`, \`ResponseT\`
+## Naming (Google Java Style Guide)
 
-### Correct
-\`\`\`java
-public record OrderSummary(
-    UUID orderId,
-    BigDecimal totalAmount,
-    OrderStatus status
-) {}
-\`\`\`
+- Classes/interfaces: PascalCase nouns — \`UserService\`, \`PaymentGateway\`
+- Methods: camelCase verbs — \`getUserById()\`, \`calculateDiscount()\`, \`isValid()\`
+- Variables/parameters: camelCase, descriptive — \`remainingRetries\`, not \`r\` or \`cnt\`
+- Constants: SCREAMING_SNAKE_CASE for deeply immutable \`static final\` — \`MAX_RETRY_COUNT\`
+- Packages: all lowercase, reverse domain, no underscores — \`com.example.auth.service\`
+- Type parameters: single uppercase or descriptive — \`T\`, \`K\`, \`V\`, \`RequestT\`
 
-### Anti-Pattern
-\`\`\`java
-// Bad: Hungarian notation, abbreviations, mutable POJO where record suffices
-public class OrdSumDTO {
-    private String strId;
-    private double dblAmt;
-    // 50 lines of getters, setters, equals, hashCode...
-}
-// Fix: Use a record with proper names as shown above
-\`\`\`
+## Source File Structure
 
-## Source File Structure (Google Java Style Guide Section 3)
-- One top-level class per file — file name matches the class name
-- Order within a class: static fields -> instance fields -> constructors -> methods
-- Group overloaded methods together — never split them with other members
-- Order methods by logical readability, not by access modifier
-- Organize imports: no wildcard imports (\`import java.util.*\` is forbidden)
-
-## Formatting
-- Braces: K&R style (opening brace on same line), always required even for single-statement blocks
-- Indentation: 2 spaces (Google) or 4 spaces (Oracle) — be consistent within the project
-- Line length: maximum 100 characters (Google) — break at meaningful points
-- One statement per line — never chain multiple statements on one line
-- Blank line between methods, between logical sections within a method
-
-### Correct
-\`\`\`java
-if (user.isActive()) {
-    processOrder(user);
-} else {
-    throw new InactiveUserException(user.getId());
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`java
-// Bad: missing braces, logic on same line, hard to debug
-if (user.isActive()) processOrder(user);
-else throw new InactiveUserException(user.getId());
-// Fix: Always use braces and one statement per line
-\`\`\`
+- One top-level class per file, name matches class name
+- Order: static fields -> instance fields -> constructors -> methods
+- No wildcard imports (\`import java.util.*\` forbidden) — use explicit imports
+- K&R braces (opening on same line), always required even for single-statement blocks
 
 ## Type Safety
-- Use \`Optional<T>\` for nullable return values — never pass Optional as a parameter
+
+- Use \`Optional<T>\` for nullable returns — never pass Optional as a parameter
+- Use records for value objects/DTOs — free equals, hashCode, toString
+- Use sealed classes/interfaces for closed type hierarchies with exhaustive switch
 - Prefer immutable collections: \`List.of()\`, \`Map.of()\`, \`Set.of()\`, \`List.copyOf()\`
-- Use records for value objects and DTOs — they provide equals, hashCode, toString for free
-- Use sealed classes/interfaces to model closed type hierarchies
-- Never use raw collection types — always parameterize generics
-
-### Correct
-\`\`\`java
-public sealed interface Shape permits Circle, Rectangle, Triangle {}
-public record Circle(double radius) implements Shape {}
-public record Rectangle(double width, double height) implements Shape {}
-public record Triangle(double a, double b, double c) implements Shape {}
-
-public double area(Shape shape) {
-    return switch (shape) {
-        case Circle c -> Math.PI * c.radius() * c.radius();
-        case Rectangle r -> r.width() * r.height();
-        case Triangle t -> {
-            double s = (t.a() + t.b() + t.c()) / 2;
-            yield Math.sqrt(s * (s - t.a()) * (s - t.b()) * (s - t.c()));
-        }
-    };
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`java
-// Bad: instanceof chains with manual casts, no exhaustiveness checking
-public double area(Object shape) {
-    if (shape instanceof Circle) {
-        Circle c = (Circle) shape;
-        return Math.PI * c.radius() * c.radius();
-    } else if (shape instanceof Rectangle) {
-        // Easy to forget a case, no compiler help
-    }
-    return 0; // Silent failure for unknown shapes
-}
-// Fix: Use sealed types + switch expressions for exhaustive, safe dispatch
-\`\`\`
+- Never use raw types — always parameterize generics
 
 ## Error Handling
-- Use checked exceptions for recoverable conditions the caller must handle
-- Use unchecked exceptions (RuntimeException subclasses) for programming errors
-- Define custom exception classes for domain-specific errors with context fields
-- Never catch \`Exception\` or \`Throwable\` at a general level without re-throwing
-- Always include the root cause when wrapping exceptions: \`new XException("msg", cause)\`
-- Use try-with-resources for all \`AutoCloseable\` resources — never use finally for cleanup
+
+- Checked exceptions for recoverable conditions, unchecked for programming errors
+- Define custom exceptions with context fields for domain errors
+- Never catch \`Exception\`/\`Throwable\` without re-throwing — catch specific types
+- Always include root cause: \`new XException("msg", cause)\`
+- Use try-with-resources for all \`AutoCloseable\` — never manual finally cleanup
 - Never swallow exceptions with empty catch blocks
 
-### Correct
-\`\`\`java
-public User findUser(UUID userId) {
-    try {
-        return userRepository.findById(userId)
-            .orElseThrow(() -> new UserNotFoundException(userId));
-    } catch (DataAccessException ex) {
-        throw new ServiceException("Failed to fetch user: " + userId, ex);
-    }
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`java
-// Bad: swallowed exception, returns null, no context
-public User findUser(UUID userId) {
-    try {
-        return userRepository.findById(userId).orElse(null);
-    } catch (Exception e) {
-        e.printStackTrace(); // Logs to stderr, no structured logging
-        return null;         // Caller gets null with no idea why
-    }
-}
-// Fix: Propagate with context, use Optional properly, catch specific exceptions
-\`\`\`
-
 ## Concurrency
-- Prefer \`java.util.concurrent\` utilities over manual \`synchronized\` blocks
-- Use virtual threads (Java 21+ \`Thread.ofVirtual()\`) for I/O-bound workloads
-- Use \`ExecutorService\` and \`CompletableFuture\` for structured async tasks
-- Use \`ConcurrentHashMap\` instead of \`Collections.synchronizedMap()\`
-- Avoid shared mutable state — prefer immutable objects passed between threads
-- Use \`AtomicReference\` / \`AtomicInteger\` for simple lock-free atomic operations
-- Document thread-safety guarantees with \`@ThreadSafe\` / \`@NotThreadSafe\` annotations
 
-### Correct
-\`\`\`java
-// Java 21+ structured concurrency with virtual threads
-try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-    Future<User> userFuture = executor.submit(() -> userService.find(id));
-    Future<List<Order>> ordersFuture = executor.submit(() -> orderService.findByUser(id));
-    return new UserProfile(userFuture.get(), ordersFuture.get());
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`java
-// Bad: manual thread management, no structured cleanup
-Thread t1 = new Thread(() -> { /* fetch user */ });
-Thread t2 = new Thread(() -> { /* fetch orders */ });
-t1.start(); t2.start();
-t1.join(); t2.join();
-// Fix: Use ExecutorService or virtual threads for structured concurrency
-\`\`\`
+- Prefer \`java.util.concurrent\` utilities over manual \`synchronized\`
+- Use virtual threads (Java 21+) for I/O-bound workloads
+- Use \`ExecutorService\` and \`CompletableFuture\` for structured async
+- Use \`ConcurrentHashMap\` over \`Collections.synchronizedMap()\`
+- Avoid shared mutable state — prefer immutable objects between threads
+- Use \`AtomicReference\`/\`AtomicInteger\` for lock-free atomic operations
 `,
       },
       {
@@ -225,89 +97,29 @@ t1.join(); t2.join();
         content: `# Java Stream API & Collections
 
 ## Stream API Best Practices
-- Prefer Streams for collection transformations — they express intent more clearly than loops
-- Use \`Collectors.toUnmodifiableList()\` or \`Stream.toList()\` (Java 16+) for immutable results
-- Avoid side effects inside Stream operations — streams should be pure functional pipelines
+
+- Use Streams for collection transformations — express intent more clearly than loops
+- Use \`Stream.toList()\` (Java 16+) or \`Collectors.toUnmodifiableList()\` for immutable results
+- No side effects inside Stream operations — streams are pure functional pipelines
 - Use \`flatMap\` for nested collections, \`map\` for one-to-one transformations
-- Prefer method references (\`User::getName\`) over lambdas when they improve clarity
-- Use \`Optional\` return from \`findFirst()\`/\`findAny()\` — never assume the stream is non-empty
-- Avoid Streams for simple iterations — a for-each loop is clearer for single operations
-
-### Correct
-\`\`\`java
-List<String> activeEmails = users.stream()
-    .filter(User::isActive)
-    .map(User::getEmail)
-    .filter(Objects::nonNull)
-    .sorted()
-    .toList(); // Java 16+ immutable list
-\`\`\`
-
-### Anti-Pattern
-\`\`\`java
-// Bad: side effects in stream, mutable accumulator
-List<String> emails = new ArrayList<>();
-users.stream().forEach(u -> {
-    if (u.isActive()) {
-        emails.add(u.getEmail()); // Side effect!
-    }
-});
-// Fix: Use filter + map + collect — no side effects in the pipeline
-\`\`\`
+- Prefer method references (\`User::getName\`) over lambdas when clearer
+- Use \`Optional\` return from \`findFirst()\`/\`findAny()\` — never assume non-empty
+- Avoid Streams for simple iterations — for-each is clearer for single operations
 
 ## Collection Factories (Java 9+)
+
 - Use \`List.of()\`, \`Set.of()\`, \`Map.of()\` for small immutable collections
-- Use \`List.copyOf()\`, \`Set.copyOf()\`, \`Map.copyOf()\` to make defensive copies
-- Use \`Collections.emptyList()\` or \`List.of()\` instead of returning null for empty collections
-- Prefer \`Map.ofEntries(Map.entry(k1, v1), ...)\` for maps with more than 10 entries
-
-### Correct
-\`\`\`java
-private static final Set<String> ALLOWED_ROLES = Set.of("ADMIN", "EDITOR", "VIEWER");
-private static final Map<String, Integer> PRIORITY = Map.of(
-    "HIGH", 1,
-    "MEDIUM", 2,
-    "LOW", 3
-);
-\`\`\`
-
-### Anti-Pattern
-\`\`\`java
-// Bad: mutable, verbose, error-prone initialization
-private static final Set<String> ALLOWED_ROLES = new HashSet<>();
-static {
-    ALLOWED_ROLES.add("ADMIN");
-    ALLOWED_ROLES.add("EDITOR");
-    // Forgot "VIEWER" — and anyone can add more at runtime
-}
-// Fix: Use Set.of() for compile-time-constant immutable sets
-\`\`\`
+- Use \`List.copyOf()\`, \`Set.copyOf()\`, \`Map.copyOf()\` for defensive copies
+- Return \`List.of()\` instead of null for empty collections
+- Use \`Map.ofEntries(Map.entry(k, v), ...)\` for maps with more than 10 entries
 
 ## Project Structure
-- Follow Maven standard directory layout (\`src/main/java\`, \`src/test/java\`, \`src/main/resources\`)
-- One public class per file — file name must match the public class name
+
+- Follow Maven standard layout (\`src/main/java\`, \`src/test/java\`, \`src/main/resources\`)
+- One public class per file — name must match class name
 - Group classes by feature/domain, not by technical layer
 - Keep packages cohesive — minimize cross-package dependencies
 - Use module-info.java (JPMS) for library projects to control encapsulation
-
-### Recommended Package Layout
-\`\`\`
-com.example.myapp/
-  order/
-    Order.java
-    OrderService.java
-    OrderRepository.java
-    OrderNotFoundException.java
-  user/
-    User.java
-    UserService.java
-    UserRepository.java
-  shared/
-    exception/
-      ServiceException.java
-    util/
-      DateUtils.java
-\`\`\`
 `,
       },
     ],
@@ -518,7 +330,7 @@ try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
           {
             type: 'command',
             command:
-              'node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/import\\s+[\\w.]+\\.\\*;/.test(c))issues.push(\'Wildcard import detected — use explicit imports per Google Java Style Guide\');if(/catch\\s*\\(\\s*(Exception|Throwable)\\s/.test(c))issues.push(\'Catching Exception/Throwable — catch specific exception types\');if(/\\.printStackTrace\\(\\)/.test(c))issues.push(\'printStackTrace() detected — use a logging framework (SLF4J + Logback)\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$CLAUDE_FILE_PATH"',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/import\\s+[\\w.]+\\.\\*;/.test(c))issues.push(\'Wildcard import detected — use explicit imports per Google Java Style Guide\');if(/catch\\s*\\(\\s*(Exception|Throwable)\\s/.test(c))issues.push(\'Catching Exception/Throwable — catch specific exception types\');if(/\\.printStackTrace\\(\\)/.test(c))issues.push(\'printStackTrace() detected — use a logging framework (SLF4J + Logback)\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -530,7 +342,7 @@ try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
           {
             type: 'command',
             command:
-              'node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/new\\s+Date\\(\\)/.test(c)&&!/java\\.time/.test(c))issues.push(\'java.util.Date detected — prefer java.time API (Instant, LocalDate, ZonedDateTime)\');if(/System\\.out\\.print/.test(c)&&!/public\\s+static\\s+void\\s+main/.test(c))issues.push(\'System.out.print detected outside main — use SLF4J logger\');if(/java\\.util\\.Random/.test(c)&&/password|secret|token|key|salt|nonce/i.test(c))issues.push(\'java.util.Random used near security context — use SecureRandom\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$CLAUDE_FILE_PATH"',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/new\\s+Date\\(\\)/.test(c)&&!/java\\.time/.test(c))issues.push(\'java.util.Date detected — prefer java.time API (Instant, LocalDate, ZonedDateTime)\');if(/System\\.out\\.print/.test(c)&&!/public\\s+static\\s+void\\s+main/.test(c))issues.push(\'System.out.print detected outside main — use SLF4J logger\');if(/java\\.util\\.Random/.test(c)&&/password|secret|token|key|salt|nonce/i.test(c))issues.push(\'java.util.Random used near security context — use SecureRandom\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

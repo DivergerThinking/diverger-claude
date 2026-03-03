@@ -50,199 +50,42 @@ Effective Dart guidelines. Sound null safety, strong typing, \`dart format\` enf
         description: 'Effective Dart style, naming, documentation, and design conventions',
         content: `# Dart Style & Design (Effective Dart)
 
-## Why This Matters
-Dart's philosophy emphasizes clarity, consistency, and safety. These rules are derived
-from the official Effective Dart guides (style, documentation, usage, design) and represent
-the idiomatic way to write Dart. Following them ensures tooling compatibility (\`dart format\`,
-\`dart analyze\`), team consistency, and maximum benefit from Dart's type system.
-
----
-
 ## Naming Conventions
 
 | Element | Convention | Example |
 |---------|-----------|---------|
-| Classes, enums, typedefs, type params | UpperCamelCase | \`HttpClient\`, \`JsonParser\` |
-| Extensions, mixins | UpperCamelCase | \`StringUtils\`, \`Loggable\` |
-| Libraries, packages, directories, files | lowercase_with_underscores | \`my_package\`, \`string_utils.dart\` |
-| Variables, functions, parameters | lowerCamelCase | \`itemCount\`, \`fetchUsers()\` |
-| Constants | lowerCamelCase | \`defaultTimeout\`, \`maxRetries\` |
-| Private members | leading underscore + lowerCamelCase | \`_internalCache\` |
+| Classes, enums, typedefs | UpperCamelCase | \`HttpClient\`, \`JsonParser\` |
+| Libraries, packages, files | lowercase_with_underscores | \`my_package\`, \`string_utils.dart\` |
+| Variables, functions, params | lowerCamelCase | \`itemCount\`, \`fetchUsers()\` |
+| Constants | lowerCamelCase (NOT SCREAMING_CAPS) | \`defaultTimeout\`, \`maxRetries\` |
+| Private members | leading underscore | \`_internalCache\` |
 | Enum values | lowerCamelCase | \`Color.deepOrange\` |
 
-### Correct
-\`\`\`dart
-// Constants use lowerCamelCase, NOT SCREAMING_CAPS
-const defaultTimeout = Duration(seconds: 30);
-const maxRetries = 3;
-const pi = 3.14159;
+## Documentation
 
-class HttpClient {
-  final String _baseUrl;
-  final int maxConnections;
-
-  const HttpClient({required String baseUrl, this.maxConnections = 10})
-      : _baseUrl = baseUrl;
-
-  bool get isConnected => _socket != null;
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`dart
-// Bad: wrong casing, abbreviations, Java-style naming
-const MAX_RETRIES = 3; // SCREAMING_CAPS is not Dart style
-const DEFAULT_TIMEOUT = Duration(seconds: 30);
-
-class HTTPClnt { // abbreviation, not UpperCamelCase
-  String Base_URL; // PascalCase field, snake_case
-  bool getIsConnected() => _socket != null; // Java-style getter
-}
-\`\`\`
-
----
-
-## Documentation (Effective Dart: Documentation)
-
-### Rules
-- Use \`///\` (doc comments) for all public APIs — classes, methods, fields, top-level functions
-- First sentence is a concise summary (shows in IDE hover and dart doc)
-- Start doc comments with a third-person verb: "Returns...", "Creates...", "Throws..."
-- Use \`[ClassName]\` or \`[methodName]\` for cross-references in doc comments
-- Use markdown in doc comments for formatting, lists, and code blocks
-- Do not use \`/* */\` block comments for API documentation
-
-### Correct
-\`\`\`dart
-/// Returns the user with the given [id].
-///
-/// Throws [UserNotFoundException] if no user exists with that ID.
-/// Returns \`null\` if the user has been soft-deleted.
-///
-/// \`\`\`dart
-/// final user = await repository.findById(42);
-/// print(user?.name);
-/// \`\`\`
-Future<User?> findById(int id) async {
-  // ...
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`dart
-// Bad: no doc comment on public API, restates the obvious
-// Get user by id
-User? findById(int id) { // no doc comment, just a regular comment
-  // ...
-}
-\`\`\`
-
----
+- Use \`///\` doc comments for all public APIs
+- Start with third-person verb: "Returns...", "Creates...", "Throws..."
+- Use \`[ClassName]\`/\`[methodName]\` for cross-references
+- First sentence is a concise summary visible in IDE hover
 
 ## Import Organization
 
-### Order
-1. \`dart:\` SDK libraries
-2. \`package:\` third-party and project packages
-3. Relative imports (for files in the same package)
-
-Separate each group with a blank line. Sort alphabetically within each group.
-
-### Correct
-\`\`\`dart
-import 'dart:async';
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-import 'package:riverpod/riverpod.dart';
-
-import '../models/user.dart';
-import 'auth_service.dart';
-\`\`\`
-
-### Anti-Pattern
-\`\`\`dart
-// Bad: no grouping, no sorting, wildcard show
-import '../models/user.dart';
-import 'dart:convert';
-import 'package:http/http.dart';
-import 'dart:async';
-import 'auth_service.dart';
-import 'package:riverpod/riverpod.dart';
-\`\`\`
-
----
+- Order: \`dart:\` SDK -> \`package:\` third-party -> relative imports
+- Separate groups with blank lines, sort alphabetically within each group
 
 ## Function & Method Design
 
-- Use named parameters for functions with more than two parameters or boolean flags
-- Mark required named parameters with \`required\`
+- Use named parameters for 3+ params or boolean flags — mark mandatory with \`required\`
 - Prefer expression bodies (\`=>\`) for single-expression functions and getters
-- Use \`typedef\` for complex function signatures that are reused
-- Functions that produce side effects should return \`void\` or \`Future<void>\`
+- Use \`typedef\` for complex reused function signatures
+- Side-effect functions return \`void\` or \`Future<void>\`
 
-### Correct
-\`\`\`dart
-/// Creates a new user with the given details.
-Future<User> createUser({
-  required String name,
-  required String email,
-  int? age,
-  bool isAdmin = false,
-}) async {
-  // ...
-}
+## Type System
 
-// Expression body for simple getter
-double get area => width * height;
-
-// Typedef for reused callback signature
-typedef JsonDecoder<T> = T Function(Map<String, dynamic> json);
-\`\`\`
-
-### Anti-Pattern
-\`\`\`dart
-// Bad: positional booleans are confusing at the call site
-Future<User> createUser(String name, String email, int? age, bool isAdmin) async {
-  // createUser('John', 'j@x.com', null, true) — what is true?
-}
-\`\`\`
-
----
-
-## Type System Best Practices
-
-- Annotate public API return types and parameter types explicitly
-- Use type inference for local variables when the type is obvious from the right-hand side
-- Use \`Object\` instead of \`dynamic\` when you need a catch-all type with static checking
-- Avoid \`dynamic\` except at serialization boundaries (JSON decoding) — always cast promptly
+- Annotate public API types explicitly; use inference for obvious locals
+- Use \`Object\` instead of \`dynamic\` for catch-all with static checking
+- Avoid \`dynamic\` except at serialization boundaries — cast to typed values immediately
 - Use \`FutureOr<T>\` sparingly — prefer explicit \`Future<T>\` or \`T\`
-
-### Correct
-\`\`\`dart
-// Public API: explicit types
-List<User> getActiveUsers(List<User> users) {
-  // Local: type inference is fine when obvious
-  final filtered = users.where((u) => u.isActive).toList();
-  return filtered;
-}
-
-// Narrow dynamic immediately at boundaries
-User fromJson(Map<String, dynamic> json) {
-  final name = json['name'] as String;
-  final age = json['age'] as int;
-  return User(name: name, age: age);
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`dart
-// Bad: dynamic leaking throughout code
-dynamic fetchData() async {
-  final dynamic response = await http.get(uri);
-  return response.body; // no type safety downstream
-}
-\`\`\`
 `,
       },
       {
@@ -252,260 +95,47 @@ dynamic fetchData() async {
         description: 'Dart sound null safety, pattern matching, records, and sealed classes',
         content: `# Dart Null Safety & Modern Patterns
 
-## Why This Matters
-Sound null safety eliminates null reference errors at compile time. Dart 3's pattern
-matching, records, and sealed classes enable expressive, type-safe code that the compiler
-can verify exhaustively. Mastering these features is essential for writing correct,
-maintainable Dart.
-
----
-
 ## Sound Null Safety
 
-### Core Principles
-- Every type is non-nullable by default (\`String\`, \`int\`, \`List<User>\`)
-- Append \`?\` only when null is a valid domain value (\`String?\`, \`User?\`)
-- The type system enforces null checks — no null dereference at runtime
-
-### required Keyword
-Use \`required\` for mandatory named parameters. Never rely on implicit null for "required" semantics.
-
-\`\`\`dart
-// Correct: required for mandatory named params
-class ApiClient {
-  final String baseUrl;
-  final Duration timeout;
-
-  const ApiClient({required this.baseUrl, this.timeout = const Duration(seconds: 30)});
-}
-
-// Anti-pattern: nullable param as "required" by convention
-class ApiClient {
-  final String? baseUrl; // caller might forget, gets null at runtime
-  ApiClient({this.baseUrl});
-}
-\`\`\`
-
-### Null-Aware Operators
-\`\`\`dart
-// Null-aware access
-final length = name?.length;
-
-// Null coalescing with default
-final displayName = user.nickname ?? user.email;
-
-// Null-aware assignment
-cache ??= await loadCache();
-
-// Null-aware index
-final first = list?[0];
-
-// Null-aware cascade
-button
-  ?..text = 'Click me'
-  ..onPressed = handleClick;
-\`\`\`
-
-### When to Use late
-Only use \`late\` when:
-1. The field is definitely initialized before any access (e.g., in \`initState\`)
-2. Lazy initialization provides a meaningful performance benefit
-3. There is no cleaner alternative (nullable + null check, constructor init)
-
-\`\`\`dart
-// Acceptable: guaranteed init before access in framework lifecycle
-class _MyWidgetState extends State<MyWidget> {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this);
-  }
-}
-
-// Anti-pattern: late with no guarantee of initialization order
-class Service {
-  late Database db; // who initializes this? when? race condition?
-  Future<void> query() async => db.execute('SELECT 1');
-}
-\`\`\`
-
-### Avoid Null Assertion (!)
-Use \`!\` only in tests or when the type system cannot prove non-nullability and you have
-an ironclad invariant. Prefer pattern matching or explicit null checks.
-
-\`\`\`dart
-// Anti-pattern: blind null assertion
-final user = users.firstWhereOrNull((u) => u.id == id)!; // throws at runtime
-
-// Correct: explicit null handling
-final user = users.firstWhereOrNull((u) => u.id == id);
-if (user == null) {
-  throw UserNotFoundException(id);
-}
-\`\`\`
-
----
+- Every type is non-nullable by default — append \`?\` only when null is a valid domain value
+- Use \`required\` for mandatory named parameters — never rely on implicit null
+- Null-aware operators: \`?.\` (access), \`??\` (coalescing), \`??=\` (assignment), \`?[]\` (index)
+- Use \`late\` sparingly — only when initialization before access is guaranteed (e.g., \`initState\`)
+- NEVER use null assertion (\`!\`) in production — use pattern matching or explicit null checks
 
 ## Pattern Matching (Dart 3+)
 
-### Switch Expressions
-Use switch expressions for multi-branch value computation. They are exhaustive and concise.
-
-\`\`\`dart
-// Correct: switch expression
-String describeStatus(HttpStatus status) => switch (status) {
-  HttpStatus.ok => 'Success',
-  HttpStatus.notFound => 'Not found',
-  HttpStatus.unauthorized => 'Unauthorized',
-  HttpStatus.serverError => 'Server error',
-};
-
-// Anti-pattern: verbose switch statement for value computation
-String describeStatus(HttpStatus status) {
-  switch (status) {
-    case HttpStatus.ok:
-      return 'Success';
-    case HttpStatus.notFound:
-      return 'Not found';
-    // easy to forget a case with no exhaustiveness check
-    default:
-      return 'Unknown';
-  }
-}
-\`\`\`
-
-### Destructuring Patterns
-\`\`\`dart
-// Destructure records
-final (name, age) = getUserInfo();
-
-// Destructure in if-case for null checking + extraction
-if (response case Response(data: final data, statusCode: 200)) {
-  processData(data);
-}
-
-// Destructure lists
-final [first, second, ...rest] = items;
-
-// Destructure maps
-final {'name': String name, 'age': int age} = json;
-\`\`\`
-
-### Guard Clauses in Patterns
-\`\`\`dart
-final message = switch (statusCode) {
-  >= 200 && < 300 => 'Success',
-  == 401 => 'Unauthorized',
-  == 404 => 'Not found',
-  >= 500 && < 600 => 'Server error',
-  _ => 'Unknown status: \$statusCode',
-};
-\`\`\`
-
----
+- Use switch expressions for multi-branch value computation (exhaustive, concise)
+- Destructure records: \`final (name, age) = getUserInfo();\`
+- Use \`if case\` for null checking + extraction in one step
+- Destructure lists and maps in patterns
+- Use guard clauses with ranges: \`>= 200 && < 300\`
 
 ## Records (Dart 3+)
 
-Use records for lightweight multi-value returns instead of creating one-off classes or
-returning \`Map<String, dynamic>\`.
-
-\`\`\`dart
-// Correct: record for multi-value return
-(String name, int age) parseUserHeader(String header) {
-  final parts = header.split(':');
-  return (parts[0].trim(), int.parse(parts[1].trim()));
-}
-
-// Named fields for clarity
-({String host, int port}) parseAddress(String address) {
-  final parts = address.split(':');
-  return (host: parts[0], port: int.parse(parts[1]));
-}
-
-// Usage with destructuring
-final (name, age) = parseUserHeader('Alice:30');
-final (:host, :port) = parseAddress('localhost:8080');
-\`\`\`
-
----
+- Use records for lightweight multi-value returns instead of one-off classes
+- Use named fields for clarity: \`({String host, int port})\`
+- Destructure with \`final (name, age) = ...\` or \`final (:host, :port) = ...\`
 
 ## Sealed Classes (Dart 3+)
 
-Use sealed classes to model type hierarchies where the compiler enforces exhaustive matching.
+- Use \`sealed\` for type hierarchies with compiler-enforced exhaustive matching
+- Subtypes must be in the same library
+- Use with switch expressions for exhaustive pattern matching
 
-\`\`\`dart
-// Correct: sealed class for result type
-sealed class Result<T> {
-  const Result();
-}
+## Class Modifiers (Dart 3+)
 
-final class Success<T> extends Result<T> {
-  final T value;
-  const Success(this.value);
-}
-
-final class Failure<T> extends Result<T> {
-  final String message;
-  final Object? error;
-  const Failure(this.message, [this.error]);
-}
-
-// Exhaustive switch — compiler error if a subtype is missing
-String describe<T>(Result<T> result) => switch (result) {
-  Success(:final value) => 'Got: \$value',
-  Failure(:final message) => 'Failed: \$message',
-};
-\`\`\`
-
-### Class Modifiers (Dart 3+)
-- \`sealed\`: abstract + exhaustive subtypes (only in same library)
-- \`final\`: cannot be extended or implemented outside the library
-- \`base\`: can be extended but not implemented outside the library
-- \`interface\`: can be implemented but not extended outside the library
-- \`mixin class\`: can be used as both a class and a mixin
-
-\`\`\`dart
-// Express intent with modifiers
-final class AppConfig {
-  final String apiUrl;
-  final int maxRetries;
-  const AppConfig({required this.apiUrl, this.maxRetries = 3});
-}
-
-// Marker: this class is designed for implementation, not extension
-interface class Repository<T> {
-  Future<T?> findById(int id);
-  Future<List<T>> findAll();
-  Future<void> save(T entity);
-}
-\`\`\`
-
----
+- \`sealed\`: abstract + exhaustive subtypes (same library only)
+- \`final\`: cannot be extended or implemented outside library
+- \`base\`: can be extended but not implemented outside
+- \`interface\`: can be implemented but not extended outside
+- \`mixin class\`: usable as both class and mixin
 
 ## Extension Types (Dart 3.3+)
 
-Use extension types for zero-cost type-safe wrappers — they are erased at runtime.
-
-\`\`\`dart
-// Type safety without runtime overhead
-extension type UserId(int value) {
-  bool get isValid => value > 0;
-}
-
-extension type Email(String value) {
-  bool get isValid => value.contains('@');
-}
-
-// Now UserId and Email are distinct types at compile time
-Future<User?> findUser(UserId id) async {
-  // id.value gives the underlying int
-}
-
-// Prevents accidental mixing:
-// findUser(Email('a@b.com')); // Compile error!
-\`\`\`
+- Use for zero-cost type-safe wrappers (erased at runtime)
+- Create distinct compile-time types from primitives: \`extension type UserId(int value)\`
+- Prevents accidental mixing of semantically different values
 `,
       },
       {
@@ -515,221 +145,35 @@ Future<User?> findUser(UserId id) async {
         description: 'Dart error handling patterns, async/await, streams, and concurrency',
         content: `# Dart Error Handling & Async Patterns
 
-## Why This Matters
-Robust error handling and correct async patterns prevent silent failures,
-resource leaks, and race conditions. Dart's async model is built on Futures
-and Streams — using them idiomatically ensures responsive, reliable applications.
-
----
-
 ## Error Handling
 
-### Custom Exception Hierarchy
-Define domain-specific exceptions. Never throw raw strings or generic \`Exception\`.
-
-\`\`\`dart
-// Correct: typed exception hierarchy
-sealed class AppException implements Exception {
-  final String message;
-  final Object? cause;
-  const AppException(this.message, [this.cause]);
-
-  @override
-  String toString() => '\$runtimeType: \$message';
-}
-
-final class NetworkException extends AppException {
-  final int? statusCode;
-  const NetworkException(super.message, {this.statusCode, super.cause});
-}
-
-final class ValidationException extends AppException {
-  final Map<String, String> fieldErrors;
-  const ValidationException(super.message, {this.fieldErrors = const {}});
-}
-
-final class NotFoundException extends AppException {
-  final String resourceType;
-  final Object resourceId;
-  const NotFoundException(this.resourceType, this.resourceId)
-      : super('Not found');
-
-  @override
-  String toString() => 'NotFoundException: \$resourceType #\$resourceId not found';
-}
-\`\`\`
-
-### Catch Specific Types
-\`\`\`dart
-// Correct: catch specific, add context, rethrow or wrap
-Future<User> getUser(int id) async {
-  try {
-    final response = await _client.get('/users/\$id');
-    return User.fromJson(response.data);
-  } on SocketException catch (e) {
-    throw NetworkException('Failed to reach user service', cause: e);
-  } on FormatException catch (e) {
-    throw AppException('Invalid user data format', e);
-  }
-}
-
-// Anti-pattern: catch-all that swallows context
-Future<User?> getUser(int id) async {
-  try {
-    return await _client.get('/users/\$id').then(User.fromJson);
-  } catch (e) {
-    print(e); // swallowed, no rethrow, returns null silently
-    return null;
-  }
-}
-\`\`\`
-
-### Error Anti-Patterns
-- Never use empty \`catch\` blocks — always log or rethrow
-- Never catch \`Error\` (programming bugs like \`RangeError\`, \`TypeError\`) — let them crash
-- Never throw strings: \`throw 'something went wrong'\` — use typed exceptions
-- Never use \`rethrow\` after modifying the exception — create a new one with the original as \`cause\`
-
----
+- Define domain-specific exceptions using sealed class hierarchy implementing \`Exception\`
+- Never throw raw strings (\`throw 'error'\`) — use typed exceptions
+- Catch specific types with \`on TypeException catch (e)\` — add context, wrap or rethrow
+- Never use empty catch blocks — always log or rethrow
+- Never catch \`Error\` subclasses (programming bugs) — let them crash
+- Include original exception as \`cause\` when wrapping
 
 ## Async / Await
 
-### Prefer async/await Over .then() Chains
-\`\`\`dart
-// Correct: readable, sequential async
-Future<UserProfile> loadProfile(int userId) async {
-  final user = await userRepo.findById(userId);
-  if (user == null) throw NotFoundException('User', userId);
-  final avatar = await assetService.getAvatar(user.avatarId);
-  return UserProfile(user: user, avatar: avatar);
-}
-
-// Anti-pattern: nested .then() chains
-Future<UserProfile> loadProfile(int userId) {
-  return userRepo.findById(userId).then((user) {
-    if (user == null) throw NotFoundException('User', userId);
-    return assetService.getAvatar(user.avatarId).then((avatar) {
-      return UserProfile(user: user, avatar: avatar);
-    });
-  });
-}
-\`\`\`
-
-### Concurrent Futures with Future.wait
-\`\`\`dart
-// Correct: independent operations run concurrently
-Future<Dashboard> loadDashboard(int userId) async {
-  final results = await Future.wait([
-    userRepo.findById(userId),
-    orderRepo.getRecentOrders(userId),
-    notificationService.getUnread(userId),
-  ]);
-
-  return Dashboard(
-    user: results[0] as User,
-    orders: results[1] as List<Order>,
-    notifications: results[2] as List<Notification>,
-  );
-}
-\`\`\`
-
-### Async Error Handling
-\`\`\`dart
-// Always handle Future errors
-Future<void> syncData() async {
-  try {
-    await remoteRepo.fetchAll();
-  } on NetworkException catch (e) {
-    logger.warning('Sync failed, using cached data: \${e.message}');
-    await localRepo.loadCachedData();
-  }
-}
-
-// For fire-and-forget: use unawaited() with .catchError()
-import 'dart:async';
-unawaited(
-  analytics.trackEvent('page_view').catchError(
-    (e) => logger.warning('Analytics failed: \$e'),
-  ),
-);
-\`\`\`
-
----
+- Prefer \`async\`/\`await\` over \`.then()\` chains for readability
+- Use \`Future.wait()\` for concurrent independent async operations
+- Wrap fire-and-forget futures with \`unawaited()\` + \`.catchError()\`
+- Always handle Future errors — never leave Futures unhandled
 
 ## Streams
 
-### When to Use Streams
-- Event sequences (user interactions, WebSocket messages, sensor data)
-- Reactive state management
-- Processing large data sets incrementally
+- Use \`async*\` generators with \`yield\` for creating streams
+- Use stream operators (\`where\`, \`map\`, \`distinct\`, \`handleError\`) for transformations
+- ALWAYS cancel stream subscriptions in \`dispose()\` — prevents memory leaks
+- Never listen to single-subscription stream more than once — use \`asBroadcastStream()\` if needed
+- Never block the event loop inside stream handlers
 
-\`\`\`dart
-// Creating a stream from an async generator
-Stream<int> countDown(int from) async* {
-  for (var i = from; i >= 0; i--) {
-    await Future.delayed(const Duration(seconds: 1));
-    yield i;
-  }
-}
+## Isolates
 
-// Transforming streams with operators
-Stream<User> getActiveUsers(Stream<User> users) {
-  return users
-      .where((user) => user.isActive)
-      .distinct()
-      .handleError((e) => logger.error('Stream error: \$e'));
-}
-
-// Always cancel stream subscriptions to prevent memory leaks
-late final StreamSubscription<int> _subscription;
-
-void startListening() {
-  _subscription = eventStream.listen(
-    (event) => handleEvent(event),
-    onError: (error) => handleError(error),
-    onDone: () => handleDone(),
-  );
-}
-
-void dispose() {
-  _subscription.cancel(); // CRITICAL: prevent memory leak
-}
-\`\`\`
-
-### Stream Anti-Patterns
-- Never listen to a single-subscription stream more than once — use \`asBroadcastStream()\` if needed
-- Never forget to cancel subscriptions — always cancel in \`dispose()\` or equivalent lifecycle method
-- Never block the event loop with synchronous computation inside stream handlers
-
----
-
-## Isolates (Heavy Computation)
-
-Use isolates for CPU-heavy work to keep the main isolate responsive.
-
-\`\`\`dart
-import 'dart:isolate';
-
-// Dart 2.19+: simple compute with Isolate.run
-Future<List<int>> sortLargeList(List<int> data) async {
-  return await Isolate.run(() {
-    data.sort();
-    return data;
-  });
-}
-
-// For Flutter, use compute() from foundation
-import 'package:flutter/foundation.dart';
-
-Future<ParsedData> parseHeavyJson(String json) async {
-  return await compute(_parseJson, json);
-}
-
-ParsedData _parseJson(String json) {
-  // This runs in a separate isolate
-  return ParsedData.fromJson(jsonDecode(json));
-}
-\`\`\`
+- Use \`Isolate.run()\` (Dart 2.19+) for CPU-heavy work
+- Use Flutter's \`compute()\` for heavy JSON parsing or data processing
+- Keep main isolate responsive — offload sorting, parsing, encryption
 `,
       },
     ],
@@ -1062,8 +506,9 @@ assert(result is Map<String, dynamic>, 'Expected Map, got \${result.runtimeType}
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.dart$" && command -v dart >/dev/null 2>&1 && dart format --set-exit-if-changed "$CLAUDE_FILE_PATH" 2>/dev/null || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && command -v dart >/dev/null 2>&1 && dart format --set-exit-if-changed "$FILE_PATH" 2>/dev/null || true',
             timeout: 15,
+            statusMessage: 'Checking Dart formatting with dart format',
           },
         ],
       },
@@ -1074,8 +519,9 @@ assert(result is Map<String, dynamic>, 'Expected Map, got \${result.runtimeType}
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.dart$" && grep -nE "\\bProcess\\.(run|start)\\b" "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: Process.run/start detected — verify no user-controlled input reaches the command arguments" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && grep -nE "\\bProcess\\.(run|start)\\b" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: Process.run/start detected — verify no user-controlled input reaches the command arguments" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for Process.run/start usage',
           },
         ],
       },
@@ -1086,8 +532,9 @@ assert(result is Map<String, dynamic>, 'Expected Map, got \${result.runtimeType}
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.dart$" && grep -nE "\\bdynamic\\b" "$CLAUDE_FILE_PATH" | grep -v "//.*dynamic" | grep -v "fromJson\\|toJson\\|decode\\|encode" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: dynamic type detected outside serialization boundaries — consider using typed alternatives" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && grep -nE "\\bdynamic\\b" "$FILE_PATH" | grep -v "//.*dynamic" | grep -v "fromJson\\|toJson\\|decode\\|encode" | head -5 | grep -q "." && { echo "Warning: dynamic type detected outside serialization boundaries — consider using typed alternatives" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for dynamic type outside serialization',
           },
         ],
       },
@@ -1098,8 +545,9 @@ assert(result is Map<String, dynamic>, 'Expected Map, got \${result.runtimeType}
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.dart$" && grep -cE "^\\s*///" "$CLAUDE_FILE_PATH" | grep -q "^0$" && grep -qE "^(class|enum|mixin|extension|typedef|sealed|final class|base class|interface class)\\b" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:0:Warning: public type declarations found without any doc comments (///)" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && grep -cE "^\\s*///" "$FILE_PATH" | grep -q "^0$" && grep -qE "^(class|enum|mixin|extension|typedef|sealed|final class|base class|interface class)\\b" "$FILE_PATH" && { echo "Warning: public type declarations found without any doc comments (///)" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for missing doc comments on public types',
           },
         ],
       },

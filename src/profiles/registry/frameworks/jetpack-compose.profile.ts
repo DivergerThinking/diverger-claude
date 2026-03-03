@@ -44,193 +44,29 @@ Declarative Android UI. Composable functions, unidirectional data flow, Material
         content: `# Jetpack Compose Patterns
 
 ## Composable API Design
-
-### Naming Conventions
-- Composables that emit UI (return Unit) use PascalCase: \`UserCard()\`, \`ProfileHeader()\`
-- Composables that return a value use camelCase: \`rememberScrollState()\`, \`derivedStateOf()\`
-- State holder classes use \`*State\` suffix: \`ScrollState\`, \`DrawerState\`, \`PagerState\`
-- Callbacks use \`on*\` prefix: \`onClick\`, \`onValueChange\`, \`onDismissRequest\`
-
-### Parameter Ordering (Official API Guidelines)
-Every composable that emits UI must follow this parameter order:
-1. Required parameters (no default value)
-2. \`modifier: Modifier = Modifier\` — always present, always first optional parameter
-3. Optional parameters with defaults
-4. Trailing \`content: @Composable () -> Unit\` lambda (slot)
-
-### Correct
-\`\`\`kotlin
-@Composable
-fun UserCard(
-    user: User,                              // 1. Required
-    modifier: Modifier = Modifier,           // 2. Modifier
-    isHighlighted: Boolean = false,          // 3. Optional
-    onClick: () -> Unit = {},                // 3. Optional callback
-    content: @Composable () -> Unit = {},    // 4. Trailing slot
-) {
-    Surface(modifier = modifier, onClick = onClick) {
-        Column {
-            Text(user.name)
-            content()
-        }
-    }
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`kotlin
-// WRONG: Modifier not first optional, required after optional
-@Composable
-fun UserCard(
-    isHighlighted: Boolean = false,
-    user: User,
-    modifier: Modifier = Modifier,
-) { /* ... */ }
-\`\`\`
-
----
+- UI-emitting composables: PascalCase (\`UserCard()\`); value-returning: camelCase (\`rememberScrollState()\`)
+- State holders use \`*State\` suffix; callbacks use \`on*\` prefix
+- Parameter order: required params -> \`modifier: Modifier = Modifier\` -> optional with defaults -> trailing \`content\` lambda
+- Modifier is always present and always the first optional parameter
 
 ## State Management
-
-### State Hoisting Pattern
-Separate stateful composables from stateless composables:
-
-\`\`\`kotlin
-// Stateless — receives state, emits events via callbacks
-@Composable
-fun Counter(
-    count: Int,
-    onIncrement: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier) {
-        Text("Count: $count")
-        Button(onClick = onIncrement) { Text("Increment") }
-    }
-}
-
-// Stateful — wraps stateless with state management
-@Composable
-fun CounterScreen(modifier: Modifier = Modifier) {
-    var count by remember { mutableIntStateOf(0) }
-    Counter(
-        count = count,
-        onIncrement = { count++ },
-        modifier = modifier,
-    )
-}
-\`\`\`
-
-### remember vs rememberSaveable
-- \`remember {}\`: survives recomposition but NOT configuration changes (rotation, locale change)
-- \`rememberSaveable {}\`: survives configuration changes and process death via Bundle
-- Use \`rememberSaveable\` for user input, scroll positions, and UI toggle states
-- Use \`remember\` for derived/computed values and non-persistent caches
-
-### ViewModel + StateFlow
-- Use ViewModel for screen-level state that survives configuration changes
-- Expose state as \`StateFlow\` and collect with \`collectAsStateWithLifecycle()\`
+- State hoisting: separate stateless composables (receive state + callbacks) from stateful wrappers
+- \`remember {}\`: survives recomposition but NOT config changes (rotation)
+- \`rememberSaveable {}\`: survives config changes and process death — use for user input, scroll positions, toggles
+- ViewModel for screen-level state: expose as \`StateFlow\`, collect with \`collectAsStateWithLifecycle()\`
 - Never pass ViewModel to child composables — pass individual state values and callbacks
 
-\`\`\`kotlin
-@Composable
-fun ProfileScreen(viewModel: ProfileViewModel = viewModel()) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    ProfileContent(
-        user = uiState.user,
-        isLoading = uiState.isLoading,
-        onRefresh = viewModel::refresh,
-    )
-}
-\`\`\`
-
----
-
 ## Side Effects
-
-### LaunchedEffect
-Runs a suspend function when entering composition and re-launches when keys change:
-
-\`\`\`kotlin
-@Composable
-fun UserProfile(userId: String) {
-    var user by remember { mutableStateOf<User?>(null) }
-
-    LaunchedEffect(userId) {
-        user = userRepository.getUser(userId)
-    }
-
-    user?.let { ProfileContent(it) }
-}
-\`\`\`
-
-### DisposableEffect
-Registers listeners or callbacks and cleans them up on key change or disposal:
-
-\`\`\`kotlin
-@Composable
-fun LifecycleObserver(lifecycle: Lifecycle) {
-    DisposableEffect(lifecycle) {
-        val observer = LifecycleEventObserver { _, event ->
-            // Handle lifecycle event
-        }
-        lifecycle.addObserver(observer)
-        onDispose {
-            lifecycle.removeObserver(observer)
-        }
-    }
-}
-\`\`\`
-
-### Anti-Pattern: Coroutines in Composable Body
-\`\`\`kotlin
-// WRONG: launches a new coroutine on every recomposition
-@Composable
-fun BadExample(userId: String) {
-    val scope = rememberCoroutineScope()
-    scope.launch { fetchUser(userId) }  // Runs every recomposition!
-}
-
-// CORRECT: use LaunchedEffect
-@Composable
-fun GoodExample(userId: String) {
-    LaunchedEffect(userId) {
-        fetchUser(userId)
-    }
-}
-\`\`\`
-
----
+- \`LaunchedEffect(key)\`: runs suspend function on enter, re-launches on key change — use for data loading
+- \`DisposableEffect(key)\`: registers listeners, must include \`onDispose {}\` for cleanup
+- \`rememberCoroutineScope()\`: only for coroutines launched from event callbacks (onClick, etc.)
+- Never launch coroutines directly in composable body — causes re-launch on every recomposition
 
 ## Stability and Recomposition
-
-### Stable Types
-- Use \`data class\` with immutable properties (\`val\`, not \`var\`) for state objects
-- Annotate classes with \`@Stable\` when they have a mutable property that is observable (e.g., \`MutableState\`)
-- Annotate classes with \`@Immutable\` when all properties are truly immutable
-- Avoid \`List\`, \`Map\`, \`Set\` in composable parameters — they are not stable. Use \`kotlinx.collections.immutable\` (\`ImmutableList\`, \`PersistentList\`)
+- Use \`data class\` with immutable \`val\` properties for state objects
+- \`@Immutable\`: all properties truly immutable; \`@Stable\`: mutable but observable properties
+- Avoid \`List\`, \`Map\`, \`Set\` in composable params — use \`kotlinx.collections.immutable\` (\`ImmutableList\`, \`PersistentList\`)
 - Use \`key()\` composable to help Compose identify items in loops
-
-### Correct
-\`\`\`kotlin
-@Immutable
-data class UserUiState(
-    val name: String,
-    val email: String,
-    val items: ImmutableList<Item>,
-)
-\`\`\`
-
-### Anti-Pattern
-\`\`\`kotlin
-// WRONG: List is unstable — causes recomposition even when content is the same
-data class UserUiState(
-    val name: String,
-    val email: String,
-    val items: List<Item>,  // Unstable!
-)
-\`\`\`
 `,
       },
       {
@@ -241,138 +77,37 @@ data class UserUiState(
         content: `# Jetpack Compose Performance
 
 ## Composition Phases
-Compose renders in three phases — optimize by deferring state reads to the latest possible phase:
-1. **Composition**: execute composables, build the tree — avoid side effects here
-2. **Layout**: measure and position elements
-3. **Drawing**: render pixels to canvas
+- Three phases: Composition (build tree) -> Layout (measure/position) -> Drawing (render)
+- Reading state in a later phase (layout/draw) skips earlier phases during recomposition
+- Avoid side effects in the composition phase
 
-**Key principle**: reading state in a later phase (layout or draw) skips earlier phases during recomposition.
+## remember for Expensive Calculations
+- Wrap sorts, filters, and mappings in \`remember(key) {}\` to avoid recalculation on every recomposition
+- Move heavy computation to ViewModel when possible — keep composables lean
 
----
-
-## Use remember for Expensive Calculations
-
-\`\`\`kotlin
-// WRONG: sorts on every recomposition
-@Composable
-fun ContactList(contacts: List<Contact>, comparator: Comparator<Contact>) {
-    LazyColumn {
-        items(contacts.sortedWith(comparator)) { contact -> ContactRow(contact) }
-    }
-}
-
-// CORRECT: cache the sorted result
-@Composable
-fun ContactList(contacts: List<Contact>, comparator: Comparator<Contact>) {
-    val sortedContacts = remember(contacts, comparator) {
-        contacts.sortedWith(comparator)
-    }
-    LazyColumn {
-        items(sortedContacts) { contact -> ContactRow(contact) }
-    }
-}
-\`\`\`
-
-**Best practice**: move heavy computation to ViewModel when possible — keep composables lean.
-
----
-
-## Use derivedStateOf to Limit Recompositions
-
-\`\`\`kotlin
-// WRONG: recomposes on every scroll pixel
-val listState = rememberLazyListState()
-val showButton = listState.firstVisibleItemIndex > 0
-
-// CORRECT: recomposes only when the boolean changes
-val listState = rememberLazyListState()
-val showButton by remember {
-    derivedStateOf { listState.firstVisibleItemIndex > 0 }
-}
-\`\`\`
-
----
+## derivedStateOf
+- Use \`derivedStateOf {}\` to convert frequently-changing state into less-frequent derived values
+- Example: \`derivedStateOf { listState.firstVisibleItemIndex > 0 }\` recomposes only when boolean changes, not every scroll pixel
 
 ## Defer State Reads (Phase Optimization)
-
-Use lambda-based modifier variants to skip the composition phase entirely:
-
-\`\`\`kotlin
-// WRONG: reads scroll value in composition — triggers full recomposition
-@Composable
-fun Title(scrollValue: Int) {
-    Column(modifier = Modifier.offset(y = scrollValue.dp)) { /* ... */ }
-}
-
-// CORRECT: reads scroll value in layout phase — skips composition
-@Composable
-fun Title(scrollProvider: () -> Int) {
-    Column(
-        modifier = Modifier.offset { IntOffset(x = 0, y = scrollProvider()) }
-    ) { /* ... */ }
-}
-\`\`\`
-
-Lambda-based modifier equivalents:
-- \`Modifier.offset(x, y)\` -> \`Modifier.offset { IntOffset(...) }\`
-- \`Modifier.background(color)\` -> \`Modifier.drawBehind { drawRect(color) }\`
+- Use lambda-based modifier variants to skip composition phase entirely
+- \`Modifier.offset(x, y)\` -> \`Modifier.offset { IntOffset(...) }\` (reads in layout phase)
+- \`Modifier.background(color)\` -> \`Modifier.drawBehind { drawRect(color) }\` (reads in draw phase)
 - \`Modifier.alpha(alpha)\` -> \`Modifier.graphicsLayer { this.alpha = alpha }\`
 
----
-
 ## Avoid Backwards Writes
-
-Never write to state that has already been read in the current composition:
-
-\`\`\`kotlin
-// WRONG: backwards write causes infinite recomposition loop
-@Composable
-fun BadExample() {
-    var count by remember { mutableIntStateOf(0) }
-    Text("$count")
-    count++  // Writing AFTER reading = infinite loop!
-}
-
-// CORRECT: write state only in event handlers
-@Composable
-fun GoodExample() {
-    var count by remember { mutableIntStateOf(0) }
-    Text("$count")
-    Button(onClick = { count++ }) { Text("Increment") }
-}
-\`\`\`
-
----
+- Never write to state that has already been read in the current composition — causes infinite recomposition
+- Write state only in event handlers (onClick, etc.), not in the composable body
 
 ## Lazy Layouts
+- Use \`LazyColumn\`/\`LazyRow\` — they only compose visible items
+- Always provide stable, unique \`key\` in \`items {}\` for item identity
+- Use \`contentType\` for heterogeneous lists to optimize view recycling
+- Never nest \`LazyColumn\` inside another scrollable container
 
-- Use \`LazyColumn\` / \`LazyRow\` for scrollable lists — they only compose visible items
-- Always provide a stable, unique \`key\` in \`items {}\` for item identity
-- Use \`contentType\` parameter for heterogeneous lists to optimize view recycling
-- Avoid nesting \`LazyColumn\` inside another scrollable container — use a single LazyColumn with mixed item types
-- Set \`itemExtent\` (or \`stickyHeader\`) when item heights are uniform for layout optimization
-
-\`\`\`kotlin
-LazyColumn {
-    items(
-        items = notes,
-        key = { note -> note.id },
-        contentType = { note -> note.type },
-    ) { note ->
-        NoteRow(note)
-    }
-}
-\`\`\`
-
----
-
-## Profiling and Measurement
-
-- Use **Layout Inspector** to visualize recomposition counts and identify hot composables
-- Enable **composition tracing** for timeline performance profiling
-- Run the **Compose compiler metrics** (\`-P compose.compiler.metrics=true\`) to identify unstable parameters
-- Use **Baseline Profiles** to pre-compile critical UI paths for faster startup and smoother scrolling
-- Use **Macrobenchmark** for end-to-end performance testing of scroll, startup, and animation performance
+## Profiling
+- Layout Inspector for recomposition counts, Compose compiler metrics (\`-P compose.compiler.metrics=true\`) for stability
+- Baseline Profiles for startup optimization, Macrobenchmark for scroll/animation testing
 - Profile BEFORE optimizing — premature optimization harms readability
 `,
       },
@@ -624,6 +359,8 @@ fun userList_displaysAllItems() {
       {
         name: 'compose-screen-generator',
         description: 'Generate Jetpack Compose screens with proper architecture, state hoisting, and preview setup',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Compose Screen Generator
 
 When generating a Compose screen, produce the following files:
@@ -667,6 +404,8 @@ When generating a Compose screen, produce the following files:
       {
         name: 'compose-preview-generator',
         description: 'Generate comprehensive @Preview annotations for Jetpack Compose composables',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Compose Preview Generator
 
 Generate @Preview annotations for composables following these patterns:
@@ -713,7 +452,7 @@ private fun UserCardPreview(@PreviewParameter(UserPreviewProvider::class) user: 
         hooks: [
           {
             type: 'command',
-            command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/@Composable/.test(lines[i])&&/fun\\s+[A-Z]/.test(lines[i+1]||\'\')){let j=i+1;let braceCount=0;let started=false;let hasModifier=false;for(;j<lines.length;j++){if(lines[j].includes(\'{\'))braceCount++;if(lines[j].includes(\'}\'))braceCount--;if(braceCount>0)started=true;if(started&&braceCount===0)break;if(/modifier\\s*:\\s*Modifier/.test(lines[j]))hasModifier=true}if(!hasModifier&&(j-i)>5)console.log(\'WARNING: Composable at line \'+(i+2)+\' emits UI but has no Modifier parameter — add modifier: Modifier = Modifier as the first optional parameter\')}}" -- "$CLAUDE_FILE_PATH"',
+            command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/@Composable/.test(lines[i])&&/fun\\s+[A-Z]/.test(lines[i+1]||\'\')){let j=i+1;let braceCount=0;let started=false;let hasModifier=false;for(;j<lines.length;j++){if(lines[j].includes(\'{\'))braceCount++;if(lines[j].includes(\'}\'))braceCount--;if(braceCount>0)started=true;if(started&&braceCount===0)break;if(/modifier\\s*:\\s*Modifier/.test(lines[j]))hasModifier=true}if(!hasModifier&&(j-i)>5)console.log(\'WARNING: Composable at line \'+(i+2)+\' emits UI but has no Modifier parameter — add modifier: Modifier = Modifier as the first optional parameter\')}}" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -724,7 +463,7 @@ private fun UserCardPreview(@PreviewParameter(UserPreviewProvider::class) user: 
         hooks: [
           {
             type: 'command',
-            command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@Composable/.test(c)){const m=c.match(/\\.collectAsState\\s*\\(/g);if(m&&m.length>0&&!c.includes(\'collectAsStateWithLifecycle\'))console.log(\'WARNING: Found collectAsState() — prefer collectAsStateWithLifecycle() for lifecycle-aware state collection in UI\')}" -- "$CLAUDE_FILE_PATH"',
+            command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@Composable/.test(c)){const m=c.match(/\\.collectAsState\\s*\\(/g);if(m&&m.length>0&&!c.includes(\'collectAsStateWithLifecycle\'))console.log(\'WARNING: Found collectAsState() — prefer collectAsStateWithLifecycle() for lifecycle-aware state collection in UI\')}" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -735,7 +474,7 @@ private fun UserCardPreview(@PreviewParameter(UserPreviewProvider::class) user: 
         hooks: [
           {
             type: 'command',
-            command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@Composable/.test(c)){const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/rememberCoroutineScope/.test(lines[i])){for(let j=i+1;j<Math.min(i+5,lines.length);j++){if(/\\.launch\\s*\\{/.test(lines[j])&&!/onClick|onPress|on[A-Z]/.test(lines[j-1]||\'\')){console.log(\'WARNING: coroutine launched at line \'+(j+1)+\' may run on every recomposition — use LaunchedEffect for composition-scoped coroutines or ensure launch is inside a callback\');break}}}}}" -- "$CLAUDE_FILE_PATH"',
+            command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@Composable/.test(c)){const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/rememberCoroutineScope/.test(lines[i])){for(let j=i+1;j<Math.min(i+5,lines.length);j++){if(/\\.launch\\s*\\{/.test(lines[j])&&!/onClick|onPress|on[A-Z]/.test(lines[j-1]||\'\')){console.log(\'WARNING: coroutine launched at line \'+(j+1)+\' may run on every recomposition — use LaunchedEffect for composition-scoped coroutines or ensure launch is inside a callback\');break}}}}}" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

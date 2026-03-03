@@ -1,5 +1,41 @@
-import type { Profile } from '../../../core/types.js';
+import type { Profile, HookScriptDefinition } from '../../../core/types.js';
 import { PROFILE_LAYERS } from '../../../core/types.js';
+import { makeNodeCheckScript } from '../../hook-script-templates.js';
+
+function buildReactHookScripts(): HookScriptDefinition[] {
+  return [
+    {
+      filename: 'react-effect-cleanup.sh',
+      isPreToolUse: false,
+      content: makeNodeCheckScript({
+        filename: 'react-effect-cleanup.sh',
+        nodeScript: `const f=process.argv[1]||'';if(!f.endsWith('.tsx')&&!f.endsWith('.jsx'))process.exit(0);const c=require('fs').readFileSync(f,'utf8');if(/useEffect\\s*\\(/.test(c)&&/(subscribe|addEventListener|setInterval|setTimeout|on\\()/.test(c)&&!/return\\s*(\\(\\)\\s*=>|function)/.test(c)){process.stderr.write('useEffect with subscription/timer but no cleanup return detected');process.exit(1)}`,
+        message: 'Warning: useEffect missing cleanup for subscription/timer — add a cleanup return',
+        exitCode: 2,
+      }),
+    },
+    {
+      filename: 'react-a11y-click.sh',
+      isPreToolUse: false,
+      content: makeNodeCheckScript({
+        filename: 'react-a11y-click.sh',
+        nodeScript: `const f=process.argv[1]||'';if(!f.endsWith('.tsx')&&!f.endsWith('.jsx'))process.exit(0);const c=require('fs').readFileSync(f,'utf8');const lines=c.split('\\n');let found=false;for(let i=0;i<lines.length;i++){if(/<div\\s[^>]*onClick/.test(lines[i])&&!/role=/.test(lines[i])){process.stderr.write('<div onClick> at line '+(i+1)+' — use <button> or add role + tabIndex + keyboard handler\\n');found=true}}if(found)process.exit(1)`,
+        message: 'Warning: <div onClick> without accessibility attributes found',
+        exitCode: 2,
+      }),
+    },
+    {
+      filename: 'react-effect-chains.sh',
+      isPreToolUse: false,
+      content: makeNodeCheckScript({
+        filename: 'react-effect-chains.sh',
+        nodeScript: `const f=process.argv[1]||'';if(!f.endsWith('.tsx')&&!f.endsWith('.jsx'))process.exit(0);const c=require('fs').readFileSync(f,'utf8');const m=c.match(/useEffect\\s*\\(\\s*\\(\\)\\s*=>\\s*\\{[^}]*setState[^}]*\\}\\s*,\\s*\\[[^\\]]*\\]\\s*\\)/g);if(m&&m.length>=3){process.stderr.write(m.length+' useEffect+setState chains — consolidate into event handlers or useReducer');process.exit(1)}`,
+        message: 'Warning: multiple useEffect+setState chains detected — consider consolidating',
+        exitCode: 2,
+      }),
+    },
+  ];
+}
 
 export const reactProfile: Profile = {
   id: 'frameworks/react',
@@ -41,6 +77,229 @@ Server Components by default (React 19+). Minimal \`useEffect\` — derive state
         governance: 'mandatory',
         description: 'Rules of Hooks, effect discipline, and avoiding unnecessary effects',
         content: `# React Hooks & Effects
+
+## Rules of Hooks (non-negotiable)
+- Only call hooks at the top level of a component or custom hook
+- Never call hooks inside loops, conditions, nested functions, try/catch blocks, or after early returns
+- Custom hooks must start with \`use\` prefix followed by a capital letter
+- Always include all reactive values in dependency arrays — enable \`eslint-plugin-react-hooks\`
+
+## When NOT to Use useEffect
+- **Deriving values** — compute inline during render, not via state+effect
+- **Expensive computations** — use \`useMemo\`, not effect+setState
+- **Resetting state on identity change** — use \`key\` prop to force remount
+- **Reacting to user events** — call from event handlers, not effects watching state
+- **Notifying parents** — call parent callback in the same handler that sets state
+
+## Legitimate Uses of useEffect
+- Subscribing to external stores (prefer \`useSyncExternalStore\`)
+- WebSockets, EventSource, third-party widget libraries
+- DOM event listeners not managed by React
+- Browser APIs (IntersectionObserver, ResizeObserver, MediaQuery)
+- Data fetching on mount/dependency change (always include cleanup for race conditions)
+
+## Effect Cleanup
+- Every effect that acquires a resource MUST return a cleanup function
+- Use AbortController for fetch, cancelled flags for async chains
+- Clear timers, remove event listeners, close connections
+
+For detailed examples and reference, invoke: /react-hooks-guide
+`,
+      },
+      {
+        path: 'react/component-architecture.md',
+        paths: ['**/*.tsx', '**/*.jsx'],
+        governance: 'mandatory',
+        description: 'React component design, composition, and state architecture patterns',
+        content: `# React Component Architecture
+
+## Component Design
+- One exported component per file, filename matches component name (\`UserProfile.tsx\`)
+- Props interface named \`ComponentNameProps\`, declared immediately before component
+- Destructure props in function signature; keep components under 120 lines
+- Use semantic HTML with proper ARIA attributes; event handlers named \`handleEventName\`
+
+## Composition Over Prop Drilling
+- When data crosses >2 component levels, use context or composition (children pattern)
+- Never drill props through intermediate components that do not use them
+
+## Custom Hooks
+- Name: \`useDescriptiveAction\` — \`useAuth\`, \`useDebounce\`, \`usePagination\`
+- One concrete purpose per hook; avoid generic lifecycle wrappers (\`useMount\`)
+- Return descriptively named objects for complex returns, not positional arrays
+- Document with JSDoc when behavior is non-obvious
+
+## State Colocation Rules
+1. Computable from props/state? → Derive inline or \`useMemo\`
+2. Used by single component? → Local \`useState\`
+3. Shared between siblings? → Lift to nearest common parent
+4. Shared across distant components? → Context (low-frequency) or state library (high-frequency)
+5. Survives navigation? → URL params, localStorage, or global store
+
+## List Rendering
+- Always use stable, unique \`key\` from data identity — never array index on dynamic lists
+- Extract list items into own component when they have non-trivial logic
+
+## Naming Conventions
+| Concept | Pattern | Example |
+|---------|---------|---------|
+| Component file | PascalCase.tsx | \`UserProfile.tsx\` |
+| Hook file | camelCase.ts | \`useAuth.ts\` |
+| Props interface | ComponentNameProps | \`UserProfileProps\` |
+| Event handler | handleEventName | \`handleSubmit\` |
+| Event prop | onEventName | \`onSubmit\` |
+| Context | NameContext / useName | \`AuthContext\` / \`useAuth\` |
+
+For detailed examples and reference, invoke: /react-patterns-guide
+`,
+      },
+      {
+        path: 'react/performance.md',
+        paths: ['**/*.tsx', '**/*.jsx'],
+        governance: 'recommended',
+        description: 'React performance optimization patterns and anti-patterns',
+        content: `# React Performance
+
+## Memoization — Profile Before Optimizing
+- Do NOT apply memoization speculatively — measure first with React DevTools Profiler
+- **React.memo**: use when component renders often with same props or renders expensive sub-trees
+- **useMemo**: use when computation is measurably expensive (>1ms) or result is prop to memoized child
+- **useCallback**: use when callback is dependency of child's effect/memo or passed to React.memo'd child
+
+## Avoiding Unnecessary Re-renders
+- Move state down — if only a sub-tree needs the state, colocate it there
+- Extract expensive children into own components that receive stable props
+- Split context providers by update frequency — never put everything in one context
+- Avoid inline object/array literals in JSX props (creates new reference every render)
+
+## Code Splitting
+- Use \`React.lazy\` + \`Suspense\` for route-level code splitting
+- Use dynamic \`import()\` for heavy third-party libraries loaded on demand
+
+## Virtualization
+- For lists >100 items, use windowing (\`react-window\`, \`@tanstack/react-virtual\`)
+- Never render thousands of DOM nodes — virtualize or paginate
+
+## Transitions
+- \`useTransition\` to mark expensive state updates as non-urgent
+- \`useDeferredValue\` to defer rendering of filtered/search results during typing
+
+For detailed examples and reference, invoke: /react-performance-guide
+`,
+      },
+    ],
+    agents: [
+      {
+        name: 'react-reviewer',
+        type: 'define',
+        model: 'sonnet',
+        description: 'Reviews React code for hooks compliance, effect discipline, and component quality',
+        prompt: `You are a React code reviewer. Reference concrete line numbers.
+
+## Checklist
+1. **Hooks**: Rules of Hooks (no conditional/loop hooks), complete dependency arrays, no disabled exhaustive-deps without justification
+2. **Effects**: no useEffect for derived values/user events/parent notifications, cleanup for subscriptions/timers, AbortController for fetches
+3. **Components**: proper \`key\` (no index), no DOM manipulation (use refs), <120 lines, no prop drilling >2 levels
+4. **State**: colocated near usage, context only for low-frequency cross-tree, useReducer for related transitions
+5. **Performance**: no speculative memo/useMemo/useCallback, no inline object literals in JSX props
+6. **A11y**: semantic HTML (\`<button>\` not \`<div onClick>\`), keyboard handlers, focus management, meaningful alt text
+
+## Output: CRITICAL | WARNING | SUGGESTION | POSITIVE — explain WHY.
+
+For detailed rules, invoke: /react-hooks-guide`,
+        skills: ['react-component-generator', 'react-hook-generator', 'react-hooks-guide'],
+      },
+      {
+        name: 'test-writer',
+        type: 'enrich',
+        prompt: `## React Testing
+- React Testing Library: query by role/label/text, never test internal state or hook counts
+- Test: interactions, conditional rendering, form behavior, list rendering, custom hooks via renderHook
+- Async: use waitFor/findBy*, mock network with MSW, wrap providers in test wrappers`,
+      },
+      {
+        name: 'refactor-assistant',
+        type: 'enrich',
+        skills: ['react-component-generator'],
+        prompt: `## React Refactoring Patterns
+- Extract components >120 lines, repeated JSX, complex conditionals
+- Extract custom hooks for repeated useState+useEffect patterns
+- Eliminate effects: derive inline/useMemo, move to event handlers, use useSyncExternalStore, use key pattern
+- Simplify state: useReducer for related transitions, push state down, composition over prop drilling`,
+      },
+    ],
+    skills: [
+      {
+        name: 'react-component-generator',
+        description: 'Generate React components following project conventions and best practices',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
+        content: `# React Component Generator
+
+When generating a React component, produce the following files:
+
+## Component File (\`ComponentName.tsx\`)
+1. Props interface (\`ComponentNameProps\`) with JSDoc on non-obvious fields
+2. Functional component with destructured props and default values
+3. Semantic HTML markup with proper ARIA attributes
+4. Event handlers named \`handleEventName\`
+5. Hooks at the top, ordered: state hooks, context, refs, derived values, effects
+
+## Test File (\`ComponentName.test.tsx\`)
+1. Import render, screen, userEvent from testing library
+2. Test rendering with required props (happy path)
+3. Test user interactions (click, type, keyboard)
+4. Test conditional rendering (loading, error, empty states)
+5. Test accessibility (roles, labels, keyboard navigation)
+
+## Custom Hook (if applicable — \`useHookName.ts\`)
+1. Typed parameters and return value
+2. Cleanup in useEffect if subscriptions or timers are used
+3. Companion test file using \`renderHook\`
+
+## Conventions
+- CSS Modules (\`ComponentName.module.css\`) or styled-components based on project convention
+- Storybook story (\`ComponentName.stories.tsx\`) if Storybook is present in the project
+- All files colocated in the same feature directory
+`,
+      },
+      {
+        name: 'react-hook-generator',
+        description: 'Generate custom React hooks with proper patterns',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
+        content: `# React Custom Hook Generator
+
+When generating a custom hook, follow these rules:
+
+## File: \`useHookName.ts\`
+1. Name starts with \`use\` + capital letter describing the concrete purpose
+2. Typed parameters — use an options object for 3+ parameters
+3. Typed return value — use an object with descriptive keys for complex returns
+4. Include JSDoc documenting purpose, parameters, and return value
+5. Handle cleanup in useEffect (AbortController, clearTimeout, removeEventListener)
+6. Include all reactive values in dependency arrays
+
+## File: \`useHookName.test.ts\`
+1. Use \`renderHook\` from \`@testing-library/react\`
+2. Test initial state
+3. Test state changes via \`act()\`
+4. Test cleanup on unmount
+5. Test re-renders with changed dependencies
+
+## Patterns to Apply
+- Prefer \`useSyncExternalStore\` over useEffect for external store subscriptions
+- Use AbortController for fetch-based hooks to prevent race conditions
+- Return \`{ data, isLoading, error }\` for data-fetching hooks
+- Use generics when the hook is reusable across different data types
+`,
+      },
+      {
+        name: 'react-hooks-guide',
+        description: 'Detailed reference for React hooks rules, effect discipline, and avoiding unnecessary effects',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# React Hooks & Effects — Detailed Reference
 
 ## Rules of Hooks (non-negotiable)
 - Only call hooks at the top level of a component or custom hook
@@ -178,11 +437,11 @@ useEffect(() => {
 `,
       },
       {
-        path: 'react/component-architecture.md',
-        paths: ['**/*.tsx', '**/*.jsx'],
-        governance: 'mandatory',
-        description: 'React component design, composition, and state architecture patterns',
-        content: `# React Component Architecture
+        name: 'react-patterns-guide',
+        description: 'Detailed reference for React component design, composition, and state architecture',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# React Component Architecture — Detailed Reference
 
 ## Component Design
 - One exported component per file, filename matches component name (\`UserProfile.tsx\`)
@@ -307,11 +566,11 @@ function useMount(fn: () => void) {
 `,
       },
       {
-        path: 'react/performance.md',
-        paths: ['**/*.tsx', '**/*.jsx'],
-        governance: 'recommended',
-        description: 'React performance optimization patterns and anti-patterns',
-        content: `# React Performance
+        name: 'react-performance-guide',
+        description: 'Detailed reference for React performance optimization patterns',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# React Performance — Detailed Reference
 
 ## Memoization — Profile Before Optimizing
 Do NOT apply memoization speculatively. Measure first with React DevTools Profiler.
@@ -410,219 +669,39 @@ function SearchPage() {
 `,
       },
     ],
-    agents: [
-      {
-        name: 'code-reviewer',
-        type: 'enrich',
-        skills: ['react-component-generator', 'react-hook-generator'],
-        prompt: `## React-Specific Review
-
-### Hooks Compliance
-- Verify Rules of Hooks: no conditional hooks, no hooks after early returns, no hooks in loops or try/catch
-- Check that all useEffect/useMemo/useCallback dependency arrays include every reactive value
-- Flag any \`eslint-disable react-hooks/exhaustive-deps\` without a documented justification
-
-### Effect Discipline
-- Flag useEffect that derives values computable during render (should be inline or useMemo)
-- Flag useEffect that reacts to user events (should be in event handlers)
-- Flag useEffect used to notify parent of state changes (should call onChange in the handler)
-- Flag chains of useEffect where one sets state consumed by another
-- Verify every effect that sets up subscriptions, timers, or listeners returns a cleanup function
-- Check data-fetching effects for race-condition protection (cleanup flag or AbortController)
-
-### Component Quality
-- Verify proper \`key\` usage in lists — no index keys for dynamic lists
-- Check for direct DOM manipulation (document.getElementById, querySelector) instead of refs
-- Check for prop drilling beyond 2 levels that should use composition or context
-- Verify controlled vs uncontrolled form inputs are used consistently — no mixing
-- Check that components stay under 120 lines; flag oversized components
-
-### State Architecture
-- Verify state is colocated as close to consumption as possible
-- Flag state lifted higher than necessary
-- Check for unnecessary context usage where prop passing suffices (1-2 levels)
-- Flag React context used for high-frequency updates (should use a state library)
-
-### Performance
-- Flag React.memo / useMemo / useCallback without evidence of a measured performance problem
-- Check for object/array literals created inline in JSX props (unstable references)
-- Flag missing code splitting for heavy route-level components
-
-### Accessibility
-- Verify semantic HTML elements are used (\`<button>\` not \`<div onClick>\`)
-- Check that all interactive elements have keyboard handlers and focus management
-- Verify images have meaningful alt text (or empty alt for decorative)
-- Check modals/drawers for focus trapping and Escape key handling`,
-      },
-      {
-        name: 'test-writer',
-        type: 'enrich',
-        prompt: `## React Testing
-
-### Testing Library Principles
-- Use React Testing Library — test user behavior, not implementation details
-- Query by role, label, or text first — use \`data-testid\` only when no accessible query works
-- Never test internal state (useState values) or hook call counts
-
-### What to Test
-- User interactions: click, type, submit, keyboard navigation (Tab, Enter, Escape)
-- Conditional rendering: loading states, error states, empty states, permission-gated UI
-- Form behavior: validation messages, submit with valid/invalid data, field interactions
-- List rendering: correct items, correct order, add/remove behavior
-- Custom hooks: use \`renderHook\` from @testing-library/react for hooks with complex logic
-
-### Async Patterns
-- Use \`waitFor\` for assertions on async state changes — never use arbitrary delays
-- Use \`findBy*\` queries (which combine getBy + waitFor) for elements that appear asynchronously
-- Wrap manual state updates in \`act()\` only when not using Testing Library's built-in event helpers
-
-### Mocking Strategy
-- Mock network calls (fetch, axios) at the boundary — use MSW (Mock Service Worker) for realistic API mocking
-- Provide test wrappers for context providers (theme, auth, router)
-- Never mock internal React components to test their parent — test the composed behavior
-
-### Example Structure
-\`\`\`tsx
-describe('UserProfile', () => {
-  it('should display user name and email after loading', async () => {
-    render(<UserProfile userId="123" />, { wrapper: TestProviders });
-
-    expect(screen.getByRole('progressbar')).toBeInTheDocument();
-
-    const heading = await screen.findByRole('heading', { name: /jane doe/i });
-    expect(heading).toBeInTheDocument();
-    expect(screen.getByText('jane@example.com')).toBeInTheDocument();
-  });
-
-  it('should show error message when fetch fails', async () => {
-    server.use(http.get('/api/users/:id', () => HttpResponse.error()));
-    render(<UserProfile userId="123" />, { wrapper: TestProviders });
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(/failed to load/i);
-  });
-});
-\`\`\``,
-      },
-      {
-        name: 'refactor-assistant',
-        type: 'enrich',
-        skills: ['react-component-generator'],
-        prompt: `## React Refactoring Patterns
-
-### Component Extraction
-- Extract when a component exceeds 120 lines or has more than one visual responsibility
-- Extract repeated JSX patterns into a shared component with props
-- Extract complex conditional rendering into dedicated components (\`EmptyState\`, \`ErrorView\`, \`LoadingSpinner\`)
-
-### Hook Extraction
-- Extract into a custom hook when the same useState + useEffect pattern appears in 2+ components
-- Name the hook after its purpose, not its lifecycle (\`useOnlineStatus\` not \`useMount\`)
-- Return an object with descriptive keys for complex hooks: \`{ data, isLoading, error, refetch }\`
-
-### Effect Elimination
-- Convert useEffect + setState into inline derivation or useMemo
-- Convert useEffect-based event notifications into event handler calls
-- Replace useEffect-based external store subscriptions with useSyncExternalStore
-- Replace useEffect that resets state on prop change with the key pattern
-
-### State Simplification
-- Replace multiple related useState calls with a single useReducer when state transitions depend on each other
-- Push state down to the component that uses it when parent does not need it
-- Replace prop drilling with composition (children) before reaching for context`,
-      },
-    ],
-    skills: [
-      {
-        name: 'react-component-generator',
-        description: 'Generate React components following project conventions and best practices',
-        content: `# React Component Generator
-
-When generating a React component, produce the following files:
-
-## Component File (\`ComponentName.tsx\`)
-1. Props interface (\`ComponentNameProps\`) with JSDoc on non-obvious fields
-2. Functional component with destructured props and default values
-3. Semantic HTML markup with proper ARIA attributes
-4. Event handlers named \`handleEventName\`
-5. Hooks at the top, ordered: state hooks, context, refs, derived values, effects
-
-## Test File (\`ComponentName.test.tsx\`)
-1. Import render, screen, userEvent from testing library
-2. Test rendering with required props (happy path)
-3. Test user interactions (click, type, keyboard)
-4. Test conditional rendering (loading, error, empty states)
-5. Test accessibility (roles, labels, keyboard navigation)
-
-## Custom Hook (if applicable — \`useHookName.ts\`)
-1. Typed parameters and return value
-2. Cleanup in useEffect if subscriptions or timers are used
-3. Companion test file using \`renderHook\`
-
-## Conventions
-- CSS Modules (\`ComponentName.module.css\`) or styled-components based on project convention
-- Storybook story (\`ComponentName.stories.tsx\`) if Storybook is present in the project
-- All files colocated in the same feature directory
-`,
-      },
-      {
-        name: 'react-hook-generator',
-        description: 'Generate custom React hooks with proper patterns',
-        content: `# React Custom Hook Generator
-
-When generating a custom hook, follow these rules:
-
-## File: \`useHookName.ts\`
-1. Name starts with \`use\` + capital letter describing the concrete purpose
-2. Typed parameters — use an options object for 3+ parameters
-3. Typed return value — use an object with descriptive keys for complex returns
-4. Include JSDoc documenting purpose, parameters, and return value
-5. Handle cleanup in useEffect (AbortController, clearTimeout, removeEventListener)
-6. Include all reactive values in dependency arrays
-
-## File: \`useHookName.test.ts\`
-1. Use \`renderHook\` from \`@testing-library/react\`
-2. Test initial state
-3. Test state changes via \`act()\`
-4. Test cleanup on unmount
-5. Test re-renders with changed dependencies
-
-## Patterns to Apply
-- Prefer \`useSyncExternalStore\` over useEffect for external store subscriptions
-- Use AbortController for fetch-based hooks to prevent race conditions
-- Return \`{ data, isLoading, error }\` for data-fetching hooks
-- Use generics when the hook is reusable across different data types
-`,
-      },
-    ],
     hooks: [
       {
-        event: 'PostToolUse' as const,
+        event: 'PostToolUse',
         matcher: 'Write',
         hooks: [{
-          type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.tsx\')&&!f.endsWith(\'.jsx\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/useEffect\\s*\\(/.test(c)&&/(subscribe|addEventListener|setInterval|setTimeout|on\\()/.test(c)&&!/return\\s*(\\(\\)\\s*=>|function)/.test(c))console.log(\'WARNING: useEffect with subscription/timer but no cleanup return detected — add a cleanup function to prevent memory leaks\')" -- "$CLAUDE_FILE_PATH"',
+          type: 'command',
+          command: 'bash .claude/hooks/react-effect-cleanup.sh',
           timeout: 5,
+          statusMessage: 'Checking useEffect cleanup...',
         }],
       },
       {
-        event: 'PostToolUse' as const,
+        event: 'PostToolUse',
         matcher: 'Write',
         hooks: [{
-          type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.tsx\')&&!f.endsWith(\'.jsx\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const lines=c.split(\'\\n\');let inComp=false;for(let i=0;i<lines.length;i++){if(/^(export\\s+)?(function|const)\\s+[A-Z]/.test(lines[i]))inComp=true;if(inComp&&/\\<div\\s[^>]*onClick/.test(lines[i])&&!/role=/.test(lines[i]))console.log(\'WARNING: <div onClick> at line \'+(i+1)+\' — use <button> or add role=button + tabIndex=0 + keyboard handler for accessibility\')}" -- "$CLAUDE_FILE_PATH"',
+          type: 'command',
+          command: 'bash .claude/hooks/react-a11y-click.sh',
           timeout: 5,
+          statusMessage: 'Checking accessibility...',
         }],
       },
       {
-        event: 'PostToolUse' as const,
+        event: 'PostToolUse',
         matcher: 'Write',
         hooks: [{
-          type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.tsx\')&&!f.endsWith(\'.jsx\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const m=c.match(/useEffect\\s*\\(\\s*\\(\\)\\s*=>\\s*\\{[^}]*setState[^}]*\\}\\s*,\\s*\\[[^\\]]*\\]\\s*\\)/g);if(m&&m.length>=3)console.log(\'WARNING: \'+m.length+\' useEffect+setState chains detected — consider consolidating into event handlers or useReducer\')" -- "$CLAUDE_FILE_PATH"',
+          type: 'command',
+          command: 'bash .claude/hooks/react-effect-chains.sh',
           timeout: 5,
+          statusMessage: 'Checking effect chains...',
         }],
       },
     ],
+    hookScripts: buildReactHookScripts(),
     externalTools: [
       {
         type: 'eslint',

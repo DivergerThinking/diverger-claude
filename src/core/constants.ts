@@ -18,6 +18,9 @@ export const AGENTS_DIR = 'agents';
 /** Skills subdirectory */
 export const SKILLS_DIR = 'skills';
 
+/** Hooks scripts subdirectory */
+export const HOOKS_DIR = 'hooks';
+
 /** MCP config file (project root) */
 export const MCP_FILE = '.mcp.json';
 
@@ -97,6 +100,11 @@ export function agentsDir(projectRoot: string): string {
 /** Build skills dir path from project root */
 export function skillsDir(projectRoot: string): string {
   return path.join(projectRoot, CLAUDE_DIR, SKILLS_DIR);
+}
+
+/** Build hooks dir path from project root */
+export function hooksDir(projectRoot: string): string {
+  return path.join(projectRoot, CLAUDE_DIR, HOOKS_DIR);
 }
 
 /** Build meta file path from project root */

@@ -11,12 +11,30 @@ function validateSkillName(name: string): void {
   }
 }
 
-/** Format a skill file with YAML frontmatter (name + description) before content */
+/** Format a skill file with YAML frontmatter (name + description + optional fields) before content */
 export function formatSkillFile(skill: SkillDefinition): string {
   const parts: string[] = [];
   parts.push('---');
   parts.push(`name: ${yamlEscape(skill.name)}`);
   parts.push(`description: ${yamlEscape(skill.description)}`);
+  if (skill.disableModelInvocation) {
+    parts.push('disable-model-invocation: true');
+  }
+  if (skill.allowedTools && skill.allowedTools.length > 0) {
+    parts.push('allowed-tools:');
+    for (const tool of skill.allowedTools) {
+      parts.push(`  - ${tool}`);
+    }
+  }
+  if (skill.userInvocable) {
+    parts.push('user-invocable: true');
+  }
+  if (skill.argumentHint) {
+    parts.push(`argument-hint: ${yamlEscape(skill.argumentHint)}`);
+  }
+  if (skill.context) {
+    parts.push(`context: ${skill.context}`);
+  }
   parts.push('---');
   parts.push('');
   parts.push(skill.content);

@@ -48,222 +48,48 @@ Composition API with \`<script setup>\`. Reactive state with \`ref()\` as primar
 ## Reactivity Fundamentals
 
 ### ref() — Primary Reactive Primitive
-Use \`ref()\` for all reactive state. It works with primitives and objects, and avoids
-the pitfalls of \`reactive()\` (no reassignment, no destructuring issues).
-
-\`\`\`vue
-<script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-
-const count = ref(0)
-const user = ref<User | null>(null)
-
-// Access with .value in script, auto-unwrapped in template
-count.value++
-</script>
-
-<template>
-  <p>{{ count }}</p> <!-- No .value needed in template -->
-</template>
-\`\`\`
+- Use \`ref()\` for ALL reactive state — works with primitives and objects
+- Access with \`.value\` in script, auto-unwrapped in template
+- Prefer \`ref()\` over \`reactive()\` to avoid reassignment and destructuring pitfalls
 
 ### reactive() — Use Sparingly
-Only use \`reactive()\` when you have a plain object that will never be reassigned
-and never destructured.
-
-\`\`\`typescript
-// CORRECT: stable object, no reassignment
-const formState = reactive({
-  email: '',
-  password: '',
-  rememberMe: false,
-})
-
-// WRONG: reassignment breaks reactivity
-let state = reactive({ count: 0 })
-state = reactive({ count: 1 }) // watchers on old proxy are now dead
-
-// WRONG: destructuring breaks reactivity
-const { count } = reactive({ count: 0 })
-count++ // has no effect on the original
-\`\`\`
+- Only for plain objects that will never be reassigned or destructured
+- Reassigning a reactive variable breaks all existing watchers
+- Destructuring loses reactivity — use \`toRefs()\` or \`toRef()\` if needed
 
 ### computed() — All Derived State
-Move any non-trivial expression out of templates into computed properties.
-
-\`\`\`vue
-<script setup lang="ts">
-import { ref, computed } from 'vue'
-
-const items = ref<CartItem[]>([])
-const taxRate = ref(0.21)
-
-// Split complex computations into simple, testable computed properties
-const subtotal = computed(() =>
-  items.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
-)
-const tax = computed(() => subtotal.value * taxRate.value)
-const total = computed(() => subtotal.value + tax.value)
-</script>
-
-<template>
-  <!-- CORRECT: clean template using named computed values -->
-  <p>Subtotal: {{ subtotal }}</p>
-  <p>Tax: {{ tax }}</p>
-  <p>Total: {{ total }}</p>
-
-  <!-- WRONG: complex expression in template -->
-  <!-- <p>{{ items.reduce((s, i) => s + i.price * i.quantity, 0) * (1 + taxRate) }}</p> -->
-</template>
-\`\`\`
+- Move non-trivial expressions out of templates into \`computed()\`
+- Split complex computations into simple, testable computed properties
+- Computed values are cached and only re-evaluate when dependencies change
 
 ### watch() vs watchEffect()
-- Use \`watch()\` when you need the old and new value, or want to react to specific sources
-- Use \`watchEffect()\` when you want automatic dependency tracking with no need for old values
-
-\`\`\`typescript
-import { ref, watch, watchEffect } from 'vue'
-
-const query = ref('')
-const page = ref(1)
-
-// watch: explicit source, access old + new value
-watch(query, (newQuery, oldQuery) => {
-  if (newQuery !== oldQuery) {
-    page.value = 1 // reset pagination when search changes
-  }
-})
-
-// watchEffect: automatic dependency tracking
-watchEffect(async () => {
-  const results = await fetchResults(query.value, page.value)
-  // triggers whenever query OR page changes
-})
-\`\`\`
+- \`watch()\`: explicit source, access old + new value, react to specific sources
+- \`watchEffect()\`: automatic dependency tracking, no old value access
+- Always clean up side effects in watchers (return cleanup function)
 
 ### Preserving Reactivity
-\`\`\`typescript
-import { reactive, toRefs, toRef } from 'vue'
-
-const state = reactive({ x: 0, y: 0 })
-
-// WRONG: loses reactivity
-const { x, y } = state
-
-// CORRECT: toRefs preserves reactivity on destructured properties
-const { x, y } = toRefs(state)
-
-// CORRECT: toRef for a single property
-const x = toRef(state, 'x')
-\`\`\`
+- Use \`toRefs(state)\` when destructuring a reactive object
+- Use \`toRef(state, 'key')\` for a single property reference
 
 ### Advanced Reactivity APIs
-- \`shallowRef()\`: only \`.value\` assignment is reactive, not nested mutations — use for large immutable data
-- \`triggerRef()\`: force effects to run after mutating a shallowRef's inner state
-- \`customRef()\`: full control over dependency tracking — use for debounced refs
-- \`markRaw()\`: mark an object as never-to-be-proxied — use for third-party class instances
-- \`toRaw()\`: get the original object from a reactive proxy — use for serialization or passing to non-Vue code
-- \`effectScope()\`: group effects for bulk disposal — use in composables that manage many watchers
-
-\`\`\`typescript
-import { customRef } from 'vue'
-
-export function useDebouncedRef<T>(initialValue: T, delay = 300) {
-  let timeout: ReturnType<typeof setTimeout>
-  return customRef<T>((track, trigger) => {
-    let value = initialValue
-    return {
-      get() {
-        track()
-        return value
-      },
-      set(newValue) {
-        clearTimeout(timeout)
-        timeout = setTimeout(() => {
-          value = newValue
-          trigger()
-        }, delay)
-      },
-    }
-  })
-}
-\`\`\`
+- \`shallowRef()\`: only \`.value\` assignment is reactive — use for large immutable data
+- \`triggerRef()\`: force effects after mutating shallowRef inner state
+- \`customRef()\`: full control over tracking — use for debounced refs
+- \`markRaw()\`: prevent proxying — use for third-party class instances
+- \`toRaw()\`: get original object from proxy — use for serialization
+- \`effectScope()\`: group effects for bulk disposal in composables
 
 ---
 
 ## Composables
 
-### Convention: Return Plain Object of Refs
-\`\`\`typescript
-import { ref, onMounted, onUnmounted } from 'vue'
-
-export function useMouse() {
-  const x = ref(0)
-  const y = ref(0)
-
-  function update(event: MouseEvent) {
-    x.value = event.pageX
-    y.value = event.pageY
-  }
-
-  onMounted(() => window.addEventListener('mousemove', update))
-  onUnmounted(() => window.removeEventListener('mousemove', update))
-
-  // CORRECT: plain object of refs — destructurable without losing reactivity
-  return { x, y }
-}
-\`\`\`
-
-### Convention: Accept Flexible Inputs with toValue()
-\`\`\`typescript
-import { ref, watchEffect, toValue, type MaybeRefOrGetter } from 'vue'
-
-export function useFetch<T>(url: MaybeRefOrGetter<string>) {
-  const data = ref<T | null>(null)
-  const error = ref<Error | null>(null)
-  const isLoading = ref(false)
-
-  watchEffect(async () => {
-    isLoading.value = true
-    error.value = null
-    try {
-      const response = await fetch(toValue(url))
-      if (!response.ok) throw new Error(\`HTTP \${response.status}\`)
-      data.value = await response.json()
-    } catch (e) {
-      error.value = e instanceof Error ? e : new Error(String(e))
-    } finally {
-      isLoading.value = false
-    }
-  })
-
-  return { data, error, isLoading }
-}
-
-// Accepts ref, getter, or plain string
-const { data } = useFetch(ref('/api/users'))
-const { data } = useFetch(() => \`/api/users/\${props.id}\`)
-const { data } = useFetch('/api/static-resource')
-\`\`\`
-
-### Cleanup with onScopeDispose
-\`\`\`typescript
-import { ref, onScopeDispose } from 'vue'
-
-export function useInterval(callback: () => void, ms: number) {
-  const isActive = ref(true)
-  const id = setInterval(() => {
-    if (isActive.value) callback()
-  }, ms)
-
-  // Works in both component and non-component scopes (effectScope)
-  onScopeDispose(() => clearInterval(id))
-
-  function stop() { isActive.value = false; clearInterval(id) }
-
-  return { isActive, stop }
-}
-\`\`\`
+### Conventions
+- Prefix with \`use\` (e.g., \`useMouse\`, \`useFetch\`)
+- Return a plain object of refs — not a reactive object — for destructurable reactivity
+- Accept flexible inputs via \`MaybeRefOrGetter<T>\` + \`toValue()\`
+- Clean up event listeners and timers in \`onUnmounted()\` or \`onScopeDispose()\`
+- Use \`onScopeDispose()\` for cleanup that works in both component and effectScope contexts
+- Extract into composable when same ref + watch + cleanup pattern appears in 2+ components
 `,
       },
       {
@@ -275,193 +101,62 @@ export function useInterval(callback: () => void, ms: number) {
 
 ## Component Communication
 
-### Props with TypeScript Generics
-\`\`\`vue
-<script setup lang="ts">
-interface Props {
-  /** User to display in the card */
-  user: User
-  /** Whether the card is visually highlighted */
-  isHighlighted?: boolean
-}
+### Props
+- Use TypeScript generics: \`defineProps<Props>()\` with \`withDefaults()\` for defaults
+- JSDoc on non-obvious prop fields
+- Never mutate props directly — emit an event and let the parent update
 
-const props = withDefaults(defineProps<Props>(), {
-  isHighlighted: false,
-})
-</script>
-\`\`\`
+### Emits
+- Type all emits: \`defineEmits<{ select: [userId: string] }>()\`
+- Name event handlers \`handle*\` (e.g., \`handleSubmit\`, \`handleSelect\`)
 
-### Typed Emits
-\`\`\`vue
-<script setup lang="ts">
-const emit = defineEmits<{
-  select: [userId: string]
-  delete: [userId: string, reason?: string]
-}>()
+### defineModel() (Vue 3.4+)
+- Use \`defineModel()\` for v-model bindings instead of manual prop + emit pattern
 
-function handleSelect() {
-  emit('select', props.user.id)
-}
-</script>
-\`\`\`
-
-### defineModel() for Two-Way Binding (Vue 3.4+)
-\`\`\`vue
-<!-- RangeSlider.vue -->
-<script setup lang="ts">
-const min = defineModel<number>('min', { required: true })
-const max = defineModel<number>('max', { required: true })
-</script>
-
-<template>
-  <input type="range" v-model.number="min" :max="max" />
-  <input type="range" v-model.number="max" :min="min" />
-</template>
-
-<!-- Parent usage -->
-<!-- <RangeSlider v-model:min="priceMin" v-model:max="priceMax" /> -->
-\`\`\`
-
-### Provide / Inject with InjectionKey
-\`\`\`typescript
-// keys.ts
-import type { InjectionKey, Ref } from 'vue'
-
-export const ThemeKey: InjectionKey<Ref<'light' | 'dark'>> = Symbol('theme')
-\`\`\`
-
-\`\`\`vue
-<!-- Provider.vue -->
-<script setup lang="ts">
-import { provide, ref } from 'vue'
-import { ThemeKey } from './keys'
-
-const theme = ref<'light' | 'dark'>('light')
-provide(ThemeKey, theme)
-</script>
-\`\`\`
-
-\`\`\`vue
-<!-- Consumer.vue (any depth) -->
-<script setup lang="ts">
-import { inject } from 'vue'
-import { ThemeKey } from './keys'
-
-// Typed automatically via InjectionKey
-const theme = inject(ThemeKey)
-if (!theme) throw new Error('ThemeKey not provided')
-</script>
-\`\`\`
+### Provide / Inject
+- Use typed \`InjectionKey<T>\` for type-safe provide/inject
+- Always handle the case where inject returns undefined
 
 ---
 
-## Naming Conventions (Priority A + B from official Style Guide)
+## Naming Conventions (Priority A + B)
 
 ### Files
-| Concept | Convention | Example |
-|---------|-----------|---------|
-| Component file | PascalCase | \`UserProfile.vue\` |
-| Base component | Prefix with Base/App/V | \`BaseButton.vue\`, \`AppHeader.vue\` |
-| Singleton component | Prefix with The | \`TheNavbar.vue\`, \`TheSidebar.vue\` |
-| Tightly coupled child | Parent name as prefix | \`TodoListItem.vue\`, \`TodoListItemButton.vue\` |
-| Composable file | camelCase with use prefix | \`useAuth.ts\`, \`useFetch.ts\` |
-| Store file | camelCase | \`user.store.ts\`, \`cart.store.ts\` |
-| Test file | Same name + .test/.spec | \`UserProfile.test.ts\` |
+- Components: PascalCase (\`UserProfile.vue\`)
+- Base components: prefix with Base/App/V (\`BaseButton.vue\`)
+- Singletons: prefix with The (\`TheNavbar.vue\`)
+- Coupled children: parent name as prefix (\`TodoListItem.vue\`)
+- Composables: camelCase with \`use\` prefix (\`useAuth.ts\`)
+- Stores: camelCase (\`user.store.ts\`)
 
 ### Components
-- Always use multi-word names to avoid conflicts with HTML elements
-- Use PascalCase in SFC templates: \`<UserProfile />\` (not \`<user-profile />\`)
-- Use full words: \`StudentDashboardSettings\` not \`SdSettings\`
+- Always multi-word names (avoid HTML element conflicts)
+- PascalCase in SFC templates: \`<UserProfile />\`
 - Self-close components with no content: \`<BaseIcon />\`
-- Place multiple attributes on separate lines:
-
-\`\`\`vue
-<!-- CORRECT -->
-<UserCard
-  :user="currentUser"
-  :is-highlighted="isSelected"
-  @select="handleSelect"
-/>
-
-<!-- WRONG: hard to read on one line -->
-<UserCard :user="currentUser" :is-highlighted="isSelected" @select="handleSelect" />
-\`\`\`
+- Multiple attributes on separate lines
 
 ### Props and Events
-- Props: camelCase in script, kebab-case in templates — be consistent within the project
-- Events: kebab-case strings in \`defineEmits\`, e.g. \`'update:modelValue'\`
+- Props: camelCase in script, kebab-case in templates
+- Events: kebab-case strings in \`defineEmits\`
 
 ---
+
+## Essential Rules (Priority A)
+
+### v-for and v-if
+- NEVER use \`v-if\` and \`v-for\` on the same element — use computed to filter
+- Always provide a stable, unique \`:key\` on \`v-for\` loops
+
+### Teleport and Suspense
+- Use \`<Teleport to="body">\` for modals to ensure correct stacking context
+- Wrap async components with \`<Suspense>\` and provide a fallback template
 
 ## Project Structure
-\`\`\`
-src/
-  components/        # Reusable UI components
-    base/            # Base/presentational components (BaseButton, BaseInput)
-    layout/          # Layout components (TheNavbar, TheSidebar)
-  composables/       # Composition functions (useAuth, useFetch)
-  stores/            # Pinia stores (user.store.ts, cart.store.ts)
-  views/ or pages/   # Route-level components
-  router/            # Vue Router configuration
-  types/             # Shared TypeScript types
-  utils/             # Pure utility functions
-  assets/            # Static assets (images, fonts)
-\`\`\`
-
----
-
-## v-for and v-if Rules (Priority A — Essential)
-
-\`\`\`vue
-<!-- CORRECT: always provide a stable, unique key with v-for -->
-<ul>
-  <li v-for="todo in todos" :key="todo.id">
-    {{ todo.text }}
-  </li>
-</ul>
-
-<!-- CORRECT: use computed property to filter, not v-if on same element -->
-<script setup lang="ts">
-const activeTodos = computed(() => todos.value.filter(t => t.isActive))
-</script>
-<template>
-  <ul>
-    <li v-for="todo in activeTodos" :key="todo.id">
-      {{ todo.text }}
-    </li>
-  </ul>
-</template>
-
-<!-- WRONG: v-if and v-for on the same element -->
-<!-- <li v-for="todo in todos" v-if="todo.isActive" :key="todo.id"> -->
-\`\`\`
-
----
-
-## Teleport, Suspense, and Async Components
-
-\`\`\`vue
-<!-- Teleport modals outside the component tree for correct stacking -->
-<Teleport to="body">
-  <div v-if="isModalOpen" class="modal-overlay" @keydown.escape="close">
-    <dialog open class="modal-dialog" role="dialog" aria-modal="true">
-      <slot />
-    </dialog>
-  </div>
-</Teleport>
-\`\`\`
-
-\`\`\`vue
-<!-- Suspense with async components -->
-<Suspense>
-  <template #default>
-    <AsyncDashboard />
-  </template>
-  <template #fallback>
-    <LoadingSpinner />
-  </template>
-</Suspense>
-\`\`\`
+- \`components/\` — reusable UI (\`base/\` for presentational, \`layout/\` for structure)
+- \`composables/\` — composition functions (\`useAuth\`, \`useFetch\`)
+- \`stores/\` — Pinia stores (\`user.store.ts\`)
+- \`views/\` or \`pages/\` — route-level components
+- \`router/\`, \`types/\`, \`utils/\`, \`assets/\`
 `,
       },
       {
@@ -471,149 +166,28 @@ const activeTodos = computed(() => todos.value.filter(t => t.isActive))
         description: 'Pinia store patterns, conventions, and anti-patterns',
         content: `# Pinia State Management
 
-## Why Pinia
-Pinia is the official Vue state management library, maintained by the Vue core team.
-Use Pinia for any shared state that crosses component boundaries in medium-to-large apps.
-Do NOT use Vuex in new projects — it is in maintenance mode.
-
 ## Setup Store Syntax (Recommended)
-Use the Composition API style with \`defineStore\` — it aligns with \`<script setup>\` patterns.
-
-\`\`\`typescript
-// stores/cart.store.ts
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-
-export const useCartStore = defineStore('cart', () => {
-  // State — refs
-  const items = ref<CartItem[]>([])
-  const couponCode = ref<string | null>(null)
-
-  // Getters — computed
-  const itemCount = computed(() => items.value.length)
-  const subtotal = computed(() =>
-    items.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  )
-  const discount = computed(() => {
-    if (couponCode.value === 'SAVE20') return subtotal.value * 0.2
-    return 0
-  })
-  const total = computed(() => subtotal.value - discount.value)
-
-  // Actions — functions
-  function addItem(product: Product, quantity = 1) {
-    const existing = items.value.find(i => i.productId === product.id)
-    if (existing) {
-      existing.quantity += quantity
-    } else {
-      items.value.push({
-        productId: product.id,
-        name: product.name,
-        price: product.price,
-        quantity,
-      })
-    }
-  }
-
-  function removeItem(productId: string) {
-    items.value = items.value.filter(i => i.productId !== productId)
-  }
-
-  async function applyCoupon(code: string) {
-    const valid = await validateCoupon(code)
-    if (valid) couponCode.value = code
-    return valid
-  }
-
-  function clearCart() {
-    items.value = []
-    couponCode.value = null
-  }
-
-  return {
-    items, couponCode,
-    itemCount, subtotal, discount, total,
-    addItem, removeItem, applyCoupon, clearCart,
-  }
-})
-\`\`\`
+- Use Composition API style with \`defineStore\` — aligns with \`<script setup>\`
+- State as \`ref()\`, getters as \`computed()\`, actions as plain functions
+- Return all state, getters, and actions from the setup function
+- Do NOT use Vuex in new projects — it is in maintenance mode
 
 ## Store Conventions
-- **One store per domain concern**: \`useUserStore\`, \`useCartStore\`, \`useNotificationStore\`
-- **Use actions for all mutations**: never modify store state directly from components
-- **Use getters (computed) for derived state**: avoid duplicating computation across components
-- **Keep stores thin**: business logic that does not need shared state belongs in composables, not stores
-- **Avoid circular store dependencies**: if store A needs store B and vice versa, extract shared logic into a composable
+- One store per domain concern: \`useUserStore\`, \`useCartStore\`, \`useNotificationStore\`
+- Use actions for ALL mutations — never modify store state directly from components
+- Use getters (computed) for derived state — avoid duplicating computation
+- Keep stores thin — business logic that doesn't need shared state goes in composables
+- Avoid circular store dependencies — extract shared logic into a composable
 
 ## Usage in Components
-\`\`\`vue
-<script setup lang="ts">
-import { useCartStore } from '@/stores/cart.store'
-import { storeToRefs } from 'pinia'
+- Use \`storeToRefs()\` for reactive destructuring of state and getters
+- Destructure actions directly (they are plain functions, no reactivity needed)
+- Never destructure state/getters without \`storeToRefs()\` — loses reactivity
 
-const cartStore = useCartStore()
-
-// Use storeToRefs for reactive destructuring of state/getters
-const { items, total, itemCount } = storeToRefs(cartStore)
-
-// Actions are plain functions — destructure directly
-const { addItem, removeItem } = cartStore
-</script>
-
-<template>
-  <p>{{ itemCount }} items — Total: {{ total }}</p>
-</template>
-\`\`\`
-
-## Anti-Patterns
-
-\`\`\`typescript
-// WRONG: mutating store state directly from a component
-const store = useCartStore()
-store.items.push(newItem)          // bypasses action logic
-store.couponCode = 'HACK'          // no validation
-
-// CORRECT: use actions
-store.addItem(product, 1)
-await store.applyCoupon('SAVE20')
-\`\`\`
-
-\`\`\`typescript
-// WRONG: destructuring state loses reactivity
-const { items, total } = useCartStore()
-// items and total are now plain values, not reactive
-
-// CORRECT: use storeToRefs for state/getters
-const { items, total } = storeToRefs(useCartStore())
-\`\`\`
-
-## Testing Pinia Stores
-\`\`\`typescript
-import { setActivePinia, createPinia } from 'pinia'
-import { useCartStore } from '@/stores/cart.store'
-
-describe('CartStore', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-  })
-
-  it('should add item to cart', () => {
-    const store = useCartStore()
-    store.addItem({ id: '1', name: 'Widget', price: 10 })
-    expect(store.items).toHaveLength(1)
-    expect(store.subtotal).toBe(10)
-  })
-
-  it('should increment quantity for existing item', () => {
-    const store = useCartStore()
-    const product = { id: '1', name: 'Widget', price: 10 }
-    store.addItem(product)
-    store.addItem(product)
-    expect(store.items).toHaveLength(1)
-    expect(store.items[0].quantity).toBe(2)
-  })
-})
-\`\`\`
+## Testing
+- Use \`setActivePinia(createPinia())\` in \`beforeEach\` for isolated store unit tests
+- Use \`createTestingPinia\` from \`@pinia/testing\` for component tests
+- Test actions, getters, and state transitions independently
 `,
       },
     ],
@@ -773,6 +347,8 @@ describe('TodoList', () => {
       {
         name: 'vue-component-generator',
         description: 'Generate Vue 3 SFC components with Composition API and TypeScript',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Vue Component Generator
 
 When generating a Vue 3 component, produce the following files:
@@ -817,6 +393,8 @@ When generating a Vue 3 component, produce the following files:
       {
         name: 'vue-composable-generator',
         description: 'Generate Vue 3 composables with proper conventions',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Vue Composable Generator
 
 When generating a composable, follow these rules:
@@ -851,7 +429,7 @@ When generating a composable, follow these rules:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.vue\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/v-for=/.test(c)){const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/v-for=/.test(lines[i])&&/v-if=/.test(lines[i]))console.log(\'WARNING: v-for and v-if on the same element at line \'+(i+1)+\' — use a computed property or <template> wrapper (Vue Style Guide Priority A)\')}}" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.vue\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/v-for=/.test(c)){const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/v-for=/.test(lines[i])&&/v-if=/.test(lines[i]))console.log(\'WARNING: v-for and v-if on the same element at line \'+(i+1)+\' — use a computed property or <template> wrapper (Vue Style Guide Priority A)\')}}" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -860,7 +438,7 @@ When generating a composable, follow these rules:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.vue\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/v-for=/.test(c)){const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/v-for=/.test(lines[i])&&!/:key=/.test(lines[i])&&!/\\.vue/.test(lines[i])){const next=lines[i+1]||\'\';if(!/:key=/.test(next))console.log(\'WARNING: v-for without :key at line \'+(i+1)+\' — always provide a stable unique key (Vue Style Guide Priority A)\')}}}" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.vue\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/v-for=/.test(c)){const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/v-for=/.test(lines[i])&&!/:key=/.test(lines[i])&&!/\\.vue/.test(lines[i])){const next=lines[i+1]||\'\';if(!/:key=/.test(next))console.log(\'WARNING: v-for without :key at line \'+(i+1)+\' — always provide a stable unique key (Vue Style Guide Priority A)\')}}}" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -869,7 +447,7 @@ When generating a composable, follow these rules:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.vue\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/<style(?!.*scoped)(?!.*module)\\s*>/.test(c)&&!/<style.*scoped/.test(c)&&!/<style.*module/.test(c))console.log(\'WARNING: <style> without scoped or module attribute — styles will leak globally (Vue Style Guide Priority A)\')" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.vue\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/<style(?!.*scoped)(?!.*module)\\s*>/.test(c)&&!/<style.*scoped/.test(c)&&!/<style.*module/.test(c))console.log(\'WARNING: <style> without scoped or module attribute — styles will leak globally (Vue Style Guide Priority A)\')" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -878,7 +456,7 @@ When generating a composable, follow these rules:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.vue\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/<script[^>]*>/.test(c)&&!/<script[^>]*setup/.test(c)&&/export default/.test(c))console.log(\'WARNING: Options API detected — use <script setup> with Composition API for new Vue 3 components\')" -- "$CLAUDE_FILE_PATH"',
+          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.vue\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/<script[^>]*>/.test(c)&&!/<script[^>]*setup/.test(c)&&/export default/.test(c))console.log(\'WARNING: Options API detected — use <script setup> with Composition API for new Vue 3 components\')" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },

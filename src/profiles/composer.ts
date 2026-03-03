@@ -32,6 +32,7 @@ export class ProfileComposer {
       agents: [],
       skills: [],
       hooks: [],
+      hookScripts: [],
       mcp: [],
       externalTools: [],
       appliedProfiles: [],
@@ -135,6 +136,10 @@ export class ProfileComposer {
       config.hooks.push(...c.hooks);
     }
 
+    if (c.hookScripts) {
+      config.hookScripts.push(...c.hookScripts);
+    }
+
     if (c.mcp) {
       config.mcp.push(...c.mcp);
     }
@@ -173,6 +178,8 @@ export class ProfileComposer {
       skills: Set<string>;
       model?: string;
       description: string;
+      tools?: string[];
+      memory?: 'project';
     }>();
 
     for (const profile of profiles) {
@@ -186,6 +193,8 @@ export class ProfileComposer {
             skills: new Set(agent.skills ?? []),
             model: agent.model,
             description: agent.description ?? '',
+            tools: agent.tools,
+            memory: agent.memory,
           });
         } else if (agent.type === 'enrich' && existing) {
           if (agent.prompt) existing.prompt.push(agent.prompt);
@@ -193,6 +202,8 @@ export class ProfileComposer {
             for (const s of agent.skills) existing.skills.add(s);
           }
           if (agent.model) existing.model = agent.model; // Later layer wins
+          if (agent.tools) existing.tools = agent.tools; // Later layer wins
+          if (agent.memory) existing.memory = agent.memory;
         } else if (agent.type === 'define' && existing) {
           // Multiple definitions: merge them
           if (agent.prompt) existing.prompt.push(agent.prompt);
@@ -201,6 +212,8 @@ export class ProfileComposer {
           }
           if (agent.model) existing.model = agent.model;
           if (agent.description) existing.description = agent.description;
+          if (agent.tools) existing.tools = agent.tools;
+          if (agent.memory) existing.memory = agent.memory;
         } else if (agent.type === 'enrich' && !existing) {
           // Enriching non-existent agent: create it
           agentMap.set(agent.name, {
@@ -208,6 +221,8 @@ export class ProfileComposer {
             skills: new Set(agent.skills ?? []),
             model: agent.model,
             description: agent.description ?? '',
+            tools: agent.tools,
+            memory: agent.memory,
           });
         }
       }
@@ -219,6 +234,8 @@ export class ProfileComposer {
       skills: [...data.skills],
       model: data.model,
       description: data.description,
+      tools: data.tools,
+      memory: data.memory,
     }));
   }
 

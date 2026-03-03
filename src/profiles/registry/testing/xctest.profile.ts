@@ -47,191 +47,43 @@ Apple's native test framework. Unit tests, UI tests, performance tests.
         content: `# XCTest & Swift Testing Conventions
 
 ## Framework Selection
-- Use **Swift Testing** (\`@Test\`, \`#expect\`) for all new unit and integration tests (Xcode 16+)
-- Use **XCTest** (\`XCTestCase\`, \`XCTAssert*\`) for UI tests (XCUITest) and performance measurement tests
-- Both frameworks coexist in the same test target — migrate incrementally, not all at once
-
----
+- Use **Swift Testing** (\`@Test\`, \`#expect\`) for new unit/integration tests (Xcode 16+)
+- Use **XCTest** for UI tests (XCUITest) and performance measurement tests
+- Both coexist in the same target — migrate incrementally
 
 ## Swift Testing Rules
-
-### Test Functions
-- Mark test functions with \`@Test\` — no \`test\` prefix required
-- Use \`@Test("Descriptive name")\` for human-readable display names in the test navigator
-- Use \`#expect(expression)\` for all assertions — it captures both sides of the expression on failure
-- Use \`#require(expression)\` for preconditions that must be true for the test to continue
-- Use \`try #require(optionalValue)\` to safely unwrap optionals — fails the test if nil
-
-### Correct
-\`\`\`swift
-@Test("Adding item to empty cart sets count to 1")
-func addItemToEmptyCart() {
-    let cart = Cart()
-    cart.add(Item(name: "Widget", price: 9.99))
-    #expect(cart.itemCount == 1)
-    #expect(cart.total == 9.99)
-}
-
-@Test("Parsing invalid JSON throws DecodingError")
-func parseInvalidJSON() throws {
-    let data = Data("not json".utf8)
-    #expect(throws: DecodingError.self) {
-        try JSONDecoder().decode(User.self, from: data)
-    }
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`swift
-// BAD: Using XCTAssert in new tests when Swift Testing is available
-func testAddItemToEmptyCart() {
-    let cart = Cart()
-    cart.add(Item(name: "Widget", price: 9.99))
-    XCTAssertEqual(cart.itemCount, 1)  // Use #expect instead
-}
-\`\`\`
-
-### Parameterized Tests
-- Use \`@Test(arguments:)\` to run the same test logic with different inputs
-- Each argument becomes an independent, parallel test case
-- Use with collections of enum cases, arrays, or zip'd argument pairs
-
-\`\`\`swift
-@Test("Validating email formats", arguments: [
-    ("user@example.com", true),
-    ("invalid-email", false),
-    ("user@.com", false),
-    ("user@domain.co.uk", true),
-])
-func validateEmail(email: String, isValid: Bool) {
-    #expect(EmailValidator.isValid(email) == isValid)
-}
-\`\`\`
-
-### Tags and Organization
-- Define custom tags: \`extension Tag { @Tag static var networking: Self }\`
-- Apply tags: \`@Test(.tags(.networking))\` for filtering test runs
-- Use \`@Suite("Suite Name")\` on types to group related tests
-- Use \`@Suite(.serialized)\` only when tests have genuine order dependencies
-
----
+- Use \`@Test("Descriptive name")\` — no \`test\` prefix needed
+- Use \`#expect(expression)\` for assertions, \`#require()\` for preconditions
+- Use \`try #require(optionalValue)\` to safely unwrap optionals
+- Use \`@Test(arguments:)\` for parameterized tests — each argument runs in parallel
+- Use \`@Suite("Name")\` to group tests, \`.tags()\` for filtering
+- Use \`#expect(throws: ErrorType.self) { ... }\` for error testing
 
 ## XCTest Rules
+- Use \`setUpWithError()\`/\`tearDownWithError()\` (throwing variants)
+- Use \`addTeardownBlock { }\` for cleanup that runs even if test throws
+- ALWAYS include descriptive messages in assertions
+- Use \`XCTUnwrap()\` — never force-unwrap (\`!\`) in tests
+- Use specific assertions: \`XCTAssertEqual\` over \`XCTAssertTrue(a == b)\`
 
-### Test Lifecycle
-- Use \`setUpWithError()\` / \`tearDownWithError()\` (throwing variants) over \`setUp()\` / \`tearDown()\`
-- Use \`override class func setUp()\` for expensive one-time setup shared across all tests in a class
-- Never leave state between tests — every test must start from a known clean state
-- Use \`addTeardownBlock { }\` for cleanup that must happen even if the test throws
-
-### Assertions
-- ALWAYS include a descriptive message: \`XCTAssertEqual(result, 42, "Expected answer to life, universe, and everything")\`
-- Use \`XCTUnwrap(optional)\` to unwrap optionals — never force-unwrap (\`!\`) in tests
-- Use \`XCTAssertThrowsError(try expr) { error in ... }\` to verify both that code throws AND the specific error type
-- Use specific assertions over generic boolean: \`XCTAssertEqual\` over \`XCTAssertTrue(a == b)\` — better failure messages
-
-### Correct
-\`\`\`swift
-func testFetchUser_WhenNotFound_ThrowsNotFoundError() async throws {
-    let service = UserService(repository: MockRepository(users: []))
-    do {
-        _ = try await service.fetchUser(id: "nonexistent")
-        XCTFail("Expected NotFoundError to be thrown")
-    } catch {
-        XCTAssertTrue(error is NotFoundError, "Expected NotFoundError, got \\(type(of: error))")
-    }
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`swift
-// BAD: Force-unwrapping in tests — crashes instead of failing gracefully
-func testFetchUser() {
-    let user = service.fetchUser(id: "1")!  // Use XCTUnwrap instead
-    XCTAssert(user.name == "Alice")         // Use XCTAssertEqual for better failure message
-}
-\`\`\`
-
----
-
-## Async Testing Rules
-- For \`async/await\` code: mark test methods \`async throws\` and use \`await\` directly — no expectations needed
-- For callback/delegate patterns: use \`XCTestExpectation\` with \`fulfillment(of:timeout:)\`
-- Every expectation MUST have a timeout — default is 1s, set explicitly for clarity
-- NEVER use \`sleep()\` or \`Thread.sleep()\` — always use expectations or async test methods
-- Use \`XCTNSPredicateExpectation\` for polling conditions on KVO-observable properties
-
-### Correct
-\`\`\`swift
-// Modern async test — clean, no expectations needed
-func testFetchProfile_ReturnsValidData() async throws {
-    let profile = try await profileService.fetchProfile(userId: "123")
-    XCTAssertEqual(profile.name, "Alice")
-    XCTAssertFalse(profile.email.isEmpty)
-}
-
-// Legacy callback pattern — use expectations
-func testDownload_CompletionCalled() {
-    let expectation = expectation(description: "Download completes")
-    downloader.download(url: testURL) { result in
-        XCTAssertNotNil(result)
-        expectation.fulfill()
-    }
-    wait(for: [expectation], timeout: 10.0)
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`swift
-// BAD: Using sleep instead of proper synchronization
-func testAsyncOperation() {
-    service.startOperation()
-    Thread.sleep(forTimeInterval: 3.0)  // Flaky and slow
-    XCTAssertTrue(service.isComplete)
-}
-\`\`\`
-
----
+## Async Testing
+- For async/await: mark methods \`async throws\`, use \`await\` directly
+- For callbacks: use \`XCTestExpectation\` with explicit timeout
+- NEVER use \`sleep()\` or \`Thread.sleep()\` — use expectations or async methods
+- Use \`XCTNSPredicateExpectation\` for polling KVO-observable properties
 
 ## XCUITest Rules
-
-### Element Selection (Priority Order)
-1. \`app.buttons["accessibilityIdentifier"]\` — element type + accessibility identifier (preferred)
-2. \`app.descendants(matching: .any)["identifier"]\` — any type by identifier (resilient to type changes)
-3. \`app.staticTexts["Visible Text"]\` — text content (for verification, not interaction)
-4. \`app.buttons.matching(identifier: "id").firstMatch\` — first match when multiple exist
-- NEVER use element indices (\`app.buttons.element(boundBy: 2)\`) — brittle and order-dependent
-- Set \`.accessibilityIdentifier\` on all interactive elements in production code
-
-### Identifier Naming Convention
-- Use \`screenName.elementDescription\`: \`"login.emailField"\`, \`"login.submitButton"\`, \`"profile.avatarImage"\`
-- Keep identifiers stable across releases — they are the test contract with the UI
-- Define identifiers as constants in a shared enum: \`enum AccessibilityID { static let loginEmail = "login.emailField" }\`
-
-### Waiting for Elements
-- Use \`element.waitForExistence(timeout: 5)\` for elements that appear asynchronously
-- Assert on the return value: \`XCTAssertTrue(element.waitForExistence(timeout: 5), "Expected element to appear")\`
-- Use \`XCTNSPredicateExpectation\` for complex conditions: property changes, count changes, value matches
-- NEVER use \`sleep()\` or \`Thread.sleep()\` — always use \`waitForExistence\` or predicate-based waits
-
-### System Alerts
-- Use \`addUIInterruptionMonitor(withDescription:handler:)\` to handle permission dialogs and system alerts
-- Register monitors in \`setUp()\` before the test triggers the alert
-- Call \`app.tap()\` after the alert is expected to trigger the interruption monitor
-
-### Accessibility Auditing
-- Use \`try app.performAccessibilityAudit()\` (Xcode 15+) in UI tests to catch accessibility regressions
-- Pass audit types to scope: \`.performAccessibilityAudit(for: [.dynamicType, .contrast])\`
-- Run accessibility audits in a dedicated test plan to avoid slowing down functional UI tests
-
----
+- Select by accessibility identifier: \`app.buttons["login.submitButton"]\`
+- NEVER use element indices (\`element(boundBy:)\`) — brittle and order-dependent
+- Name identifiers: \`screenName.elementDescription\` — define as shared constants
+- Use \`waitForExistence(timeout:)\` and assert on return value
+- Use \`addUIInterruptionMonitor()\` for system alerts
+- Use \`performAccessibilityAudit()\` (Xcode 15+) for a11y regression testing
 
 ## Test Plans
-- Create separate \`.xctestplan\` files for: unit tests, integration tests, UI tests, performance tests
-- Configure environment variables and launch arguments per plan for different test scenarios
-- Enable code coverage only in unit/integration plans — disable in performance plans
-- Use test repetition modes in plans: "Run Until Failure" for flaky test detection, "Retry on Failure" for CI resilience
-- Share test plans across schemes via Xcode scheme editor > Test action > Test Plans
+- Create separate \`.xctestplan\` files for unit, UI, and performance tests
+- Enable code coverage only in unit/integration plans
+- Use test repetition modes: "Retry on Failure" for CI resilience
 `,
       },
       {
@@ -243,172 +95,39 @@ func testAsyncOperation() {
         content: `# XCTest Configuration Best Practices
 
 ## Test Target Organization
-\`\`\`
-MyApp/
-  MyAppTests/                 # Unit + integration tests (XCTest + Swift Testing)
-    Models/
-      UserTests.swift
-      CartTests.swift
-    Services/
-      AuthServiceTests.swift
-      PaymentServiceTests.swift
-    Mocks/
-      MockUserRepository.swift
-      MockNetworkClient.swift
-    Helpers/
-      TestFixtures.swift
-  MyAppUITests/               # XCUITest UI tests only
-    Screens/
-      LoginScreenTests.swift
-      DashboardScreenTests.swift
-    PageObjects/
-      LoginPage.swift
-      DashboardPage.swift
-    Helpers/
-      AccessibilityIDs.swift
-      UITestHelpers.swift
-\`\`\`
+- \`MyAppTests/\` — unit + integration tests (XCTest + Swift Testing), organized by module
+- \`MyAppTests/Mocks/\` — shared mock implementations
+- \`MyAppUITests/\` — XCUITest UI tests only
+- \`MyAppUITests/PageObjects/\` — Page Object structs per screen
+- \`MyAppUITests/Helpers/\` — AccessibilityIDs, test helpers
 
 ## Test Plan Configuration
-
-### UnitTests.xctestplan
-- Targets: \`MyAppTests\` (unit tests only)
-- Code coverage: enabled, scoped to \`MyApp\` target
-- Parallelization: enabled
-- Environment variables: \`IS_TESTING=1\`
-
-### UITests.xctestplan
-- Targets: \`MyAppUITests\`
-- Code coverage: disabled (UI tests are slow, coverage adds overhead)
-- Parallelization: enabled (tests on separate simulators)
-- Language/region: configure multiple for localization testing
-- Test repetition: retry on failure (1 retry) for CI resilience
-
-### PerformanceTests.xctestplan
-- Targets: \`MyAppTests\` (performance test methods only, filtered by tag or class)
-- Code coverage: disabled
-- Build configuration: Release (for meaningful measurements)
-- Parallelization: disabled (performance tests need exclusive CPU)
+- **UnitTests.xctestplan**: code coverage enabled, parallelization on, \`IS_TESTING=1\`
+- **UITests.xctestplan**: coverage disabled, parallel on separate simulators, retry on failure
+- **PerformanceTests.xctestplan**: coverage disabled, Release build config, no parallelization
 
 ## CI Integration with xcodebuild
-
-### Running Tests
-\`\`\`bash
-# Run unit tests
-xcodebuild test \\
-  -workspace MyApp.xcworkspace \\
-  -scheme MyApp \\
-  -testPlan UnitTests \\
-  -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \\
-  -resultBundlePath ./build/UnitTests.xcresult
-
-# Run UI tests with parallel execution
-xcodebuild test \\
-  -workspace MyApp.xcworkspace \\
-  -scheme MyApp \\
-  -testPlan UITests \\
-  -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \\
-  -parallel-testing-enabled YES \\
-  -parallel-testing-worker-count 4 \\
-  -resultBundlePath ./build/UITests.xcresult
-
-# Build for testing (separate build and test steps in CI)
-xcodebuild build-for-testing \\
-  -workspace MyApp.xcworkspace \\
-  -scheme MyApp \\
-  -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \\
-  -derivedDataPath ./build/DerivedData
-
-# Test without building (uses previous build)
-xcodebuild test-without-building \\
-  -workspace MyApp.xcworkspace \\
-  -scheme MyApp \\
-  -testPlan UnitTests \\
-  -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \\
-  -derivedDataPath ./build/DerivedData \\
-  -resultBundlePath ./build/UnitTests.xcresult
-\`\`\`
-
-### Extracting Results
-\`\`\`bash
-# Extract test summary from xcresult bundle
-xcrun xcresulttool get --path ./build/UnitTests.xcresult --format json
-
-# Export code coverage report
-xcrun xccov view --report --json ./build/UnitTests.xcresult > coverage.json
-\`\`\`
+- Use \`xcodebuild test -testPlan <plan> -destination <sim> -resultBundlePath <path>\`
+- Use \`-parallel-testing-enabled YES\` for UI tests with \`-parallel-testing-worker-count\`
+- Separate build and test: \`build-for-testing\` then \`test-without-building\`
+- Extract results: \`xcrun xcresulttool get --path <xcresult> --format json\`
+- Export coverage: \`xcrun xccov view --report --json <xcresult>\`
 
 ## Page Object Pattern for XCUITest
-\`\`\`swift
-protocol Screen {
-    var app: XCUIApplication { get }
-}
-
-struct LoginScreen: Screen {
-    let app: XCUIApplication
-
-    var emailField: XCUIElement { app.textFields["login.emailField"] }
-    var passwordField: XCUIElement { app.secureTextFields["login.passwordField"] }
-    var submitButton: XCUIElement { app.buttons["login.submitButton"] }
-    var errorLabel: XCUIElement { app.staticTexts["login.errorLabel"] }
-
-    @discardableResult
-    func typeEmail(_ email: String) -> Self {
-        emailField.tap()
-        emailField.typeText(email)
-        return self
-    }
-
-    @discardableResult
-    func typePassword(_ password: String) -> Self {
-        passwordField.tap()
-        passwordField.typeText(password)
-        return self
-    }
-
-    @discardableResult
-    func tapSubmit() -> Self {
-        submitButton.tap()
-        return self
-    }
-
-    func login(email: String, password: String) -> DashboardScreen {
-        typeEmail(email)
-            .typePassword(password)
-            .tapSubmit()
-        return DashboardScreen(app: app)
-    }
-}
-\`\`\`
+- Create structs per screen with typed element properties using accessibility identifiers
+- Return \`Self\` from action methods for fluent chaining
+- Navigation methods return the destination screen type
 
 ## Timeout Guidelines
-| Test Type | Recommended Timeout |
-|-----------|-------------------|
-| Unit test assertion | No timeout needed |
-| Async expectation (local) | 5 seconds |
-| Async expectation (network/CI) | 15-30 seconds |
-| UI element waitForExistence | 5-10 seconds |
-| UI test total | < 30 seconds |
-| Performance measurement | Framework-managed |
+- Unit assertions: no timeout needed
+- Async expectations: 5s local, 15-30s network/CI
+- UI \`waitForExistence\`: 5-10s
+- Total UI test: < 30s
 
 ## Accessibility ID Constants
-\`\`\`swift
-// Shared between app and UI test targets
-enum AccessibilityID {
-    enum Login {
-        static let emailField = "login.emailField"
-        static let passwordField = "login.passwordField"
-        static let submitButton = "login.submitButton"
-        static let errorLabel = "login.errorLabel"
-    }
-    enum Dashboard {
-        static let welcomeLabel = "dashboard.welcomeLabel"
-        static let profileButton = "dashboard.profileButton"
-    }
-}
-\`\`\`
-
-Define these in a shared framework or source file included in both the app target and UI test target.
+- Define as \`enum AccessibilityID { enum Login { static let emailField = "login.emailField" } }\`
+- Share between app and UI test targets via shared framework or source file
+- Use \`screenName.elementDescription\` naming convention
 `,
       },
     ],
@@ -513,6 +232,8 @@ Available skills: xctest-suite-generator
         name: 'xctest-suite-generator',
         description:
           'Generate comprehensive XCTest and Swift Testing test suites with proper structure, async testing, parameterized tests, and Page Objects for UI tests',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# XCTest & Swift Testing Suite Generator
 
 ## Purpose
@@ -693,8 +414,9 @@ struct NetworkClientTests {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "Tests?\\.swift$" && grep -cE "\\b(Thread\\.sleep|sleep\\()" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:1:Anti-pattern: sleep()/Thread.sleep() detected in test file — use waitForExistence(), XCTestExpectation, or async/await instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Tests?\\.swift$" && grep -cE "\\b(Thread\\.sleep|sleep\\()" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Anti-pattern: sleep()/Thread.sleep() detected in test file — use waitForExistence(), XCTestExpectation, or async/await instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for sleep() in XCTest files',
           },
         ],
       },
@@ -705,8 +427,9 @@ struct NetworkClientTests {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "Tests?\\.swift$" && grep -nE "\\![[:space:]]*$|\\!\\)" "$CLAUDE_FILE_PATH" | grep -vE "(XCTAssert|#expect|#require|!=|//" | head -1 | grep -q "." && echo "HOOK_EXIT:0:Warning: possible force-unwrap detected in test file — prefer XCTUnwrap (XCTest) or try #require (Swift Testing) for safe unwrapping" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Tests?\\.swift$" && grep -nE "\\![[:space:]]*$|\\!\\)" "$FILE_PATH" | grep -vE "(XCTAssert|#expect|#require|!=|//" | head -1 | grep -q "." && { echo "Warning: possible force-unwrap detected in test file — prefer XCTUnwrap (XCTest) or try #require (Swift Testing) for safe unwrapping" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for force-unwrap in XCTest files',
           },
         ],
       },
@@ -717,8 +440,9 @@ struct NetworkClientTests {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "UITests?\\.swift$" && grep -cE "\\.element\\(boundBy:" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:0:Warning: index-based element selection detected in UI test — use accessibility identifiers instead of element(boundBy:)" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "UITests?\\.swift$" && grep -cE "\\.element\\(boundBy:" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Warning: index-based element selection detected in UI test — use accessibility identifiers instead of element(boundBy:)" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for index-based element selection in UI tests',
           },
         ],
       },

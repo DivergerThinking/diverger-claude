@@ -8,12 +8,18 @@ export function generateSettings(
   config: ComposedConfig,
   projectRoot: string,
 ): GeneratedFile {
+  const permissions: Record<string, unknown> = {
+    allow: [...new Set(config.settings.permissions?.allow ?? [])].sort(),
+    deny: [...new Set(config.settings.permissions?.deny ?? [])].sort(),
+  };
+
+  if (config.settings.permissions?.additionalDirectories?.length) {
+    permissions.additionalDirectories = config.settings.permissions.additionalDirectories;
+  }
+
   const settings: Record<string, unknown> = {
     $schema: 'https://json.schemastore.org/claude-code-settings.json',
-    permissions: {
-      allow: [...new Set(config.settings.permissions?.allow ?? [])].sort(),
-      deny: [...new Set(config.settings.permissions?.deny ?? [])].sort(),
-    },
+    permissions,
   };
 
   if (config.settings.sandbox) {

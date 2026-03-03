@@ -50,239 +50,30 @@ Widget-based UI composition. Declarative, immutable widget trees with state mana
         content: `# Flutter Architecture & Patterns
 
 ## MVVM Architecture (Flutter Team Recommended)
-
-The Flutter team strongly recommends MVVM with a clear separation between UI and data layers.
-
-### Correct — MVVM with repository pattern
-
-\`\`\`dart
-// data/repositories/user_repository.dart
-abstract class UserRepository {
-  Future<User> getUser(String id);
-  Future<void> updateUser(User user);
-}
-
-class UserRepositoryImpl implements UserRepository {
-  final ApiService _apiService;
-  final UserDao _localDao;
-
-  UserRepositoryImpl({required ApiService apiService, required UserDao localDao})
-      : _apiService = apiService,
-        _localDao = localDao;
-
-  @override
-  Future<User> getUser(String id) async {
-    try {
-      final user = await _apiService.fetchUser(id);
-      await _localDao.cacheUser(user);
-      return user;
-    } catch (e) {
-      // Fallback to cache on network error
-      return _localDao.getUser(id);
-    }
-  }
-}
-\`\`\`
-
-\`\`\`dart
-// ui/profile/profile_view_model.dart
-class ProfileViewModel extends ChangeNotifier {
-  final UserRepository _userRepository;
-
-  ProfileViewModel({required UserRepository userRepository})
-      : _userRepository = userRepository;
-
-  User? _user;
-  User? get user => _user;
-
-  bool _isLoading = false;
-  bool get isLoading => _isLoading;
-
-  String? _error;
-  String? get error => _error;
-
-  Future<void> loadUser(String id) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      _user = await _userRepository.getUser(id);
-    } catch (e) {
-      _error = 'Failed to load user profile';
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-}
-\`\`\`
-
-\`\`\`dart
-// ui/profile/profile_screen.dart
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => ProfileViewModel(
-        userRepository: context.read<UserRepository>(),
-      )..loadUser(userId),
-      child: const _ProfileContent(),
-    );
-  }
-}
-
-class _ProfileContent extends StatelessWidget {
-  const _ProfileContent();
-
-  @override
-  Widget build(BuildContext context) {
-    final vm = context.watch<ProfileViewModel>();
-
-    if (vm.isLoading) return const Center(child: CircularProgressIndicator());
-    if (vm.error != null) return Center(child: Text(vm.error!));
-
-    final user = vm.user;
-    if (user == null) return const SizedBox.shrink();
-
-    return Column(
-      children: [
-        Text(user.name, style: Theme.of(context).textTheme.headlineMedium),
-        Text(user.email),
-      ],
-    );
-  }
-}
-\`\`\`
-
-### Anti-Pattern — business logic in widgets
-
-\`\`\`dart
-// BAD: Widget directly calls API, manages loading state, caches data
-class ProfileScreen extends StatefulWidget {
-  @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
-}
-
-class _ProfileScreenState extends State<ProfileScreen> {
-  User? user;
-  bool isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    // Business logic mixed with UI — not testable without widget test
-    http.get(Uri.parse('https://api.example.com/user/1')).then((response) {
-      setState(() {
-        user = User.fromJson(jsonDecode(response.body));
-        isLoading = false;
-      });
-    });
-  }
-}
-\`\`\`
-
----
+- Separate UI (widgets) from data (repositories, services) with ViewModels as intermediary
+- Repositories abstract data sources (API + local cache) — widgets never call APIs directly
+- ViewModels extend \`ChangeNotifier\` (or use Riverpod \`AsyncNotifier\`) with loading/error/data states
+- Inject dependencies via constructor — no manually instantiated services in widgets
+- Use consistent state management across codebase (Riverpod OR Bloc OR Provider — not mixed)
 
 ## Widget Composition Rules
-
-### Correct — extract widget classes
-
-\`\`\`dart
-// Good: separate widget class — has its own Element, enables const, supports keys
-class UserAvatar extends StatelessWidget {
-  const UserAvatar({super.key, required this.imageUrl, this.size = 40});
-
-  final String imageUrl;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipOval(
-      child: Image.network(imageUrl, width: size, height: size, fit: BoxFit.cover),
-    );
-  }
-}
-\`\`\`
-
-### Anti-Pattern — helper methods returning widgets
-
-\`\`\`dart
-// BAD: loses widget identity, cannot use const, no key support, no optimization
-class UserProfile extends StatelessWidget {
-  Widget _buildAvatar(String url) {
-    return ClipOval(
-      child: Image.network(url, width: 40, height: 40, fit: BoxFit.cover),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(children: [_buildAvatar(user.imageUrl)]);
-  }
-}
-\`\`\`
-
----
+- Extract sub-views as separate \`StatelessWidget\` classes — NOT helper methods returning widgets
+- Helper methods lose widget identity, cannot use \`const\`, have no key support, no optimization
+- Keep build() under 60 lines — extract sub-widget classes when exceeded
+- Use \`const\` constructors for stateless widgets; add \`Key\` parameters for list items
+- Convert unnecessary \`StatefulWidget\` to \`StatelessWidget\` when state is managed externally
 
 ## Immutable Data Models
-
-Use \`freezed\` for data classes — it generates equality, copyWith, JSON serialization, and sealed union types:
-
-\`\`\`dart
-@freezed
-class User with _\$User {
-  const factory User({
-    required String id,
-    required String name,
-    required String email,
-    @Default('') String avatarUrl,
-  }) = _User;
-
-  factory User.fromJson(Map<String, dynamic> json) => _\$UserFromJson(json);
-}
-\`\`\`
-
-Never mutate models from the UI layer — use \`copyWith\` to create new instances.
-
----
+- Use \`freezed\` for data classes — generates equality, copyWith, JSON serialization, sealed unions
+- Never mutate models from the UI layer — use \`copyWith\` to create new instances
+- Include \`factory User.fromJson(Map<String, dynamic>)\` for deserialization
 
 ## Routing with go_router
-
-\`\`\`dart
-final goRouter = GoRouter(
-  initialLocation: '/',
-  redirect: (context, state) {
-    final isLoggedIn = authNotifier.isLoggedIn;
-    final isLoginRoute = state.matchedLocation == '/login';
-
-    if (!isLoggedIn && !isLoginRoute) return '/login';
-    if (isLoggedIn && isLoginRoute) return '/';
-    return null;
-  },
-  routes: [
-    GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
-    GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-    GoRoute(
-      path: '/user/:userId',
-      builder: (context, state) {
-        final userId = state.pathParameters['userId']!;
-        return ProfileScreen(userId: userId);
-      },
-    ),
-    StatefulShellRoute.indexedStack(
-      builder: (context, state, child) => ScaffoldWithNavBar(child: child),
-      branches: [
-        StatefulShellBranch(routes: [GoRoute(path: '/home', builder: ...)]),
-        StatefulShellBranch(routes: [GoRoute(path: '/search', builder: ...)]),
-        StatefulShellBranch(routes: [GoRoute(path: '/profile', builder: ...)]),
-      ],
-    ),
-  ],
-);
-\`\`\`
+- Use \`GoRouter\` with typed route constants — no magic strings
+- Implement \`redirect\` for auth flow (redirect to login when unauthenticated)
+- Use path parameters: \`/user/:userId\` with \`state.pathParameters['userId']\`
+- Use \`StatefulShellRoute.indexedStack\` for bottom tab navigation
+- Configure deep linking and test on both platforms
 `,
       },
       {
@@ -293,183 +84,42 @@ final goRouter = GoRouter(
         content: `# Flutter Performance
 
 ## Frame Rate Targets
-- Target 16ms per frame (60 FPS) — split as ~8ms build + ~8ms render
-- For 120Hz devices, target 8ms total per frame
-- Always profile in **release mode** — debug mode adds significant overhead (dart checks, assertions)
+- Target 16ms per frame (60 FPS); 8ms for 120Hz devices
+- Always profile in release mode — debug mode adds significant overhead
 
 ## Build Optimization
-
-### Use const constructors everywhere possible
-\`\`\`dart
-// Good: Flutter short-circuits rebuild for const widgets
-const Padding(padding: EdgeInsets.all(16), child: Text('Hello'));
-const SizedBox(height: 8);
-const Icon(Icons.home, size: 24);
-\`\`\`
-
-### Localize setState to the smallest subtree
-\`\`\`dart
-// Good: only CounterDisplay rebuilds when count changes
-class CounterButton extends StatefulWidget {
-  final Widget child;
-  const CounterButton({super.key, required this.child});
-
-  @override
-  State<CounterButton> createState() => _CounterButtonState();
-}
-
-class _CounterButtonState extends State<CounterButton> {
-  int _count = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text('Count: \$_count'),
-        ElevatedButton(
-          onPressed: () => setState(() => _count++),
-          child: const Text('Increment'),
-        ),
-        widget.child, // Does NOT rebuild
-      ],
-    );
-  }
-}
-\`\`\`
-
-### Anti-Pattern — setState at page level
-\`\`\`dart
-// BAD: setState on the entire page — rebuilds ALL children including expensive ones
-class MyPage extends StatefulWidget { ... }
-class _MyPageState extends State<MyPage> {
-  int counter = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text('Count: \$counter'),
-        const ExpensiveWidget(),      // rebuilds unnecessarily!
-        const AnotherExpensiveWidget(), // rebuilds unnecessarily!
-      ],
-    );
-  }
-}
-\`\`\`
-
----
+- Use \`const\` constructors everywhere possible — Flutter short-circuits rebuild for const widgets
+- Localize \`setState\` to the smallest subtree — never call setState at page level
+- Pass non-animated children via \`widget.child\` so they do not rebuild
 
 ## Lists and Grids
-
-### Correct — lazy-built list
-\`\`\`dart
-ListView.builder(
-  itemCount: items.length,
-  itemBuilder: (context, index) => ListTile(title: Text(items[index].title)),
-)
-\`\`\`
-
-### Anti-Pattern — eager list
-\`\`\`dart
-// BAD: builds ALL 10,000 items at startup — causes jank and high memory usage
-ListView(
-  children: List.generate(10000, (i) => ListTile(title: Text('Item \$i'))),
-)
-\`\`\`
-
-- Use \`ListView.builder\` and \`GridView.builder\` for all lists — they only build visible items
+- Use \`ListView.builder\`/\`GridView.builder\` for all lists — only builds visible items
+- Never use \`ListView(children: [...])\` with \`List.generate\` or \`.map()\` for large collections
 - Implement \`itemExtent\` or \`prototypeItem\` for fixed-height rows to skip measurement
-- Use \`SliverList\` and \`SliverGrid\` inside \`CustomScrollView\` for complex scrollable layouts
-- Cache network images with \`CachedNetworkImage\` — avoid re-downloading on rebuild
-
----
+- Use \`SliverList\`/\`SliverGrid\` inside \`CustomScrollView\` for complex scrollable layouts
+- Cache network images with \`CachedNetworkImage\`
 
 ## Animations
-
-### Correct — use AnimatedBuilder with child parameter
-\`\`\`dart
-AnimatedBuilder(
-  animation: _controller,
-  builder: (context, child) {
-    return Transform.translate(
-      offset: Offset(_controller.value * 100, 0),
-      child: child, // Does NOT rebuild — passed through
-    );
-  },
-  child: const ExpensiveWidget(), // Built once, reused on every tick
-)
-\`\`\`
-
-### Anti-Pattern — rebuilding children on every animation tick
-\`\`\`dart
-// BAD: ExpensiveWidget is reconstructed on every animation frame
-AnimatedBuilder(
-  animation: _controller,
-  builder: (context, child) {
-    return Column(
-      children: [
-        Transform.translate(
-          offset: Offset(_controller.value * 100, 0),
-          child: const ExpensiveWidget(), // Rebuilt every frame!
-        ),
-      ],
-    );
-  },
-)
-\`\`\`
-
-- Prefer \`AnimatedOpacity\`, \`AnimatedContainer\`, \`AnimatedPositioned\` for simple implicit animations
-- Use \`AnimationController\` + \`AnimatedBuilder\` for explicit custom animations
-- Never use \`Opacity\` widget in animations — use \`AnimatedOpacity\` or \`FadeTransition\` instead
+- Use \`AnimatedBuilder\` with \`child\` parameter — child is built once, reused on every tick
+- Prefer implicit animations (\`AnimatedOpacity\`, \`AnimatedContainer\`) for simple transitions
+- Never use \`Opacity\` widget in animations — use \`AnimatedOpacity\` or \`FadeTransition\`
 - Always dispose \`AnimationController\` in \`dispose()\`
 
----
-
 ## Avoid Expensive Operations
-
-### saveLayer Calls
-- Avoid \`ShaderMask\`, \`ColorFilter\`, and \`Opacity\` widgets — they trigger expensive \`saveLayer()\` calls
-- Use \`PerformanceOverlayLayer.checkerboardOffscreenLayers\` in DevTools to detect them
-- For transparent colors, use \`Color.withOpacity()\` directly on the color instead of wrapping with \`Opacity\`
-
-### Clipping
+- Avoid \`ShaderMask\`, \`ColorFilter\`, \`Opacity\` widgets — they trigger expensive \`saveLayer()\` calls
 - Prefer \`borderRadius\` on \`BoxDecoration\` over \`ClipRRect\` when possible
-- Use \`Clip.none\` (default) unless clipping is visually necessary
-
-### String Building
-\`\`\`dart
-// Good: O(n) — concatenates once
-final buffer = StringBuffer();
-for (int i = 0; i < 1000; i++) {
-  buffer.write('Item \$i ');
-}
-final result = buffer.toString();
-
-// Bad: O(n^2) — creates new String each iteration
-String result = '';
-for (int i = 0; i < 1000; i++) {
-  result += 'Item \$i ';
-}
-\`\`\`
-
----
+- Use \`StringBuffer\` for concatenation in loops (O(n) vs O(n^2))
 
 ## Memory Management
-- Dispose controllers, streams, animation controllers, and scroll controllers in \`dispose()\`
-- Use \`AutomaticKeepAliveClientMixin\` sparingly — it prevents disposal of off-screen tab content
-- Monitor memory with Flutter DevTools memory view
-- Resize images before display — avoid loading 4000x3000 images for 100x100 thumbnails
-- Use \`Image.asset(cacheWidth: ..., cacheHeight: ...)\` to decode at the target resolution
-
----
+- Dispose controllers, streams, animations, and scroll controllers in \`dispose()\`
+- Resize images before display — use \`Image.asset(cacheWidth:, cacheHeight:)\`
+- Use \`AutomaticKeepAliveClientMixin\` sparingly — prevents disposal of off-screen content
 
 ## Profiling Checklist
 - Profile in release mode: \`flutter run --profile\`
 - Use Flutter DevTools Timeline to find expensive frames
-- Enable "Track layouts" in DevTools Performance view to detect intrinsic passes
-- Use \`debugProfileBuildsEnabled = true\` to see which widgets rebuild
-- Use \`RepaintBoundary\` to isolate expensive sub-trees that change independently
-- Never override \`operator==\` on Widget subclasses — it causes O(N^2) behavior
+- Use \`RepaintBoundary\` to isolate independently-changing expensive sub-trees
+- Never override \`operator==\` on Widget subclasses — causes O(N^2) behavior
 `,
       },
       {
@@ -480,140 +130,42 @@ for (int i = 0; i < 1000; i++) {
         content: `# Flutter Testing Strategy
 
 ## Three Types of Tests
-
-| Type | Purpose | Speed | Dependencies |
-|------|---------|-------|-------------|
-| **Unit** | Test ViewModels, repositories, services, utilities | Fast | Mocked |
-| **Widget** | Test widget rendering, interactions, state changes | Medium | Mocked + flutter_test |
-| **Integration** | Test complete user flows across screens | Slow | Real app or mocked backend |
+- **Unit** — ViewModels, repositories, services, utilities (fast, mocked dependencies)
+- **Widget** — widget rendering, interactions, state changes (medium, mocked + flutter_test)
+- **Integration** — complete user flows across screens (slow, real app or mocked backend)
 
 ## Unit Tests
-
-Test all business logic independently from UI:
-
-\`\`\`dart
-// test/unit/profile_view_model_test.dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
-
-@GenerateMocks([UserRepository])
-void main() {
-  late MockUserRepository mockRepo;
-  late ProfileViewModel viewModel;
-
-  setUp(() {
-    mockRepo = MockUserRepository();
-    viewModel = ProfileViewModel(userRepository: mockRepo);
-  });
-
-  group('loadUser', () {
-    test('should set user when repository returns data', () async {
-      when(mockRepo.getUser('1')).thenAnswer(
-        (_) async => const User(id: '1', name: 'Alice', email: 'alice@test.com'),
-      );
-
-      await viewModel.loadUser('1');
-
-      expect(viewModel.user?.name, 'Alice');
-      expect(viewModel.isLoading, false);
-      expect(viewModel.error, isNull);
-    });
-
-    test('should set error when repository throws', () async {
-      when(mockRepo.getUser('1')).thenThrow(Exception('Network error'));
-
-      await viewModel.loadUser('1');
-
-      expect(viewModel.user, isNull);
-      expect(viewModel.error, isNotNull);
-      expect(viewModel.isLoading, false);
-    });
-  });
-}
-\`\`\`
+- Use \`mockito\` with \`@GenerateMocks\` for type-safe mocks
+- Test every ViewModel method: happy path, error handling, loading state transitions
+- Use \`setUp\`/\`tearDown\` for consistent test setup
+- Verify \`notifyListeners()\` is called at the right times
 
 ## Widget Tests
-
-Test widget rendering, interactions, and state changes:
-
-\`\`\`dart
-// test/widget/profile_screen_test.dart
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-void main() {
-  testWidgets('should display user name after loading', (tester) async {
-    // Arrange
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ChangeNotifierProvider<ProfileViewModel>(
-          create: (_) => fakeViewModel,
-          child: const ProfileScreen(),
-        ),
-      ),
-    );
-
-    // Act — advance frames until loading completes
-    await tester.pumpAndSettle();
-
-    // Assert
-    expect(find.text('Alice'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
-  });
-
-  testWidgets('should show error message on failure', (tester) async {
-    await tester.pumpWidget(/* ... with error state ... */);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Failed to load user profile'), findsOneWidget);
-  });
-}
-\`\`\`
-
-### Key Widget Test APIs
-- \`tester.pumpWidget(widget)\` — renders the widget
-- \`tester.pump()\` — triggers a single frame rebuild
-- \`tester.pumpAndSettle()\` — pumps until no more frames are scheduled
-- \`tester.tap(find.byKey(...))\` — simulates tap
-- \`tester.enterText(find.byType(TextField), 'text')\` — simulates text input
-- \`find.byType(T)\`, \`find.byKey(Key)\`, \`find.text('...')\` — widget finders
+- Use \`tester.pumpWidget()\` to render in isolation with mocked providers
+- Test loading, success, error, and empty states for every screen
+- Key APIs: \`pumpAndSettle()\`, \`tester.tap()\`, \`tester.enterText()\`, \`find.byType/byKey/text\`
+- Mock dependencies with Provider/Riverpod overrides — inject fakes
+- Test user interactions and verify navigation events with \`MockNavigatorObserver\`
 
 ## Integration Tests
+- Write \`integration_test/\` flows for critical user journeys (login, onboarding, core features)
+- Use \`Key\` widgets on all interactive elements for reliable selectors
+- Test on both iOS and Android — platform-specific bugs are common
+- Test deep linking and app lifecycle (background, foreground, restore)
 
-\`\`\`dart
-// integration_test/app_test.dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
-
-void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-
-  testWidgets('complete login flow', (tester) async {
-    app.main();
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.byKey(const Key('email_field')), 'alice@test.com');
-    await tester.enterText(find.byKey(const Key('password_field')), 'password123');
-    await tester.tap(find.byKey(const Key('login_button')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Welcome, Alice'), findsOneWidget);
-  });
-}
-\`\`\`
+## Golden Tests
+- Use \`matchesGoldenFile\` for visual regression testing of key screens
+- Generate goldens with \`flutter test --update-goldens\`
 
 ## Mocking Strategy
-- Use \`mockito\` with \`@GenerateMocks\` for type-safe mocks
-- Create fake implementations of repositories and services for widget tests
+- Use \`mockito\` + \`@GenerateMocks\` for type-safe mocks
+- Prefer fakes (manual implementations) for complex dependencies
 - Mock platform channels with \`TestDefaultBinaryMessengerBinding\`
-- Use \`MockNavigatorObserver\` to verify navigation events
-- Prefer fakes (manual implementations) for complex dependencies over mockito stubs
 
 ## Test File Naming
-- Unit tests: \`test/unit/<feature>_test.dart\`
-- Widget tests: \`test/widget/<widget_name>_test.dart\`
-- Integration tests: \`integration_test/<flow_name>_test.dart\`
+- Unit: \`test/unit/<feature>_test.dart\`
+- Widget: \`test/widget/<widget_name>_test.dart\`
+- Integration: \`integration_test/<flow_name>_test.dart\`
 `,
       },
       {
@@ -624,32 +176,10 @@ void main() {
         content: `# Flutter Security
 
 ## Sensitive Data Storage
-- NEVER store secrets, tokens, or passwords in SharedPreferences — it is plaintext on disk
-- Use \`flutter_secure_storage\` for credentials and tokens (iOS Keychain / Android EncryptedSharedPreferences)
+- NEVER store secrets, tokens, or passwords in SharedPreferences — plaintext on disk
+- Use \`flutter_secure_storage\` for credentials (iOS Keychain / Android EncryptedSharedPreferences)
 - Clear secure storage on user logout
 - Use \`Hive\` with encryption for structured sensitive local data
-
-### Correct
-\`\`\`dart
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-const storage = FlutterSecureStorage();
-
-Future<void> storeAuthToken(String token) async {
-  await storage.write(key: 'auth_token', value: token);
-}
-
-Future<String?> getAuthToken() async {
-  return await storage.read(key: 'auth_token');
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`dart
-// BAD: SharedPreferences is NOT encrypted — accessible on rooted/jailbroken devices
-final prefs = await SharedPreferences.getInstance();
-await prefs.setString('auth_token', token); // plaintext on disk!
-\`\`\`
 
 ## Network Security
 - Use HTTPS for ALL network requests — no exceptions
@@ -659,22 +189,22 @@ await prefs.setString('auth_token', token); // plaintext on disk!
 - Use \`dio\` or \`http\` interceptors for centralized auth header injection
 
 ## Code Security
-- Do not bundle API keys in the Dart source — they are extractable from release builds
-- Use \`--dart-define\` or \`.env\` files with \`envied\` package for environment-specific configuration
-- Enable code obfuscation for release builds: \`flutter build apk --obfuscate --split-debug-info=./debug-info\`
-- Validate all deep link URLs — malicious apps can send crafted URLs to your app
+- Do not bundle API keys in Dart source — extractable from release builds
+- Use \`--dart-define\` or \`envied\` package for environment-specific configuration
+- Enable obfuscation: \`flutter build apk --obfuscate --split-debug-info=./debug-info\`
+- Validate all deep link URLs — malicious apps can send crafted URLs
 - Sanitize user input before displaying — prevent XSS in WebView contexts
 
 ## App Integrity
 - Implement jailbreak/root detection for sensitive apps (banking, health)
 - Use code signing for both iOS and Android release builds
-- Set \`android:allowBackup="false"\` in AndroidManifest.xml to prevent data extraction
-- Protect sensitive screens from screenshots with platform channels (FLAG_SECURE on Android)
+- Set \`android:allowBackup="false"\` in AndroidManifest.xml
+- Protect sensitive screens from screenshots (FLAG_SECURE on Android)
 
 ## Input Validation
-- Validate all form input with Flutter form validators — never trust client input alone
-- Use server-side validation as the primary defense — client-side is for UX only
-- Sanitize data before passing to platform channels — prevent injection on the native side
+- Validate form input with Flutter form validators — never trust client input alone
+- Use server-side validation as primary defense — client-side is for UX only
+- Sanitize data before passing to platform channels — prevent native-side injection
 `,
       },
     ],
@@ -860,6 +390,8 @@ await prefs.setString('auth_token', token); // plaintext on disk!
       {
         name: 'flutter-feature-generator',
         description: 'Generate a complete Flutter feature following MVVM architecture with tests',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Flutter Feature Generator
 
 Generate a complete Flutter feature following MVVM architecture and Flutter team recommendations.
@@ -917,6 +449,8 @@ Generate a complete Flutter feature following MVVM architecture and Flutter team
       {
         name: 'flutter-platform-channel-generator',
         description: 'Generate type-safe platform channels using pigeon',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Flutter Platform Channel Generator
 
 Generate type-safe platform channels using the pigeon package.
@@ -980,7 +514,8 @@ dart run pigeon --input pigeons/<name>_api.dart
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/setState\\s*\\(/.test(c)&&c.split(\'\\n\').length>120)console.log(\'WARNING: setState in a large widget (>120 lines). Consider extracting state management to a ViewModel or ChangeNotifier for better testability and separation of concerns.\')" -- "$CLAUDE_FILE_PATH"',
+          statusMessage: 'Checking for setState in large Flutter widgets',
+          command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/setState\\s*\\(/.test(c)&&c.split(\'\\n\').length>120){console.error(\'WARNING: setState in a large widget (>120 lines). Consider extracting state management to a ViewModel or ChangeNotifier for better testability and separation of concerns.\');process.exit(2)}" -- "$FILE_PATH" || true',
           timeout: 5,
         }],
       },
@@ -989,7 +524,8 @@ dart run pigeon --input pigeons/<name>_api.dart
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/SharedPreferences/.test(c)&&/(token|password|secret|credential|apiKey|api_key|auth)/i.test(c))console.log(\'HOOK_EXIT:1:SECURITY: Storing sensitive data in SharedPreferences (unencrypted). Use flutter_secure_storage for credentials and tokens.\')" -- "$CLAUDE_FILE_PATH"',
+          statusMessage: 'Checking for sensitive data in SharedPreferences',
+          command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/SharedPreferences/.test(c)&&/(token|password|secret|credential|apiKey|api_key|auth)/i.test(c)){console.error(\'SECURITY: Storing sensitive data in SharedPreferences (unencrypted). Use flutter_secure_storage for credentials and tokens.\');process.exit(2)}" -- "$FILE_PATH" || true',
           timeout: 5,
         }],
       },
@@ -998,7 +534,8 @@ dart run pigeon --input pigeons/<name>_api.dart
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const m=c.match(/Widget\\s+_\\w+\\s*\\(/g);if(m&&m.length>=3)console.log(\'WARNING: \'+m.length+\' private helper methods returning widgets detected. Extract them as separate StatelessWidget classes for better performance and reusability.\')" -- "$CLAUDE_FILE_PATH"',
+          statusMessage: 'Checking for excessive private widget helper methods in Flutter code',
+          command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const m=c.match(/Widget\\s+_\\w+\\s*\\(/g);if(m&&m.length>=3){console.error(\'WARNING: \'+m.length+\' private helper methods returning widgets detected. Extract them as separate StatelessWidget classes for better performance and reusability.\');process.exit(2)}" -- "$FILE_PATH" || true',
           timeout: 5,
         }],
       },
@@ -1007,7 +544,8 @@ dart run pigeon --input pigeons/<name>_api.dart
         matcher: 'Write',
         hooks: [{
           type: 'command',
-          command: 'node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/ListView\\s*\\(/.test(c)&&/children\\s*:/.test(c)&&/List\\.generate|map\\s*\\(/.test(c))console.log(\'WARNING: Eager ListView with children detected. Use ListView.builder for lazy construction and better performance with large lists.\')" -- "$CLAUDE_FILE_PATH"',
+          statusMessage: 'Checking for eager ListView with children in Flutter code',
+          command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/ListView\\s*\\(/.test(c)&&/children\\s*:/.test(c)&&/List\\.generate|map\\s*\\(/.test(c)){console.error(\'WARNING: Eager ListView with children detected. Use ListView.builder for lazy construction and better performance with large lists.\');process.exit(2)}" -- "$FILE_PATH" || true',
           timeout: 5,
         }],
       },

@@ -50,92 +50,29 @@ Managed workflow preferred. Expo Router for file-based navigation, EAS for build
         description: 'Expo config plugins: creation, idempotency, and native modification patterns',
         content: `# Expo Config Plugins
 
-## Why This Matters
-Config plugins are the official way to modify native iOS and Android projects in the managed workflow
-without ejecting. Incorrect plugins can break builds or introduce non-reproducible native state.
-
----
-
 ## Plugin Fundamentals
 - Config plugins run at prebuild time to modify native projects (ios/, android/)
 - Use the \`expo/config-plugins\` API: \`withAndroidManifest\`, \`withInfoPlist\`, \`withAppBuildGradle\`, etc.
-- Write plugins in TypeScript — add \`import 'tsx/cjs'\` in \`app.config.ts\` for local TS plugin support
-- Keep platform-specific code in separate functions and files (withAndroid.ts, withIos.ts)
+- Write plugins in TypeScript — add \`import 'tsx/cjs'\` in \`app.config.ts\` for local TS support
+- Keep platform-specific code in separate functions/files (withAndroid.ts, withIos.ts)
 
 ## Idempotency (Critical)
-- Plugins MUST be idempotent — running prebuild twice must produce the same native output
-- Check for existing values before inserting into manifests or plists
-- Use helper functions from \`expo/config-plugins\` to keep error messages unified
-
-### Correct — idempotent plugin
-\`\`\`tsx
-import { withInfoPlist, ConfigPlugin } from 'expo/config-plugins';
-
-const withCameraUsageDescription: ConfigPlugin<{ message: string }> = (config, { message }) => {
-  return withInfoPlist(config, (cfg) => {
-    // Only set if not already defined — idempotent
-    if (!cfg.modResults.NSCameraUsageDescription) {
-      cfg.modResults.NSCameraUsageDescription = message;
-    }
-    return cfg;
-  });
-};
-
-export default withCameraUsageDescription;
-\`\`\`
-
-### Anti-Pattern — non-idempotent plugin
-\`\`\`tsx
-// BAD: appends every time prebuild runs — duplicates accumulate
-const withBrokenPlugin: ConfigPlugin = (config) => {
-  return withAndroidManifest(config, (cfg) => {
-    const mainApp = cfg.modResults.manifest.application![0];
-    mainApp['meta-data']!.push({ $: { 'android:name': 'MY_KEY', 'android:value': 'val' } });
-    return cfg;
-  });
-};
-\`\`\`
-
----
+- Plugins MUST be idempotent — running prebuild twice must produce identical native output
+- Always check for existing values before inserting into manifests or plists
+- Never append unconditionally — duplicates accumulate across prebuild runs
+- Use helper functions from \`expo/config-plugins\` for consistent error messages
 
 ## Common Plugin Patterns
-
-### Injecting Android permissions
-\`\`\`tsx
-import { AndroidConfig, withAndroidManifest, ConfigPlugin } from 'expo/config-plugins';
-
-const withBluetoothPermission: ConfigPlugin = (config) => {
-  return withAndroidManifest(config, (cfg) => {
-    const permissions = AndroidConfig.Permissions.getAndroidPermissions(cfg.modResults);
-    if (!permissions.includes('android.permission.BLUETOOTH_CONNECT')) {
-      AndroidConfig.Permissions.addPermission(cfg.modResults, 'android.permission.BLUETOOTH_CONNECT');
-    }
-    return cfg;
-  });
-};
-\`\`\`
-
-### Modifying Info.plist for iOS
-\`\`\`tsx
-import { withInfoPlist, ConfigPlugin } from 'expo/config-plugins';
-
-const withBackgroundModes: ConfigPlugin<string[]> = (config, modes) => {
-  return withInfoPlist(config, (cfg) => {
-    cfg.modResults.UIBackgroundModes = [
-      ...new Set([...(cfg.modResults.UIBackgroundModes ?? []), ...modes]),
-    ];
-    return cfg;
-  });
-};
-\`\`\`
-
----
+- Android permissions: check existing permissions before adding with \`AndroidConfig.Permissions\`
+- iOS Info.plist: use \`withInfoPlist\` with existence checks for usage descriptions
+- Background modes: merge with \`new Set()\` to avoid duplicates
+- Build.gradle modifications: use \`withAppBuildGradle\` for Android build config
 
 ## Testing Plugins
 - Run \`npx expo prebuild --clean\` to test plugin output from scratch
 - Inspect generated ios/ and android/ directories to verify changes
-- Use \`npx expo config --type prebuild\` to preview the final resolved config
-- Commit generated native projects to source control when using CNG (Continuous Native Generation) for debugging
+- Use \`npx expo config --type prebuild\` to preview final resolved config
+- Test idempotency: run prebuild twice and compare output
 `,
       },
       {
@@ -145,96 +82,35 @@ const withBackgroundModes: ConfigPlugin<string[]> = (config, modes) => {
         description: 'EAS Build, Submit, and Update configuration and workflows',
         content: `# EAS Deployment (Build, Submit, Update)
 
-## Why This Matters
-EAS is Expo's cloud build and deployment platform. Correct configuration ensures reproducible builds,
-safe secret management, and reliable OTA updates across environments.
-
----
-
 ## eas.json Build Profiles
-
-Always define three profiles: development, preview, and production.
-
-### Correct — eas.json structure
-\`\`\`json
-{
-  "cli": { "version": ">= 12.0.0" },
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "env": { "APP_VARIANT": "development" }
-    },
-    "preview": {
-      "distribution": "internal",
-      "env": { "APP_VARIANT": "preview" }
-    },
-    "production": {
-      "autoIncrement": true,
-      "env": { "APP_VARIANT": "production" }
-    }
-  },
-  "submit": {
-    "production": {
-      "ios": { "ascAppId": "YOUR_ASC_APP_ID" },
-      "android": { "serviceAccountKeyPath": "./google-service-account.json" }
-    }
-  }
-}
-\`\`\`
-
----
+- Always define three profiles: development, preview, and production
+- Development: \`developmentClient: true\`, \`distribution: "internal"\`
+- Preview: \`distribution: "internal"\` for testing
+- Production: \`autoIncrement: true\` for store builds
 
 ## Environment Variables & Secrets
-- Use EAS environment variables (stored on EAS servers) for secrets — NOT the \`env\` field in eas.json for sensitive data
+- Use EAS environment variables (stored on EAS servers) for secrets — NOT the \`env\` field in eas.json
 - Scope secrets to environments: development, preview, production
 - Use \`eas env:create\` to add secrets; \`eas env:pull\` to sync locally
-- The \`env\` field in eas.json is for non-sensitive build configuration (APP_VARIANT, feature flags)
+- The \`env\` field in eas.json is for non-sensitive config only (APP_VARIANT, feature flags)
 - Never commit \`.env.local\` or service account keys to source control
-
----
 
 ## EAS Update (OTA)
 - Use \`eas update\` for JavaScript-only changes — no native module additions
-- Configure \`runtimeVersion\` in \`app.config.ts\` for update compatibility:
-  - \`{ policy: "fingerprint" }\` — automatic, based on native project hash
-  - \`{ policy: "appVersion" }\` — manual, tied to app version string
-- Always test OTA updates on the preview channel before pushing to production
+- Configure \`runtimeVersion\` in \`app.config.ts\`: \`{ policy: "fingerprint" }\` (auto) or \`{ policy: "appVersion" }\` (manual)
+- Always test on preview channel before pushing to production
 - Use update branches: \`eas update --branch preview --message "Fix copy"\`
-- Monitor update adoption in the Expo dashboard
-
-### Correct — update workflow
-\`\`\`bash
-# 1. Test locally
-npx expo start
-
-# 2. Push to preview channel
-eas update --branch preview --message "Fix: correct currency format"
-
-# 3. Verify on preview build, then push to production
-eas update --branch production --message "Fix: correct currency format"
-\`\`\`
-
-### Anti-Pattern
-\`\`\`bash
-# BAD: pushing directly to production without preview testing
-eas update --branch production --message "Untested fix"
-\`\`\`
-
----
+- Never push directly to production without preview testing
 
 ## EAS Submit
-- Automate store submissions with \`eas submit --auto-submit\` on successful production builds
-- Configure ASC API keys for iOS automated submission (avoid manual App Store Connect logins)
-- Use Google Service Account JSON for Android automated submission
+- Automate store submissions with \`eas submit --auto-submit\` on production builds
+- Configure ASC API keys for iOS, Google Service Account JSON for Android
 - Test internal distribution builds before submitting to stores
 
----
-
 ## Continuous Native Generation (CNG)
-- Add ios/ and android/ to .gitignore when using CNG — they are regenerated from \`app.config.ts\` + plugins
-- Run \`npx expo prebuild --clean\` to regenerate native projects from scratch
-- Commit native directories only when debugging build issues or using bare workflow
+- Add ios/ and android/ to .gitignore when using CNG
+- Run \`npx expo prebuild --clean\` to regenerate from scratch
+- Commit native directories only when debugging or using bare workflow
 `,
       },
       {
@@ -245,61 +121,28 @@ eas update --branch production --message "Untested fix"
         content: `# Expo Modules API
 
 ## When to Use
-- You need native functionality not available in existing Expo SDK packages
-- You are wrapping a third-party native SDK (payments, analytics, hardware)
-- You need high-performance native code for computation or rendering
-
----
+- Native functionality not available in existing Expo SDK packages
+- Wrapping a third-party native SDK (payments, analytics, hardware)
+- High-performance native code for computation or rendering
 
 ## Creating a Module
-
-### Local module (within your project)
-\`\`\`bash
-npx create-expo-module@latest --local
-\`\`\`
-This scaffolds a module inside \`modules/\` with Swift (iOS) and Kotlin (Android) code, automatically linked to your app.
-
-### Standalone module (as a library)
-\`\`\`bash
-npx create-expo-module@latest my-module
-\`\`\`
-
----
+- Local module: \`npx create-expo-module@latest --local\` — scaffolds in \`modules/\` directory
+- Standalone library: \`npx create-expo-module@latest my-module\`
 
 ## Module Structure
-\`\`\`
-modules/my-module/
-  expo-module.config.json    # Module metadata and class registration
-  src/
-    index.ts                 # TypeScript API surface
-    MyModule.types.ts        # Shared types
-  ios/
-    MyModule.swift           # iOS implementation
-  android/
-    src/main/java/.../
-      MyModule.kt            # Android implementation
-\`\`\`
-
-## expo-module.config.json
-\`\`\`json
-{
-  "platforms": ["ios", "android"],
-  "ios": { "modules": ["MyModule"] },
-  "android": { "modules": ["com.example.MyModule"] }
-}
-\`\`\`
-- List Swift class names under \`ios.modules\`
-- List fully-qualified Kotlin class names under \`android.modules\`
-- Run \`npx pod-install\` after modifying this file
-
----
+- \`expo-module.config.json\` — module metadata listing Swift/Kotlin class names
+- \`src/index.ts\` — TypeScript API surface (the contract)
+- \`ios/MyModule.swift\` — iOS implementation
+- \`android/.../MyModule.kt\` — Android implementation
+- List Swift class names under \`ios.modules\`, fully-qualified Kotlin names under \`android.modules\`
+- Run \`npx pod-install\` after modifying \`expo-module.config.json\`
 
 ## Best Practices
-- Keep the TypeScript API surface minimal and well-typed — native code is the implementation, TS is the contract
-- Handle errors in native code and propagate them as typed exceptions to JS
+- Keep TypeScript API surface minimal and well-typed — TS is the contract, native is implementation
+- Handle errors in native code and propagate as typed exceptions to JS
 - Use \`expo-modules-core\` APIs (Events, SharedObjects, Views) instead of raw bridge APIs
 - Write unit tests for both Swift and Kotlin implementations
-- Document the module's native dependencies and required permissions
+- Document native dependencies and required permissions
 `,
       },
       {
@@ -310,102 +153,32 @@ modules/my-module/
         content: `# Expo Router Patterns
 
 ## File-System Routing Conventions
-
-### Directory structure
-\`\`\`
-app/
-  _layout.tsx              # Root layout (Stack, Tabs, or Drawer navigator)
-  index.tsx                # Home screen (/)
-  +not-found.tsx           # Unmatched routes fallback
-  +native-intent.tsx       # Custom deep link handler (optional)
-  (tabs)/
-    _layout.tsx            # Tab navigator
-    home/
-      index.tsx            # /home tab
-    profile/
-      index.tsx            # /profile tab
-      [id].tsx             # /profile/:id dynamic route
-  (auth)/
-    _layout.tsx            # Auth flow layout
-    login.tsx              # /login
-    register.tsx           # /register
-  settings/
-    _layout.tsx            # Stack for settings
-    index.tsx              # /settings
-    notifications.tsx      # /settings/notifications
-  api/
-    hello+api.ts           # Server route: GET /api/hello
-\`\`\`
-
----
+- \`app/_layout.tsx\` — root layout (Stack, Tabs, or Drawer navigator) wrapping the entire app
+- \`app/index.tsx\` — home screen (\`/\`)
+- \`app/+not-found.tsx\` — unmatched routes fallback
+- \`app/(group)/_layout.tsx\` — layout for route groups (parentheses naming convention)
+- \`app/[id].tsx\` — dynamic route segment
+- \`app/api/hello+api.ts\` — server route (API endpoint)
 
 ## Layout Files (_layout.tsx)
-- Always define a root \`_layout.tsx\` that wraps the entire app
-- Use layouts to define navigator types (Stack, Tabs, Drawer) for route groups
-- Place providers (theme, auth, fonts) in the root layout
-
-### Correct — root layout with providers
-\`\`\`tsx
-import { Stack } from 'expo-router';
-import { ThemeProvider } from '@/providers/theme';
-import { useFonts } from 'expo-font';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-
-SplashScreen.preventAutoHideAsync();
-
-export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ 'Inter-Regular': require('@/assets/fonts/Inter-Regular.ttf') });
-
-  useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
-  }, [fontsLoaded]);
-
-  if (!fontsLoaded) return null;
-
-  return (
-    <ThemeProvider>
-      <Stack screenOptions={{ headerShown: false }} />
-    </ThemeProvider>
-  );
-}
-\`\`\`
-
----
+- Always define a root \`_layout.tsx\` wrapping the entire app
+- Place providers (theme, auth, fonts, splash screen) in the root layout
+- Use layouts to define navigator types (Stack, Tabs, Drawer) per route group
 
 ## Typed Routes
 - Enable in app.config.ts: \`{ experiments: { typedRoutes: true } }\`
 - Expo CLI generates type definitions on first \`npx expo start\`
-- Use \`<Link href="/profile/123">\` and \`router.push("/settings")\` with full type safety
+- Use \`<Link href="...">\` and \`router.push("...")\` with full type safety
 - Invalid routes produce TypeScript errors at compile time
-
----
 
 ## API Routes (+api.ts)
 - Export named HTTP method handlers: \`GET\`, \`POST\`, \`PUT\`, \`DELETE\`
 - API routes run server-side — safe for secrets and sensitive logic
-- Validate all input in API routes as you would in any server endpoint
-
-### Correct — API route with validation
-\`\`\`tsx
-// app/api/users+api.ts
-import { ExpoRequest, ExpoResponse } from 'expo-router/server';
-
-export async function GET(request: ExpoRequest): Promise<ExpoResponse> {
-  const url = new URL(request.url);
-  const id = url.searchParams.get('id');
-  if (!id) {
-    return new ExpoResponse(JSON.stringify({ error: 'id is required' }), { status: 400 });
-  }
-  const user = await fetchUser(id);
-  return ExpoResponse.json(user);
-}
-\`\`\`
-
----
+- Validate all input — treat like any server endpoint
+- Use \`ExpoRequest\`/\`ExpoResponse\` types from \`expo-router/server\`
 
 ## Deep Linking
-- Every file-based route is automatically a deep link — no extra configuration needed
+- Every file-based route is automatically a deep link — no extra config needed
 - Use \`+native-intent.tsx\` for custom URL-to-route mapping on native
 - Test deep links: \`npx uri-scheme open "myapp://profile/123" --ios\`
 - Configure \`scheme\` in app.config.ts for custom URL schemes
@@ -544,6 +317,8 @@ export async function GET(request: ExpoRequest): Promise<ExpoResponse> {
       {
         name: 'expo-prebuild-guide',
         description: 'Guide for managed-to-bare workflow migration using Expo prebuild',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Expo Prebuild & CNG Guide
 
 ## Continuous Native Generation (CNG)
@@ -592,6 +367,8 @@ npx expo config --type prebuild
       {
         name: 'expo-eas-setup',
         description: 'Step-by-step EAS Build, Submit, and Update setup for new Expo projects',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# EAS Setup Guide
 
 ## Initial Setup
@@ -684,7 +461,8 @@ eas build --profile production --platform all --auto-submit
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `node -e "
+          statusMessage: 'Checking for EXPO_PUBLIC_ env var access patterns',
+          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty'); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.(tsx?|jsx?)$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -697,8 +475,8 @@ if (/(?:const|let|var)\\s*\\{[^}]*EXPO_PUBLIC_/.test(c)) {
 if (/process\\.env\\[.EXPO_PUBLIC_/.test(c)) {
   issues.push('EXPO_PUBLIC_ env var accessed via bracket notation — this will NOT be inlined. Use process.env.EXPO_PUBLIC_VARNAME with dot notation.');
 }
-if (issues.length) console.log('HOOK_EXIT:0:Warning: ' + issues.join(' | '));
-" -- "$CLAUDE_FILE_PATH"`,
+if (issues.length) { console.error('Warning: ' + issues.join(' | ')); process.exit(2); }
+" -- "$FILE_PATH"`,
           timeout: 5,
         }],
       },
@@ -707,7 +485,8 @@ if (issues.length) console.log('HOOK_EXIT:0:Warning: ' + issues.join(' | '));
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `node -e "
+          statusMessage: 'Checking Expo app.config for runtimeVersion and secrets',
+          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty'); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/app\\.config\\.(ts|js)$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -720,8 +499,8 @@ if (/EXPO_PUBLIC_/.test(c) && /process\\.env\\.EXPO_PUBLIC_/.test(c)) {
 } else if (/sk[-_]|secret|password|private.*key/i.test(c) && !/process\\.env\\./.test(c)) {
   issues.push('Possible hardcoded secret detected in app.config — use environment variables.');
 }
-if (issues.length) console.log('HOOK_EXIT:0:Warning: ' + issues.join(' | '));
-" -- "$CLAUDE_FILE_PATH"`,
+if (issues.length) { console.error('Warning: ' + issues.join(' | ')); process.exit(2); }
+" -- "$FILE_PATH"`,
           timeout: 5,
         }],
       },
@@ -730,21 +509,24 @@ if (issues.length) console.log('HOOK_EXIT:0:Warning: ' + issues.join(' | '));
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `node -e "
+          statusMessage: 'Checking Expo +api.ts handlers for input validation',
+          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty'); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\+api\\.ts$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
 const exports = c.match(/export\\s+(?:async\\s+)?function\\s+(GET|POST|PUT|PATCH|DELETE)/g) || [];
+const warnings = [];
 for (const exp of exports) {
   const fnName = exp.match(/(GET|POST|PUT|PATCH|DELETE)/)?.[1];
   // Find the function body (rough heuristic)
   const fnIdx = c.indexOf(exp);
   const body = c.slice(fnIdx, fnIdx + 800);
   if (fnName !== 'GET' && !/validate|parse|safeParse|schema|zod|yup/i.test(body)) {
-    console.log('HOOK_EXIT:0:Warning: +api.ts ' + fnName + ' handler has no apparent input validation. Always validate request data.');
+    warnings.push('Warning: +api.ts ' + fnName + ' handler has no apparent input validation. Always validate request data.');
   }
 }
-" -- "$CLAUDE_FILE_PATH"`,
+if (warnings.length) { console.error(warnings.join(' | ')); process.exit(2); }
+" -- "$FILE_PATH"`,
           timeout: 5,
         }],
       },

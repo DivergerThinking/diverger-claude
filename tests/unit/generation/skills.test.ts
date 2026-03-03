@@ -63,6 +63,78 @@ describe('formatSkillFile', () => {
     expect(result).toContain('description: "Description with');
   });
 
+  it('should emit disable-model-invocation when set', () => {
+    const skill: SkillDefinition = {
+      name: 'ref-skill',
+      description: 'A reference skill',
+      content: 'Body',
+      disableModelInvocation: true,
+    };
+    const result = formatSkillFile(skill);
+    expect(result).toContain('disable-model-invocation: true');
+  });
+
+  it('should emit allowed-tools list when provided', () => {
+    const skill: SkillDefinition = {
+      name: 'gen-skill',
+      description: 'Generator',
+      content: 'Body',
+      allowedTools: ['Read', 'Write', 'Glob'],
+    };
+    const result = formatSkillFile(skill);
+    expect(result).toContain('allowed-tools:');
+    expect(result).toContain('  - Read');
+    expect(result).toContain('  - Write');
+    expect(result).toContain('  - Glob');
+  });
+
+  it('should emit user-invocable when set', () => {
+    const skill: SkillDefinition = {
+      name: 'guide',
+      description: 'A guide',
+      content: 'Body',
+      userInvocable: true,
+    };
+    const result = formatSkillFile(skill);
+    expect(result).toContain('user-invocable: true');
+  });
+
+  it('should emit argument-hint when provided', () => {
+    const skill: SkillDefinition = {
+      name: 'scaffold',
+      description: 'Scaffolder',
+      content: 'Body',
+      argumentHint: 'component name',
+    };
+    const result = formatSkillFile(skill);
+    expect(result).toContain('argument-hint: component name');
+  });
+
+  it('should emit context fork when provided', () => {
+    const skill: SkillDefinition = {
+      name: 'generator',
+      description: 'Generator',
+      content: 'Body',
+      context: 'fork',
+    };
+    const result = formatSkillFile(skill);
+    expect(result).toContain('context: fork');
+  });
+
+  it('should not emit optional fields when not set', () => {
+    const skill: SkillDefinition = {
+      name: 'basic',
+      description: 'Basic skill',
+      content: 'Body',
+    };
+    const result = formatSkillFile(skill);
+    expect(result).not.toContain('disable-model-invocation');
+    expect(result).not.toContain('allowed-tools');
+    expect(result).not.toContain('user-invocable');
+    expect(result).not.toContain('argument-hint');
+    expect(result).not.toContain('context');
+  });
+
   it('should handle multiline content correctly', () => {
     const skill: SkillDefinition = {
       name: 'multi',

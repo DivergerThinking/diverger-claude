@@ -2,7 +2,12 @@ import type { ComposedConfig } from '../../core/types.js';
 
 interface HookEntry {
   matcher?: string;
-  hooks: Array<{ type: 'command'; command: string; timeout?: number }>;
+  hooks: Array<{
+    type: 'command';
+    command: string;
+    timeout?: number;
+    statusMessage?: string;
+  }>;
 }
 
 /** Generate hooks data structure to be merged into settings.json */
@@ -24,6 +29,7 @@ export function generateHooks(
         type: 'command' as const,
         command: h.command,
         ...(h.timeout ? { timeout: h.timeout } : {}),
+        ...(h.statusMessage ? { statusMessage: h.statusMessage } : {}),
       })),
     };
 

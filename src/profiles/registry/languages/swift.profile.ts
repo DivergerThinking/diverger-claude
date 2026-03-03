@@ -52,134 +52,29 @@ Swift API Design Guidelines. Value types preferred, protocol-oriented programmin
           'Swift naming conventions from API Design Guidelines and Google Swift Style Guide',
         content: `# Swift Naming & Style Guide
 
-## Naming Conventions
+## Naming Conventions (API Design Guidelines)
 
-### Types, Protocols, and Associated Types
-- UpperCamelCase for all types: \`UserProfile\`, \`NetworkManager\`, \`CachePolicy\`
-- Protocols describing capability: \`Equatable\`, \`Codable\`, \`Sendable\`
-- Protocols describing what something is: \`Collection\`, \`Sequence\`, \`Iterator\`
-- Associated types: UpperCamelCase, descriptive: \`Element\`, \`Key\`, \`Value\`
-
-### Functions, Methods, and Properties
-- lowerCamelCase for all non-type declarations: \`fetchUser()\`, \`itemCount\`, \`isReady\`
-- Mutating methods use verb phrases: \`sort()\`, \`append(_:)\`, \`removeAll()\`
-- Non-mutating counterparts use noun/past-participle: \`sorted()\`, \`appending(_:)\`, \`removingAll()\`
-- Factory methods start with \`make\`: \`makeIterator()\`, \`makeBody(configuration:)\`
-- Boolean properties read as assertions: \`isEmpty\`, \`isValid\`, \`hasChanges\`, \`canUndo\`
-
-### Argument Labels
-- Choose labels that read grammatically at the call site
-- Use first argument labels when the function name does not describe the first argument's role
-- Omit the first argument label when the argument is the direct object of a verb: \`print(value)\`, \`removeItem(item)\`
-- Use prepositions to clarify relationships: \`moveTo(x:y:)\`, \`fadeFrom(color:)\`
-
-### Correct
-\`\`\`swift
-// Reads naturally: "queue.enqueue(message, at: priority)"
-func enqueue(_ message: Message, at priority: Priority) { ... }
-
-// Mutating: verb phrase
-mutating func sort() { ... }
-
-// Non-mutating: noun/participle
-func sorted() -> [Element] { ... }
-
-// Factory method
-func makeIterator() -> IndexingIterator<Self> { ... }
-
-// Boolean reads as assertion
-var isEmpty: Bool { count == 0 }
-\`\`\`
-
-### Anti-Pattern
-\`\`\`swift
-// Bad: unclear at call site, abbreviation, non-grammatical
-func proc(_ m: Msg, _ p: Int) { ... }  // proc(msg, 3) — meaningless
-
-// Bad: mutating method uses noun (suggests non-mutating)
-mutating func sorted() { ... }  // Confusing: mutates in place but name implies copy
-
-// Bad: boolean does not read as assertion
-var valid: Bool { ... }  // Should be isValid
-
-// Bad: factory without make prefix
-func iterator() -> SomeIterator { ... }  // Should be makeIterator()
-\`\`\`
-
----
+- Types, protocols: UpperCamelCase — \`UserProfile\`, \`Codable\`, \`Sendable\`
+- Functions, methods, properties: lowerCamelCase — \`fetchUser()\`, \`itemCount\`
+- Mutating methods: verb phrases (\`sort()\`); non-mutating: noun/participle (\`sorted()\`)
+- Factory methods: \`make\` prefix — \`makeIterator()\`
+- Booleans read as assertions: \`isEmpty\`, \`isValid\`, \`hasChanges\`, \`canUndo\`
+- Argument labels read grammatically at the call site
+- Omit first label when argument is direct object of verb: \`removeItem(item)\`
 
 ## Access Control
 
-Start with the most restrictive access level and widen only when needed.
+- Start with most restrictive, widen only when needed
+- \`private\` (default for internals) -> \`fileprivate\` -> \`internal\` -> \`package\` -> \`public\` -> \`open\`
+- Use \`open\` only when subclassing is an explicit design decision
+- Expose only what clients need — keep implementation details private
 
-| Level | Scope | Use When |
-|-------|-------|----------|
-| \`private\` | Same declaration | Default choice for implementation details |
-| \`fileprivate\` | Same file | Rarely — extensions in the same file that need access |
-| \`internal\` | Same module | Default (implicit) for module-internal API |
-| \`package\` | Same package (Swift 5.9+) | Multi-module packages sharing internal API |
-| \`public\` | Any module | Module's external API |
-| \`open\` | Any module + subclass | Only when subclassing is an explicit design decision |
+## Documentation
 
-\`\`\`swift
-// Correct: expose only what clients need
-public struct NetworkClient {
-    public let baseURL: URL
-
-    private let session: URLSession
-    private let decoder: JSONDecoder
-
-    public init(baseURL: URL) {
-        self.baseURL = baseURL
-        self.session = URLSession(configuration: .default)
-        self.decoder = JSONDecoder()
-    }
-
-    public func fetch<T: Decodable>(_ endpoint: String) async throws -> T {
-        let data = try await performRequest(endpoint)
-        return try decoder.decode(T.self, from: data)
-    }
-
-    private func performRequest(_ endpoint: String) async throws -> Data {
-        let url = baseURL.appendingPathComponent(endpoint)
-        let (data, response) = try await session.data(from: url)
-        try validate(response)
-        return data
-    }
-
-    private func validate(_ response: URLResponse) throws {
-        guard let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode) else {
-            throw NetworkError.invalidResponse
-        }
-    }
-}
-\`\`\`
-
----
-
-## Documentation Comments
-
-- Use \`///\` for symbol documentation (types, functions, properties)
-- Use \`/** */\` or \`//!\` sparingly — prefer \`///\`
-- First line is a brief summary (one sentence)
-- Document parameters with \`- Parameter name:\`, return with \`- Returns:\`, throws with \`- Throws:\`
+- Use \`///\` for all public types, functions, properties
+- First line: brief summary sentence
+- Document with \`- Parameter name:\`, \`- Returns:\`, \`- Throws:\` sections
 - Include code examples for non-obvious APIs
-
-\`\`\`swift
-/// Fetches a user by their unique identifier.
-///
-/// Performs a network request to the user endpoint and decodes the response.
-/// The request respects the client's configured timeout and retry policy.
-///
-/// - Parameter id: The unique identifier of the user to fetch.
-/// - Returns: The decoded \`User\` object.
-/// - Throws: \`NetworkError.notFound\` if no user exists with the given ID.
-///           \`NetworkError.unauthorized\` if the session token has expired.
-public func fetchUser(id: String) async throws -> User {
-    // ...
-}
-\`\`\`
 `,
       },
       {
@@ -192,195 +87,28 @@ public func fetchUser(id: String) async throws -> User {
 
 ## Value Types vs Reference Types
 
-### When to Use struct (Default)
-- Data is logically a value (copied on assignment)
-- No need for identity — two instances with the same data are interchangeable
-- Thread safety is important — value types avoid shared mutable state
-
-### When to Use class
-- Identity matters (two references to the same instance must behave as one)
-- Inheritance is part of the design (UIKit subclasses, NSObject interop)
-- You need deinit for resource cleanup
-
-### When to Use enum
-- A finite set of related states: \`LoadingState\`, \`Result\`, \`Direction\`
-- State machines with associated data
-- Namespace for related constants (caseless enum)
-
-\`\`\`swift
-// Correct: value type for a data model
-struct UserProfile: Equatable, Codable, Sendable {
-    let id: UUID
-    var displayName: String
-    var email: String
-    var avatarURL: URL?
-}
-
-// Correct: enum for state modeling with associated values
-enum LoadingState<T: Sendable>: Sendable {
-    case idle
-    case loading
-    case loaded(T)
-    case failed(Error)
-}
-
-// Correct: caseless enum as namespace
-enum APIConstants {
-    static let baseURL = URL(string: "https://api.example.com")!
-    static let timeoutInterval: TimeInterval = 30
-    static let maxRetries = 3
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`swift
-// Bad: using class for a simple data model with no identity needs
-class UserProfile {
-    var id: UUID          // Shared mutable state — thread-unsafe
-    var displayName: String
-    var email: String
-    // Problem: accidental aliasing when passed around
-}
-\`\`\`
-
----
+- Use \`struct\` by default — value semantics, copied on assignment, thread-safe
+- Use \`class\` only when identity matters, inheritance is needed, or \`deinit\` is required
+- Use \`enum\` for finite state sets with associated data, or as namespace (caseless enum)
+- Prefer \`let\` over \`var\` — mutation only when necessary
 
 ## Optionals
 
-### guard let — Early Exit
-Use \`guard\` to validate preconditions and exit early, keeping the happy path unindented.
-
-\`\`\`swift
-func processPayment(for orderID: String?) throws -> Receipt {
-    guard let orderID else {
-        throw PaymentError.missingOrderID
-    }
-
-    guard let order = try? orderRepository.find(by: orderID) else {
-        throw PaymentError.orderNotFound(orderID)
-    }
-
-    guard order.status == .confirmed else {
-        throw PaymentError.invalidStatus(order.status)
-    }
-
-    return try chargePayment(for: order)
-}
-\`\`\`
-
-### if let — Conditional Binding
-Use \`if let\` when both branches (present and absent) have meaningful work.
-
-\`\`\`swift
-if let cachedUser = cache.user(for: id) {
-    return cachedUser
-} else {
-    let freshUser = try await api.fetchUser(id: id)
-    cache.store(freshUser, for: id)
-    return freshUser
-}
-\`\`\`
-
-### Nil Coalescing and Optional Chaining
-\`\`\`swift
-// Default value with ??
-let displayName = user.nickname ?? user.fullName ?? "Anonymous"
-
-// Optional chaining
-let cityName = user.address?.city?.name
-
-// Transform optional with map/flatMap
-let uppercased = user.nickname.map { $0.uppercased() }  // String?
-let parsed = rawValue.flatMap { Int($0) }                // Int?
-\`\`\`
-
-### compactMap for Unwrapping Sequences
-\`\`\`swift
-// Correct: compactMap filters nil and unwraps in one pass
-let validIDs = rawIDs.compactMap { UUID(uuidString: $0) }
-
-// Anti-pattern: filter + map does the same work less clearly
-let validIDs = rawIDs
-    .filter { UUID(uuidString: $0) != nil }
-    .map { UUID(uuidString: $0)! }  // Force unwrap — dangerous if logic changes
-\`\`\`
-
-### Anti-Pattern: Force Unwrapping
-\`\`\`swift
-// Bad: crashes at runtime if assumptions break
-let user = users.first!                      // Use .first with guard/if let
-let name = json["name"] as! String           // Use as? with guard/if let
-let url = URL(string: userInput)!            // User input is never guaranteed
-let value = dictionary[key]!                 // Key may not exist
-\`\`\`
-
----
+- Use \`guard let\` for early exit — keeps happy path unindented
+- Use \`if let\` when both present and absent branches have meaningful work
+- Use \`??\` for default values, \`?.\` for optional chaining
+- Use \`.map\`/\`.flatMap\` for optional transformations
+- Use \`compactMap\` to filter nil and unwrap in one pass
+- NEVER force unwrap (\`!\`) — use guard/if let, \`??\`, or throw instead
+- NEVER use \`as!\` — use \`as?\` with guard/if let
 
 ## Pattern Matching
 
-### switch with Enums
-Always match exhaustively. Avoid \`default\` when all cases are known — the compiler
-catches new cases at compile time if you omit \`default\`.
-
-\`\`\`swift
-enum NetworkError: Error {
-    case timeout
-    case unauthorized
-    case notFound
-    case serverError(statusCode: Int)
-}
-
-func handle(_ error: NetworkError) {
-    switch error {
-    case .timeout:
-        showRetryDialog()
-    case .unauthorized:
-        redirectToLogin()
-    case .notFound:
-        showEmptyState()
-    case .serverError(let code) where code >= 500:
-        logCritical(code: code)
-        showGenericError()
-    case .serverError(let code):
-        logWarning(code: code)
-        showGenericError()
-    }
-    // No default — compiler enforces exhaustiveness
-}
-\`\`\`
-
-### if case let — Single Pattern Extraction
-\`\`\`swift
-if case .loaded(let items) = state, !items.isEmpty {
-    renderList(items)
-}
-\`\`\`
-
-### for case let — Filtering Collections by Pattern
-\`\`\`swift
-let successResults = results.compactMap { result -> User? in
-    if case .success(let user) = result { return user }
-    return nil
-}
-
-// Or with for-case-let
-for case .success(let user) in results {
-    process(user)
-}
-\`\`\`
-
-### Tuple and Range Matching
-\`\`\`swift
-func classify(statusCode: Int, method: String) -> String {
-    switch (statusCode, method) {
-    case (200...299, _):       return "success"
-    case (401, _):             return "unauthorized"
-    case (404, "GET"):         return "not found"
-    case (500...599, _):       return "server error"
-    default:                   return "unknown"
-    }
-}
-\`\`\`
+- Always match exhaustively — avoid \`default\` when all enum cases are known
+- Use \`if case let\` for single-variant extraction
+- Use \`for case let\` for filtering collections by pattern
+- Use tuple matching and range matching in switch for multi-dimensional dispatch
+- The compiler enforces exhaustiveness — omit \`default\` to catch new cases at compile time
 `,
       },
       {
@@ -393,244 +121,34 @@ func classify(statusCode: Int, method: String) -> String {
 
 ## async/await
 
-### Basic Usage
 - Mark functions \`async\` when they perform I/O or call other async functions
 - Use \`try await\` to propagate errors from async throwing functions
-- Avoid mixing completion handlers and async/await in the same API layer
-
-\`\`\`swift
-// Correct: clean async/await chain
-func fetchUserProfile(id: String) async throws -> UserProfile {
-    let userData = try await apiClient.fetch("/users/\\(id)")
-    let user = try JSONDecoder().decode(User.self, from: userData)
-
-    let avatarData = try await apiClient.fetch(user.avatarURL)
-    let avatar = UIImage(data: avatarData)
-
-    return UserProfile(user: user, avatar: avatar)
-}
-\`\`\`
-
-### Anti-Pattern: Completion Handlers in New Code
-\`\`\`swift
-// Bad: callback pyramid in new code — use async/await
-func fetchUserProfile(id: String, completion: @escaping (Result<UserProfile, Error>) -> Void) {
-    apiClient.fetch("/users/\\(id)") { result in
-        switch result {
-        case .success(let data):
-            let user = try? JSONDecoder().decode(User.self, from: data)
-            guard let user else {
-                completion(.failure(DecodingError.decodingFailed))
-                return
-            }
-            apiClient.fetch(user.avatarURL) { avatarResult in
-                // Nested further...
-            }
-        case .failure(let error):
-            completion(.failure(error))
-        }
-    }
-}
-\`\`\`
-
----
+- Never use completion handlers in new code — use async/await
 
 ## Concurrent Execution
 
-### async let — Concurrent Bindings
-Use when you need to run a fixed number of independent async operations in parallel.
-
-\`\`\`swift
-func loadDashboard(userID: String) async throws -> Dashboard {
-    async let profile = fetchProfile(userID: userID)
-    async let orders = fetchRecentOrders(userID: userID)
-    async let notifications = fetchNotifications(userID: userID)
-
-    return try await Dashboard(
-        profile: profile,
-        orders: orders,
-        notifications: notifications
-    )
-}
-\`\`\`
-
-### TaskGroup — Dynamic Parallel Work
-Use when the number of concurrent tasks is determined at runtime.
-
-\`\`\`swift
-func fetchAllUsers(ids: [String]) async throws -> [User] {
-    try await withThrowingTaskGroup(of: User.self) { group in
-        for id in ids {
-            group.addTask {
-                try await self.fetchUser(id: id)
-            }
-        }
-
-        var users: [User] = []
-        for try await user in group {
-            users.append(user)
-        }
-        return users
-    }
-}
-\`\`\`
-
-### Task — Bridging Sync to Async
-\`\`\`swift
-// Bridge from synchronous context (e.g., UIKit lifecycle)
-override func viewDidLoad() {
-    super.viewDidLoad()
-
-    Task {
-        do {
-            let data = try await viewModel.loadData()
-            updateUI(with: data)
-        } catch {
-            showError(error)
-        }
-    }
-}
-\`\`\`
-
----
+- \`async let\` — for a fixed number of independent parallel operations
+- \`withThrowingTaskGroup\` — for dynamic number of parallel tasks
+- \`Task { }\` — bridge from synchronous context (UIKit lifecycle) to async
 
 ## Actors
 
-### Actor for Shared Mutable State
-Actors provide data-race safety by serializing access to their mutable state.
-
-\`\`\`swift
-actor ImageCache {
-    private var cache: [URL: UIImage] = [:]
-
-    func image(for url: URL) -> UIImage? {
-        cache[url]
-    }
-
-    func store(_ image: UIImage, for url: URL) {
-        cache[url] = image
-    }
-
-    func clearAll() {
-        cache.removeAll()
-    }
-}
-
-// Usage: all access is automatically serialized
-let cache = ImageCache()
-let image = await cache.image(for: url)
-\`\`\`
-
-### nonisolated — Opt Out of Actor Isolation
-Mark methods \`nonisolated\` when they do not access the actor's mutable state.
-
-\`\`\`swift
-actor DatabaseConnection {
-    private var connection: SQLiteConnection
-
-    // Does not access mutable state — safe to call without isolation
-    nonisolated var databasePath: String {
-        "/var/data/app.sqlite"
-    }
-
-    nonisolated func supportedVersions() -> [String] {
-        ["3.39", "3.40", "3.41"]
-    }
-
-    func execute(_ query: String) async throws -> [Row] {
-        try connection.execute(query)
-    }
-}
-\`\`\`
-
-### @MainActor — UI Isolation
-\`\`\`swift
-@MainActor
-final class ProfileViewModel: ObservableObject {
-    @Published var user: User?
-    @Published var isLoading = false
-    @Published var error: Error?
-
-    private let service: UserService
-
-    func loadProfile(id: String) async {
-        isLoading = true
-        defer { isLoading = false }
-
-        do {
-            user = try await service.fetchUser(id: id)
-        } catch {
-            self.error = error
-        }
-    }
-}
-\`\`\`
-
----
+- Use \`actor\` for shared mutable state — serializes access automatically
+- Mark methods \`nonisolated\` when they don't access mutable state
+- Use \`@MainActor\` for UI-bound view models and controllers
+- Access actor properties/methods with \`await\`
 
 ## Sendable
 
-### Value Types Are Sendable by Default
-Structs and enums with only Sendable-stored properties automatically conform.
+- Value types (structs, enums) with Sendable properties are automatically Sendable
+- Mark closures crossing concurrency boundaries as \`@Sendable\`
+- Use \`@unchecked Sendable\` only with a \`// SAFETY:\` comment proving thread safety
+- Never use \`@unchecked Sendable\` without locks, atomics, or other synchronization
 
-\`\`\`swift
-// Automatically Sendable — all stored properties are Sendable
-struct UserDTO: Codable, Sendable {
-    let id: UUID
-    let name: String
-    let email: String
-}
-\`\`\`
+## Strict Concurrency
 
-### Mark @Sendable Closures
-Closures passed across concurrency boundaries must be \`@Sendable\`.
-
-\`\`\`swift
-func perform(on queue: DispatchQueue, work: @escaping @Sendable () -> Void) {
-    queue.async(execute: work)
-}
-\`\`\`
-
-### @unchecked Sendable — Last Resort
-Use only when you can prove thread safety through other means (locks, atomics)
-and the compiler cannot verify it. Always document the safety justification.
-
-\`\`\`swift
-// SAFETY: All mutable state is protected by the internal lock.
-// This class is safe to access from multiple threads concurrently.
-final class ThreadSafeCounter: @unchecked Sendable {
-    private var _count = 0
-    private let lock = NSLock()
-
-    var count: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return _count
-    }
-
-    func increment() {
-        lock.lock()
-        defer { lock.unlock() }
-        _count += 1
-    }
-}
-\`\`\`
-
----
-
-## Strict Concurrency Checking
-
-Enable strict concurrency checking in build settings to catch data-race issues at compile time:
-
-\`\`\`
-// In Package.swift
-swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
-
-// Or in Xcode Build Settings
-SWIFT_STRICT_CONCURRENCY = complete
-\`\`\`
-
-Address all warnings before they become errors in future Swift versions.
+- Enable strict concurrency checking: \`StrictConcurrency\` feature flag or \`SWIFT_STRICT_CONCURRENCY = complete\`
+- Address all concurrency warnings — they become errors in future Swift versions
 `,
       },
       {
@@ -643,215 +161,28 @@ Address all warnings before they become errors in future Swift versions.
 
 ## Error Handling
 
-### Define Domain-Specific Errors
-Use enums conforming to \`Error\` with associated values for context.
-
-\`\`\`swift
-enum PaymentError: Error, LocalizedError {
-    case insufficientFunds(available: Decimal, required: Decimal)
-    case cardDeclined(reason: String)
-    case networkTimeout(after: TimeInterval)
-    case invalidAmount(Decimal)
-
-    var errorDescription: String? {
-        switch self {
-        case .insufficientFunds(let available, let required):
-            return "Insufficient funds: \\(available) available, \\(required) required"
-        case .cardDeclined(let reason):
-            return "Card declined: \\(reason)"
-        case .networkTimeout(let duration):
-            return "Network timeout after \\(duration) seconds"
-        case .invalidAmount(let amount):
-            return "Invalid payment amount: \\(amount)"
-        }
-    }
-}
-\`\`\`
-
-### Use throws for Synchronous Errors
-\`\`\`swift
-func validateOrder(_ order: Order) throws {
-    guard !order.items.isEmpty else {
-        throw OrderError.emptyCart
-    }
-
-    guard order.total > 0 else {
-        throw OrderError.invalidTotal(order.total)
-    }
-
-    for item in order.items {
-        guard item.quantity > 0 else {
-            throw OrderError.invalidQuantity(item: item.name, quantity: item.quantity)
-        }
-    }
-}
-\`\`\`
-
-### Use Result When Callbacks Cannot throw
-\`\`\`swift
-// When working with APIs that take non-throwing closures
-func loadImage(from url: URL, completion: @escaping (Result<UIImage, ImageError>) -> Void) {
-    URLSession.shared.dataTask(with: url) { data, response, error in
-        if let error {
-            completion(.failure(.networkError(error)))
-            return
-        }
-        guard let data, let image = UIImage(data: data) else {
-            completion(.failure(.invalidData))
-            return
-        }
-        completion(.success(image))
-    }.resume()
-}
-\`\`\`
-
-### Typed Throws (Swift 6+)
-\`\`\`swift
-// Typed throws specify the exact error type a function can throw
-func parse(_ input: String) throws(ParseError) -> AST {
-    guard !input.isEmpty else {
-        throw .emptyInput
-    }
-    return try tokenize(input).map(buildNode)
-}
-\`\`\`
-
-### Anti-Pattern: Catch-All Silencing
-\`\`\`swift
-// Bad: silently swallows all errors
-do {
-    try dangerousOperation()
-} catch {
-    // Empty catch — caller never knows what happened
-}
-
-// Bad: catches everything without distinguishing error types
-do {
-    try processPayment()
-} catch {
-    print("Something went wrong")  // No context for debugging
-}
-\`\`\`
-
----
+- Define domain-specific errors as enums conforming to \`Error\` with associated values
+- Implement \`LocalizedError\` for user-facing error descriptions
+- Use \`throws\` for synchronous errors, \`async throws\` for async
+- Use \`Result<T, E>\` only when callbacks cannot throw
+- Use typed throws (Swift 6+) to specify exact error types: \`throws(ParseError)\`
+- Never swallow errors with empty catch blocks — always log or rethrow
+- Catch specific error types — not bare \`catch\`
 
 ## Protocol-Oriented Design
 
-### Prefer Protocols Over Base Classes
-Protocols with default implementations via extensions provide composition without inheritance.
-
-\`\`\`swift
-protocol Cacheable {
-    associatedtype CacheKey: Hashable
-    var cacheKey: CacheKey { get }
-    var cacheDuration: TimeInterval { get }
-}
-
-extension Cacheable {
-    var cacheDuration: TimeInterval { 300 } // Default: 5 minutes
-}
-
-protocol Validatable {
-    func validate() throws
-}
-
-// Compose capabilities through protocol conformance
-struct UserProfile: Cacheable, Validatable, Codable, Sendable {
-    let id: UUID
-    var name: String
-    var email: String
-
-    var cacheKey: UUID { id }
-
-    func validate() throws {
-        guard !name.isEmpty else { throw ValidationError.emptyField("name") }
-        guard email.contains("@") else { throw ValidationError.invalidEmail(email) }
-    }
-}
-\`\`\`
-
-### Protocol Extensions for Shared Behavior
-\`\`\`swift
-protocol APIEndpoint {
-    var path: String { get }
-    var method: HTTPMethod { get }
-    var headers: [String: String] { get }
-}
-
-extension APIEndpoint {
-    var headers: [String: String] {
-        ["Content-Type": "application/json", "Accept": "application/json"]
-    }
-
-    func buildRequest(baseURL: URL) -> URLRequest {
-        var request = URLRequest(url: baseURL.appendingPathComponent(path))
-        request.httpMethod = method.rawValue
-        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
-        return request
-    }
-}
-\`\`\`
-
-### Protocol Witness / Existential Awareness
-- Use \`some Protocol\` (opaque types) when you want the compiler to know the concrete type
-- Use \`any Protocol\` (existential) when you need heterogeneous collections or dynamic dispatch
-- Prefer \`some\` over \`any\` for performance — existentials have allocation and indirection overhead
-
-\`\`\`swift
-// some — compiler knows the concrete type (monomorphized)
-func makeDataSource() -> some DataSource {
-    InMemoryDataSource()
-}
-
-// any — heterogeneous collection of different conforming types
-func allDataSources() -> [any DataSource] {
-    [InMemoryDataSource(), SQLiteDataSource(), RemoteDataSource()]
-}
-\`\`\`
-
----
+- Prefer protocols over base classes — composition over inheritance
+- Use protocol extensions for default implementations
+- Compose capabilities through multiple protocol conformances
+- Use \`some Protocol\` (opaque types) when compiler should know concrete type
+- Use \`any Protocol\` (existentials) for heterogeneous collections
+- Prefer \`some\` over \`any\` for performance — existentials have indirection overhead
 
 ## Generics
 
-### Constrained Generics
-\`\`\`swift
-// Generic function with constraints
-func findDuplicates<T: Hashable>(in items: [T]) -> Set<T> {
-    var seen = Set<T>()
-    var duplicates = Set<T>()
-    for item in items {
-        if !seen.insert(item).inserted {
-            duplicates.insert(item)
-        }
-    }
-    return duplicates
-}
-
-// Generic type with where clause
-struct Cache<Key: Hashable, Value> where Value: Codable & Sendable {
-    private var storage: [Key: (value: Value, expiry: Date)] = [:]
-
-    mutating func set(_ value: Value, for key: Key, ttl: TimeInterval) {
-        storage[key] = (value, Date().addingTimeInterval(ttl))
-    }
-
-    func get(_ key: Key) -> Value? {
-        guard let entry = storage[key], entry.expiry > Date() else { return nil }
-        return entry.value
-    }
-}
-\`\`\`
-
-### Anti-Pattern: Unnecessary Type Erasure
-\`\`\`swift
-// Bad: using Any when a generic or protocol would be type-safe
-func store(_ value: Any, forKey key: String) { ... }
-let name = store["name"] as! String  // Runtime crash risk
-
-// Correct: use generics for type safety
-func store<T: Codable>(_ value: T, forKey key: String) { ... }
-func retrieve<T: Codable>(forKey key: String) -> T? { ... }
-\`\`\`
+- Use constrained generics with \`where\` clauses for type-safe abstractions
+- Prefer generics over \`Any\` — provides compile-time type safety
+- Use \`associatedtype\` in protocols for generic capability requirements
 `,
       },
       {
@@ -862,157 +193,26 @@ func retrieve<T: Codable>(forKey key: String) -> T? { ... }
           'Swift project structure, SPM conventions, and performance practices',
         content: `# Swift Project Structure & Practices
 
-## Swift Package Manager (SPM) Layout
+## SPM Layout
 
-### Library Package
-\`\`\`
-MyLibrary/
-  Package.swift
-  Sources/
-    MyLibrary/
-      MyLibrary.swift        // Public API surface
-      Models/
-        User.swift
-        Order.swift
-      Networking/
-        APIClient.swift
-        Endpoints.swift
-      Internal/
-        Helpers.swift         // internal access — not exposed to consumers
-  Tests/
-    MyLibraryTests/
-      ModelTests.swift
-      APIClientTests.swift
-      Fixtures/
-        sample-response.json
-\`\`\`
-
-### Application Package
-\`\`\`
-MyApp/
-  Package.swift
-  Sources/
-    MyApp/
-      main.swift             // Thin entry point
-      App/
-        AppDelegate.swift
-        Configuration.swift
-      Features/
-        Auth/
-          AuthService.swift
-          AuthView.swift
-          AuthViewModel.swift
-        Dashboard/
-          DashboardView.swift
-          DashboardViewModel.swift
-      Core/
-        Networking/
-          APIClient.swift
-        Storage/
-          Database.swift
-        Extensions/
-          Date+Formatting.swift
-  Tests/
-    MyAppTests/
-      AuthServiceTests.swift
-      DashboardViewModelTests.swift
-\`\`\`
-
-### Xcode Project
-\`\`\`
-MyApp.xcodeproj
-MyApp/
-  App/
-    MyAppApp.swift           // @main entry point
-    ContentView.swift
-  Features/                  // Organized by feature/domain
-    Auth/
-    Dashboard/
-    Settings/
-  Core/                      // Shared infrastructure
-    Networking/
-    Storage/
-    Extensions/
-  Resources/
-    Assets.xcassets
-    Localizable.xcstrings
-MyAppTests/
-MyAppUITests/
-\`\`\`
-
----
+- Library: \`Sources/MyLibrary/\` with public API, \`Tests/MyLibraryTests/\`
+- Application: \`Sources/MyApp/\` with thin \`main.swift\`, Features/, Core/
+- Xcode: Organize by feature (Auth/, Dashboard/, Settings/) with shared Core/
 
 ## Extension Conventions
 
-- Place extensions in separate files named \`TypeName+Capability.swift\`
-- Use extensions to organize conformances: one extension per protocol
+- Place extensions in separate files: \`TypeName+Capability.swift\`
+- One extension per protocol conformance
 - Use \`// MARK: -\` to separate logical sections within a file
-
-\`\`\`swift
-// File: User+Codable.swift
-extension User: Codable {
-    enum CodingKeys: String, CodingKey {
-        case id, name, email
-        case createdAt = "created_at"
-    }
-}
-
-// File: User+Displayable.swift
-extension User: Displayable {
-    var displayTitle: String { name }
-    var displaySubtitle: String { email }
-}
-\`\`\`
-
----
 
 ## Performance Practices
 
-### Copy-on-Write Awareness
-- Swift collections (\`Array\`, \`Dictionary\`, \`Set\`, \`String\`) use COW
-- Mutation triggers a copy only when the buffer is shared
-- Avoid premature optimization around COW — trust the compiler unless profiling proves otherwise
-
-### Avoid Retain Cycles
+- Swift collections use copy-on-write — mutation copies only when buffer is shared
 - Use \`[weak self]\` in closures stored as properties or passed to long-lived objects
-- Use \`[unowned self]\` only when you can guarantee self outlives the closure
-
-\`\`\`swift
-// Correct: weak self prevents retain cycle
-class ViewModel {
-    var onUpdate: (() -> Void)?
-
-    func startObserving() {
-        service.observe { [weak self] newData in
-            guard let self else { return }
-            self.process(newData)
-        }
-    }
-}
-\`\`\`
-
-### Lazy Initialization
-\`\`\`swift
-// Expensive resources initialized only when first accessed
-class DataManager {
-    lazy var decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
-
-    lazy var database: Database = {
-        Database(path: databasePath)
-    }()
-}
-\`\`\`
-
-### Measurement
-- Use Xcode Instruments (Time Profiler, Allocations, Leaks) for performance analysis
-- Use \`XCTMetric\` in performance tests for automated regression detection
-- Profile on real devices — Simulator performance differs significantly from hardware
-- Avoid premature optimization — measure first, then optimize hot paths
+- Use \`[unowned self]\` only when self is guaranteed to outlive the closure
+- Use \`lazy var\` for expensive resources initialized on first access
+- Profile on real devices — Simulator performance differs from hardware
+- Use Xcode Instruments for performance analysis, \`XCTMetric\` for regression detection
 `,
       },
     ],
@@ -1394,8 +594,9 @@ func fetchUser(id: String) async throws -> User {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.swift$" && grep -nE "\\![[:space:]]*$|as!|try!|\\bfirst!|\\blast!" "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: force unwrap (!) detected — verify this is intentional and safe" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.swift$" && grep -nE "\\![[:space:]]*$|as!|try!|\\bfirst!|\\blast!" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: force unwrap (!) detected — verify this is intentional and safe" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for force unwrap usage',
           },
         ],
       },
@@ -1406,8 +607,9 @@ func fetchUser(id: String) async throws -> User {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.swift$" && grep -nE "@unchecked Sendable" "$CLAUDE_FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$CLAUDE_FILE_PATH" | grep -qiE "SAFETY:|safety:" || echo "HOOK_EXIT:0:Warning: @unchecked Sendable at line $line missing // SAFETY: comment"; done || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.swift$" && grep -nE "@unchecked Sendable" "$FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$FILE_PATH" | grep -qiE "SAFETY:|safety:" || { echo "Warning: @unchecked Sendable at line $line missing // SAFETY: comment" >&2; exit 2; }; done || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for @unchecked Sendable without SAFETY comment',
           },
         ],
       },
@@ -1418,8 +620,9 @@ func fetchUser(id: String) async throws -> User {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.swift$" && command -v swiftlint >/dev/null 2>&1 && swiftlint lint --quiet --path "$CLAUDE_FILE_PATH" 2>/dev/null | head -10 | grep -q "." && echo "HOOK_EXIT:0:SwiftLint issues detected — review and fix" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.swift$" && command -v swiftlint >/dev/null 2>&1 && swiftlint lint --quiet --path "$FILE_PATH" 2>/dev/null | head -10 | grep -q "." && { echo "SwiftLint issues detected — review and fix" >&2; exit 2; } || exit 0',
             timeout: 15,
+            statusMessage: 'Running SwiftLint checks',
           },
         ],
       },

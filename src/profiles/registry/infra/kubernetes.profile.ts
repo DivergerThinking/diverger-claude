@@ -46,127 +46,36 @@ Declarative resource management. Security contexts, resource limits, health chec
         description: 'Kubernetes resource definition standards and pod design conventions',
         content: `# Kubernetes Resource Standards
 
-## Why This Matters
-Misconfigured Kubernetes resources cause the majority of production incidents: OOM kills from missing
-memory limits, cascading failures from missing health checks, security breaches from overprivileged
-pods, and downtime from missing disruption budgets. These standards prevent the most common failures.
-
----
-
 ## Resource Requests and Limits
-
-Every container MUST define \`resources.requests\` and \`resources.limits\` for memory.
-CPU requests are mandatory; CPU limits are recommended but may be omitted to avoid throttling.
-
-### Correct
-\`\`\`yaml
-containers:
-  - name: app
-    resources:
-      requests:
-        cpu: "100m"
-        memory: "128Mi"
-      limits:
-        cpu: "500m"
-        memory: "256Mi"
-\`\`\`
-
-### Anti-Pattern
-\`\`\`yaml
-containers:
-  - name: app
-    # No resource definitions — container can consume unlimited resources
-    # and starve other pods on the same node
-\`\`\`
-
----
+- Every container MUST define \`resources.requests\` and \`resources.limits\` for memory
+- CPU requests are mandatory; CPU limits are recommended but may be omitted to avoid throttling
+- Set values appropriate to the workload — not placeholder minimums
 
 ## Health Checks
-
-Every long-running container MUST have liveness and readiness probes.
-Use startup probes for applications with initialization times exceeding 10 seconds.
-
-### Probe Design Rules
+- Every long-running container MUST have liveness and readiness probes
+- Use startup probes for applications with init times exceeding 10 seconds
 - Liveness probes: lightweight, check only the process itself — NOT external dependencies
-- Readiness probes: comprehensive, verify the application can serve traffic (DB connected, cache warm)
-- Startup probes: allow generous time for initialization without compromising liveness detection
-
-### Correct
-\`\`\`yaml
-livenessProbe:
-  httpGet:
-    path: /healthz
-    port: 8080
-  initialDelaySeconds: 5
-  periodSeconds: 10
-  failureThreshold: 3
-readinessProbe:
-  httpGet:
-    path: /readyz
-    port: 8080
-  initialDelaySeconds: 5
-  periodSeconds: 5
-  failureThreshold: 3
-startupProbe:
-  httpGet:
-    path: /healthz
-    port: 8080
-  failureThreshold: 30
-  periodSeconds: 2
-\`\`\`
-
----
+- Readiness probes: comprehensive, verify the app can serve traffic (DB connected, cache warm)
+- Use dedicated endpoints: \`/healthz\` (liveness), \`/readyz\` (readiness)
 
 ## Pod Security
-
-### Mandatory Security Context
-\`\`\`yaml
-securityContext:
-  runAsNonRoot: true
-  runAsUser: 1000
-  readOnlyRootFilesystem: true
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop: ["ALL"]
-  seccompProfile:
-    type: RuntimeDefault
-\`\`\`
-
-### Rules
-- Never run containers as root in production
-- Drop ALL capabilities and add back only specific ones needed
-- Use read-only root filesystem — mount emptyDir for writable temp paths
-- Set \`allowPrivilegeEscalation: false\` on every container
+- \`runAsNonRoot: true\` and numeric \`runAsUser\` on every pod
+- \`readOnlyRootFilesystem: true\` — mount emptyDir for writable temp paths
+- \`allowPrivilegeEscalation: false\` on every container
+- Drop ALL capabilities (\`drop: ["ALL"]\`) and add back only specific ones needed
+- \`seccompProfile.type: RuntimeDefault\` on every pod
 - Never use \`privileged: true\` without explicit documented justification
 
----
-
 ## Workload Types
-| Workload | Resource Type | Key Configuration |
-|----------|--------------|-------------------|
-| Stateless API/web | Deployment + HPA | replicas, PDB, anti-affinity |
-| Stateful (database, cache) | StatefulSet | volumeClaimTemplates, headless Service |
-| Node-level agent | DaemonSet | tolerations, hostNetwork if needed |
-| One-off task | Job | backoffLimit, activeDeadlineSeconds |
-| Scheduled task | CronJob | schedule, concurrencyPolicy, startingDeadlineSeconds |
-| Batch processing | Job (parallelism) | completions, parallelism |
-
----
+- Stateless API/web: Deployment + HPA (replicas, PDB, anti-affinity)
+- Stateful (database, cache): StatefulSet (volumeClaimTemplates, headless Service)
+- Node-level agent: DaemonSet (tolerations, hostNetwork if needed)
+- One-off task: Job (backoffLimit, activeDeadlineSeconds)
+- Scheduled task: CronJob (schedule, concurrencyPolicy, startingDeadlineSeconds)
 
 ## Labels and Organization
-
-Apply the Kubernetes recommended labels on every resource:
-\`\`\`yaml
-metadata:
-  labels:
-    app.kubernetes.io/name: my-app
-    app.kubernetes.io/version: "1.2.3"
-    app.kubernetes.io/component: api
-    app.kubernetes.io/part-of: my-platform
-    app.kubernetes.io/managed-by: helm
-\`\`\`
-
----
+- Apply Kubernetes recommended labels on every resource: \`app.kubernetes.io/name\`, \`version\`, \`component\`, \`part-of\`, \`managed-by\`
+- Use namespaces consistently — never deploy to the default namespace
 
 ## High Availability
 - Define \`PodDisruptionBudget\` for every production Deployment (\`minAvailable\` or \`maxUnavailable\`)
@@ -182,74 +91,21 @@ metadata:
         description: 'Kubernetes security standards: PSS, RBAC, secrets, network policies',
         content: `# Kubernetes Security Standards
 
-## Why This Matters
-Kubernetes clusters are high-value targets. A single misconfigured RBAC binding, an overprivileged
-pod, or an exposed secret can compromise the entire cluster. These rules enforce defense-in-depth
-aligned with Pod Security Standards and RBAC best practices.
-
----
-
 ## Pod Security Admission (PSA)
-
-### Namespace Labels
-Every production namespace MUST enforce at least the \`baseline\` Pod Security Standard.
-Critical namespaces SHOULD enforce \`restricted\`.
-
-\`\`\`yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: production
-  labels:
-    pod-security.kubernetes.io/enforce: restricted
-    pod-security.kubernetes.io/audit: restricted
-    pod-security.kubernetes.io/warn: restricted
-\`\`\`
-
-### Policy Levels
-| Level | Use Case | Key Restrictions |
-|-------|----------|------------------|
-| Privileged | System-level (kube-system) | None — unrestricted |
-| Baseline | Development/staging | No privileged, no hostNetwork, no hostPID |
-| Restricted | Production | Non-root, read-only FS, drop caps, seccomp |
-
----
+- Every production namespace MUST enforce at least \`baseline\` Pod Security Standard
+- Critical namespaces SHOULD enforce \`restricted\`
+- Set labels: \`pod-security.kubernetes.io/enforce\`, \`audit\`, \`warn\`
+- Levels: Privileged (kube-system), Baseline (dev/staging), Restricted (production)
 
 ## RBAC Rules
-
 - Use namespace-scoped Roles instead of ClusterRoles when possible
 - Never grant wildcard verbs (\`*\`) or wildcard resources (\`*\`) in production
 - Never add service accounts to \`system:masters\` — it bypasses all RBAC
 - Set \`automountServiceAccountToken: false\` on pods that do not need API access
-- Create dedicated service accounts per workload — never use the \`default\` service account
+- Create dedicated service accounts per workload — never use the \`default\` SA
 - Review and prune RBAC bindings quarterly
 
-### Correct
-\`\`\`yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  namespace: my-app
-  name: my-app-reader
-rules:
-  - apiGroups: [""]
-    resources: ["pods", "services"]
-    verbs: ["get", "list", "watch"]
-\`\`\`
-
-### Anti-Pattern
-\`\`\`yaml
-rules:
-  - apiGroups: ["*"]
-    resources: ["*"]
-    verbs: ["*"]
-  # Grants god-mode access — any compromise of this SA owns the cluster
-\`\`\`
-
----
-
 ## Secrets
-
 - NEVER store secrets in ConfigMaps or plain-text manifests
 - Enable encryption at rest for Secrets in etcd
 - Use external secret managers (Vault, AWS Secrets Manager) via CSI driver or External Secrets Operator
@@ -257,40 +113,19 @@ rules:
 - Rotate secrets regularly; use short-lived tokens when possible
 - Never commit secret values to version control — use sealed-secrets or external refs
 
----
-
 ## Network Policies
-
-Apply default-deny in every namespace, then allowlist required traffic:
-
-\`\`\`yaml
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: default-deny-all
-  namespace: my-app
-spec:
-  podSelector: {}
-  policyTypes:
-    - Ingress
-    - Egress
-\`\`\`
-
-Then add specific policies for allowed traffic:
+- Apply default-deny (Ingress + Egress) in every namespace, then allowlist required traffic
 - Allow ingress from Ingress controller to frontend pods
-- Allow frontend to backend communication
-- Allow backend to database communication
-- Allow egress to external APIs on specific ports
+- Allow frontend-to-backend and backend-to-database communication
+- Allow egress to external APIs on specific ports only
 - Deny all other traffic by default
-
----
 
 ## Image Security
 - Use specific image tags or SHA256 digests — never \`:latest\` in production
-- Pull images only from trusted registries — configure \`imagePullPolicy: IfNotPresent\` with pinned tags
-- Scan images for vulnerabilities in CI before deployment (Trivy, Grype, Snyk)
-- Use minimal base images (distroless, alpine, scratch) to reduce attack surface
-- Sign images and verify signatures with admission controllers (cosign, Kyverno, OPA Gatekeeper)
+- Pull images only from trusted registries — \`imagePullPolicy: IfNotPresent\` with pinned tags
+- Scan images for vulnerabilities in CI (Trivy, Grype, Snyk)
+- Use minimal base images (distroless, alpine, scratch)
+- Sign images and verify with admission controllers (cosign, Kyverno, OPA Gatekeeper)
 `,
       },
     ],
@@ -436,8 +271,9 @@ Report each finding with severity (CRITICAL / WARNING / INFO) and specific remed
           {
             type: 'command' as const,
             command:
-              'node -e "const f=process.argv[1]||\'\';if(!/\\.ya?ml$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(!/kind:\\s*(Deployment|StatefulSet|DaemonSet|Job|CronJob|Pod)/.test(c))process.exit(0);const issues=[];if(!/resources:/.test(c))issues.push(\'Missing resource requests/limits\');if(/kind:\\s*(Deployment|StatefulSet|DaemonSet)/.test(c)){if(!/livenessProbe:/.test(c))issues.push(\'Missing livenessProbe\');if(!/readinessProbe:/.test(c))issues.push(\'Missing readinessProbe\')}if(!/runAsNonRoot:\\s*true/.test(c))issues.push(\'Missing runAsNonRoot: true in securityContext\');if(/:latest/.test(c))issues.push(\'Using :latest image tag — pin a specific version\');if(issues.length)console.log(\'\\u26a0\\ufe0f K8s manifest issues in \'+f+\':\\n  - \'+issues.join(\'\\n  - \'))" -- "$CLAUDE_FILE_PATH"',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.ya?ml$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(!/kind:\\s*(Deployment|StatefulSet|DaemonSet|Job|CronJob|Pod)/.test(c))process.exit(0);const issues=[];if(!/resources:/.test(c))issues.push(\'Missing resource requests/limits\');if(/kind:\\s*(Deployment|StatefulSet|DaemonSet)/.test(c)){if(!/livenessProbe:/.test(c))issues.push(\'Missing livenessProbe\');if(!/readinessProbe:/.test(c))issues.push(\'Missing readinessProbe\')}if(!/runAsNonRoot:\\s*true/.test(c))issues.push(\'Missing runAsNonRoot: true in securityContext\');if(/:latest/.test(c))issues.push(\'Using :latest image tag — pin a specific version\');if(issues.length)console.log(\'\\u26a0\\ufe0f K8s manifest issues in \'+f+\':\\n  - \'+issues.join(\'\\n  - \'))" -- "$FILE_PATH"',
             timeout: 5,
+            statusMessage: 'Auditing K8s manifest for resource limits, probes, and security',
           },
         ],
       },
@@ -448,8 +284,9 @@ Report each finding with severity (CRITICAL / WARNING / INFO) and specific remed
           {
             type: 'command' as const,
             command:
-              'echo "$CLAUDE_TOOL_INPUT" | grep -qE "kubectl\\s+(delete|drain|cordon|taint)\\s" && echo "HOOK_EXIT:0:Warning: destructive kubectl command detected (delete/drain/cordon/taint) — verify target namespace and resource" || true',
+              'TOOL_CMD=$(jq -r \'.tool_input.command // empty\') && echo "$TOOL_CMD" | grep -qE "kubectl\\s+(delete|drain|cordon|taint)\\s" && { echo "Warning: destructive kubectl command detected (delete/drain/cordon/taint) — verify target namespace and resource" >&2; exit 2; } || exit 0',
             timeout: 5,
+            statusMessage: 'Checking for destructive kubectl commands',
           },
         ],
       },

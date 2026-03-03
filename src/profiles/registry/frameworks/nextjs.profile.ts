@@ -47,199 +47,36 @@ App Router architecture. Server Components by default — add \`'use client'\` o
         content: `# Next.js App Router Architecture
 
 ## Route Segment File Conventions
-
-Every route segment in the \`app/\` directory supports these special files, rendered in this exact hierarchy:
-
+Every route segment supports these special files, rendered in this hierarchy:
 1. \`layout.tsx\` — persistent shared UI (wraps everything below)
 2. \`template.tsx\` — like layout but re-mounts on navigation
 3. \`error.tsx\` — React error boundary
-4. \`loading.tsx\` — React Suspense boundary (shows skeleton while page loads)
+4. \`loading.tsx\` — Suspense boundary (shows skeleton while page loads)
 5. \`not-found.tsx\` — not-found error boundary
-6. \`page.tsx\` — the route's unique UI (or nested \`layout.tsx\` for child segments)
-
-### Correct — complete route segment
-
-\`\`\`
-app/
-  dashboard/
-    layout.tsx          # persistent sidebar/nav
-    loading.tsx         # skeleton while page data loads
-    error.tsx           # error boundary with retry
-    not-found.tsx       # 404 for this segment
-    page.tsx            # dashboard home
-    settings/
-      page.tsx          # /dashboard/settings
-    analytics/
-      loading.tsx       # separate skeleton for analytics
-      page.tsx          # /dashboard/analytics
-\`\`\`
-
-### Anti-Pattern — missing error/loading boundaries
-
-\`\`\`
-app/
-  dashboard/
-    page.tsx            # no loading.tsx = no streaming, no skeleton
-                        # no error.tsx = errors bubble up or crash the whole page
-\`\`\`
-
----
+6. \`page.tsx\` — the route's unique UI
 
 ## Server Components vs Client Components
+- Default is Server Component — no directive needed
+- Add \`'use client'\` ONLY on leaf-level components that need interactivity
+- Server: data fetching, secrets, heavy computation, static rendering
+- Client: \`useState\`/\`useEffect\`, event handlers, browser APIs, custom hooks with state
+- Never put \`'use client'\` at page or layout level — keeps entire subtree client-side
 
-### Decision Matrix
+## Interleaving Pattern
+- Pass Server Components as \`children\` or props to Client Components to keep them server-rendered
+- Client Components cannot \`import\` Server Components, but can receive them as \`children\`
 
-| Need | Component Type |
-|------|---------------|
-| Fetch data from DB/API | Server Component |
-| Access secrets/tokens | Server Component |
-| Heavy computation (no client JS) | Server Component |
-| Static content rendering | Server Component |
-| \`useState\`, \`useReducer\` | Client Component (\`'use client'\`) |
-| \`useEffect\`, lifecycle hooks | Client Component |
-| Event handlers (onClick, onChange) | Client Component |
-| Browser APIs (localStorage, geolocation) | Client Component |
-| Custom hooks with state | Client Component |
+## Route Organization
+- Route groups \`(groupName)/\` scope layouts without affecting the URL
+- Dynamic routes: \`[slug]\`, catch-all: \`[...path]\`, optional: \`[[...path]]\`
+- Use \`generateStaticParams()\` for dynamic routes that can be statically generated
+- Call \`notFound()\` for missing resources instead of returning null
 
-### Correct — leaf-level 'use client' boundary
-
-\`\`\`tsx
-// app/dashboard/page.tsx — Server Component (default, no directive)
-import { getMetrics } from '@/lib/data'
-import { MetricsChart } from './metrics-chart'
-
-export default async function DashboardPage() {
-  const metrics = await getMetrics() // fetched on the server
-  return (
-    <main>
-      <h1>Dashboard</h1>
-      <MetricsChart data={metrics} /> {/* Client Component for interactivity */}
-    </main>
-  )
-}
-\`\`\`
-
-\`\`\`tsx
-// app/dashboard/metrics-chart.tsx — Client Component
-'use client'
-
-import { useState } from 'react'
-
-interface MetricsChartProps {
-  data: { label: string; value: number }[]
-}
-
-export function MetricsChart({ data }: MetricsChartProps) {
-  const [range, setRange] = useState<'7d' | '30d'>('7d')
-  return (
-    <div>
-      <button onClick={() => setRange('7d')}>7 days</button>
-      <button onClick={() => setRange('30d')}>30 days</button>
-      {/* render chart with filtered data */}
-    </div>
-  )
-}
-\`\`\`
-
-### Anti-Pattern — 'use client' at page level
-
-\`\`\`tsx
-// BAD: entire page is a Client Component — all children become client bundle
-'use client'
-
-import { useEffect, useState } from 'react'
-
-export default function DashboardPage() {
-  const [metrics, setMetrics] = useState(null)
-  useEffect(() => {
-    fetch('/api/metrics').then(r => r.json()).then(setMetrics)
-  }, [])
-  // Problem: fetching on client, larger JS bundle, no streaming, no SEO
-  return <div>{/* ... */}</div>
-}
-\`\`\`
-
----
-
-## Interleaving Pattern (Server inside Client)
-
-Pass Server Components as \`children\` or props to Client Components to keep them server-rendered:
-
-\`\`\`tsx
-// app/ui/sidebar.tsx — Client Component with toggle
-'use client'
-
-import { useState } from 'react'
-
-export function Sidebar({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(true)
-  return (
-    <aside style={{ display: open ? 'block' : 'none' }}>
-      <button onClick={() => setOpen(!open)}>Toggle</button>
-      {children} {/* Server Components passed as children remain server-rendered */}
-    </aside>
-  )
-}
-\`\`\`
-
-\`\`\`tsx
-// app/layout.tsx — Server Component
-import { Sidebar } from './ui/sidebar'
-import { Navigation } from './ui/navigation' // Server Component
-
-export default function Layout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex">
-      <Sidebar>
-        <Navigation /> {/* stays on the server */}
-      </Sidebar>
-      <main>{children}</main>
-    </div>
-  )
-}
-\`\`\`
-
----
-
-## Route Organization Patterns
-
-### Route groups for layout scoping
-\`\`\`
-app/
-  (marketing)/
-    layout.tsx          # marketing-specific layout
-    page.tsx            # / (home)
-    about/page.tsx      # /about
-  (app)/
-    layout.tsx          # app layout with auth sidebar
-    dashboard/page.tsx  # /dashboard
-    settings/page.tsx   # /settings
-\`\`\`
-
-### Dynamic routes with static generation
-\`\`\`tsx
-// app/blog/[slug]/page.tsx
-import { notFound } from 'next/navigation'
-import { getPost, getAllPostSlugs } from '@/lib/posts'
-
-// Pre-render these paths at build time
-export async function generateStaticParams() {
-  const slugs = await getAllPostSlugs()
-  return slugs.map((slug) => ({ slug }))
-}
-
-export default async function BlogPost({
-  params,
-}: {
-  params: Promise<{ slug: string }>
-}) {
-  const { slug } = await params
-  const post = await getPost(slug)
-  if (!post) notFound()
-
-  return <article>{/* render post */}</article>
-}
-\`\`\`
+## Key Rules
+- Always create \`loading.tsx\` for segments with async data fetching
+- Always create \`error.tsx\` with a retry mechanism and user-friendly message
+- Export \`metadata\` or \`generateMetadata\` from all pages for SEO
+- Props passed from Server to Client Components must be serializable (no functions, Dates, class instances)
 `,
       },
       {
@@ -250,110 +87,27 @@ export default async function BlogPost({
         content: `# Server Actions & Mutations
 
 ## Core Rules
+1. **Server Actions are public endpoints** — treat them like API routes; attackers can call them directly
+2. **Validate ALL inputs** with a schema library (Zod, Valibot) on every Server Action
+3. **Authorize the caller** — check session/permissions inside the action; never trust client auth state alone
+4. **Revalidate after mutations** — call \`revalidatePath()\` or \`revalidateTag()\` before \`redirect()\`
+5. **Return typed responses** — \`{ success, data?, error? }\` instead of throwing raw errors
 
-1. **Server Actions are public endpoints** — treat them like API routes. An attacker can call them directly.
-2. **Validate ALL inputs** — use a schema library (Zod, Valibot) on every Server Action, even for logged-in users.
-3. **Authorize the caller** — check session/permissions inside the action, never trust client-side auth state alone.
-4. **Revalidate after mutations** — call \`revalidatePath()\` or \`revalidateTag()\` before \`redirect()\`.
-5. **Return typed responses** — return \`{ success, data?, error? }\` instead of throwing raw errors to the client.
+## Server Action Checklist
+- Files with Server Actions must have \`'use server'\` at the top
+- Authenticate: verify session/JWT inside the action
+- Authorize: check user roles/permissions
+- Validate: parse input with Zod/Valibot schema
+- Mutate: perform DB operation with error handling
+- Revalidate: call \`revalidatePath()\` or \`revalidateTag()\`
+- Redirect: call \`redirect()\` AFTER revalidation, never before
+- Never return raw database errors to the client
 
----
-
-## Correct — secure Server Action with validation
-
-\`\`\`typescript
-// app/actions/posts.ts
-'use server'
-
-import { z } from 'zod'
-import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
-import { auth } from '@/lib/auth'
-import { db } from '@/lib/db'
-
-const CreatePostSchema = z.object({
-  title: z.string().min(1).max(200),
-  content: z.string().min(1).max(50_000),
-})
-
-type ActionResult = { success: true } | { success: false; error: string }
-
-export async function createPost(formData: FormData): Promise<ActionResult> {
-  // 1. Authenticate
-  const session = await auth()
-  if (!session?.user) {
-    return { success: false, error: 'Not authenticated' }
-  }
-
-  // 2. Validate input
-  const parsed = CreatePostSchema.safeParse({
-    title: formData.get('title'),
-    content: formData.get('content'),
-  })
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0].message }
-  }
-
-  // 3. Perform mutation
-  try {
-    await db.post.create({
-      data: { ...parsed.data, authorId: session.user.id },
-    })
-  } catch {
-    return { success: false, error: 'Failed to create post' }
-  }
-
-  // 4. Revalidate THEN redirect
-  revalidatePath('/posts')
-  redirect('/posts')
-}
-\`\`\`
-
-## Anti-Pattern — unvalidated Server Action
-
-\`\`\`typescript
-// BAD: no auth check, no input validation, no error handling
-'use server'
-
-import { db } from '@/lib/db'
-
-export async function createPost(formData: FormData) {
-  await db.post.create({
-    data: {
-      title: formData.get('title') as string, // unsafe cast, no validation
-      content: formData.get('content') as string,
-    },
-  })
-  // no revalidation — UI will show stale data
-}
-\`\`\`
-
----
-
-## Using Server Actions in Client Components
-
-\`\`\`tsx
-// app/posts/create/page.tsx
-'use client'
-
-import { useActionState } from 'react'
-import { createPost } from '@/app/actions/posts'
-
-export default function CreatePostForm() {
-  const [state, action, isPending] = useActionState(createPost, null)
-
-  return (
-    <form action={action}>
-      <input name="title" required />
-      <textarea name="content" required />
-      <button type="submit" disabled={isPending}>
-        {isPending ? 'Creating...' : 'Create Post'}
-      </button>
-      {state?.error && <p role="alert">{state.error}</p>}
-    </form>
-  )
-}
-\`\`\`
+## Client Component Integration
+- Use \`useActionState()\` hook for form state management with Server Actions
+- Disable submit button during pending state (\`isPending\`)
+- Display action errors from returned state
+- Use progressive enhancement: forms work without JS when using \`<form action={action}>\`
 `,
       },
       {
@@ -364,105 +118,35 @@ export default function CreatePostForm() {
         content: `# Next.js Caching Strategy
 
 ## Four Caching Layers
-
-| Layer | What | Where | Duration | Opt-out |
-|-------|------|-------|----------|---------|
-| **Request Memoization** | Return values of \`fetch\`/\`React.cache\` | Server (per request) | Single request lifecycle | \`AbortController.signal\` |
-| **Data Cache** | Fetched data | Server (persistent) | Until revalidated | \`{ cache: 'no-store' }\` |
-| **Full Route Cache** | HTML + RSC Payload | Server (persistent) | Until revalidated or redeployed | Dynamic APIs, \`force-dynamic\` |
-| **Router Cache** | RSC Payload | Client (in-memory) | Session / 5 min | \`router.refresh()\`, \`revalidatePath\` |
-
----
+| Layer | Where | Duration | Opt-out |
+|-------|-------|----------|---------|
+| **Request Memoization** | Server (per request) | Single request | \`AbortController.signal\` |
+| **Data Cache** | Server (persistent) | Until revalidated | \`{ cache: 'no-store' }\` |
+| **Full Route Cache** | Server (persistent) | Until revalidated/redeployed | \`force-dynamic\` |
+| **Router Cache** | Client (in-memory) | Session / 5 min | \`router.refresh()\` |
 
 ## Revalidation Patterns
+- **Time-based (ISR)**: \`fetch(url, { next: { revalidate: 60 } })\` — stale-while-revalidate
+- **On-demand tag-based**: tag fetches with \`next: { tags: ['product-1'] }\`, then \`revalidateTag('product-1')\` after mutation
+- **On-demand path-based**: \`revalidatePath('/blog')\` or \`revalidatePath('/blog', 'layout')\` for nested segments
 
-### Time-based (ISR) — stale-while-revalidate
-\`\`\`typescript
-// Revalidate product data every 60 seconds
-const product = await fetch(\`https://api.store.com/products/\${id}\`, {
-  next: { revalidate: 60 },
-})
-\`\`\`
-
-### On-demand — tag-based
-\`\`\`typescript
-// Tag the fetch
-const product = await fetch(\`https://api.store.com/products/\${id}\`, {
-  next: { tags: [\`product-\${id}\`] },
-})
-
-// Revalidate in a Server Action after mutation
-import { revalidateTag } from 'next/cache'
-
-export async function updateProduct(id: string, data: ProductData) {
-  'use server'
-  await db.product.update({ where: { id }, data })
-  revalidateTag(\`product-\${id}\`)
-}
-\`\`\`
-
-### On-demand — path-based
-\`\`\`typescript
-import { revalidatePath } from 'next/cache'
-
-export async function publishPost() {
-  'use server'
-  // ...mutation
-  revalidatePath('/blog')     // revalidate the /blog route
-  revalidatePath('/blog', 'layout') // revalidate including nested segments
-}
-\`\`\`
-
----
-
-## When to Use Dynamic Rendering
-
-A route becomes dynamic automatically when it accesses request-specific APIs:
+## Dynamic Rendering
+A route becomes dynamic automatically when it accesses:
 - \`cookies()\`, \`headers()\`, \`connection()\`
 - \`searchParams\` prop in Page components
 - \`fetch\` with \`{ cache: 'no-store' }\`
 
-### Correct — intentional dynamic rendering
-\`\`\`tsx
-// app/profile/page.tsx — must be dynamic because it reads cookies
-import { cookies } from 'next/headers'
+Avoid \`dynamic = 'force-dynamic'\` — prefer time-based revalidation when data changes periodically.
 
-export default async function ProfilePage() {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('session')?.value
-  // ...fetch user with token
-}
-\`\`\`
+## Request Memoization
+- For non-fetch data sources, use \`React.cache()\` to deduplicate DB calls within a single request
+- Call the cached function in multiple Server Components — only one query executes per request
+- \`fetch\` calls are automatically memoized within a request (no wrapper needed)
 
-### Anti-Pattern — accidentally dynamic
-\`\`\`tsx
-// BAD: using force-dynamic when time-based revalidation would suffice
-export const dynamic = 'force-dynamic' // skips ALL caching
-
-export default async function ProductsPage() {
-  const products = await fetch('https://api.store.com/products')
-  // This data updates every few minutes — use revalidate instead:
-  // next: { revalidate: 300 }
-}
-\`\`\`
-
----
-
-## Request Memoization with React.cache
-
-For non-fetch data sources (databases, CMS clients, GraphQL), use \`React.cache()\` to deduplicate within a single request:
-
-\`\`\`typescript
-// lib/data.ts
-import { cache } from 'react'
-import { db } from '@/lib/db'
-
-export const getUser = cache(async (userId: string) => {
-  return db.user.findUnique({ where: { id: userId } })
-})
-
-// Call getUser(id) in multiple Server Components — only one DB query per request
-\`\`\`
+## Key Rules
+- Always choose the least aggressive caching strategy that meets your freshness requirements
+- Use \`revalidateTag()\` for fine-grained invalidation of related data
+- Call \`revalidatePath()\` or \`revalidateTag()\` BEFORE \`redirect()\` in Server Actions
 `,
       },
       {
@@ -472,168 +156,34 @@ export const getUser = cache(async (userId: string) => {
         description: 'Next.js performance optimization, images, fonts, and bundle size',
         content: `# Next.js Performance Optimization
 
-## Image Optimization with next/image
+## Image Optimization (next/image)
+- Always use \`next/image\` instead of raw \`<img>\` tags
+- Add \`priority\` prop to above-the-fold LCP images
+- Use \`placeholder="blur"\` with static imports for progressive loading
+- Remote images: specify \`width\`/\`height\` or use \`fill\` mode with a sized container
+- Configure allowed remote domains in \`next.config.ts\` via \`images.remotePatterns\`
+- Always provide meaningful \`alt\` text for accessibility
 
-### Correct
-\`\`\`tsx
-import Image from 'next/image'
-
-// Static import — width/height inferred automatically
-import heroImage from '@/public/hero.jpg'
-
-export function Hero() {
-  return (
-    <Image
-      src={heroImage}
-      alt="Product hero banner"
-      priority              // above-the-fold LCP image
-      placeholder="blur"    // blur-up from static import
-    />
-  )
-}
-
-// Remote image — must specify dimensions or use fill
-export function Avatar({ url, name }: { url: string; name: string }) {
-  return (
-    <Image
-      src={url}
-      alt={\`\${name}'s avatar\`}
-      width={48}
-      height={48}
-      className="rounded-full"
-    />
-  )
-}
-
-// Fill mode for unknown dimensions
-export function Banner({ src }: { src: string }) {
-  return (
-    <div className="relative aspect-video">
-      <Image src={src} alt="Banner" fill className="object-cover" />
-    </div>
-  )
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`tsx
-// BAD: raw img tag — no optimization, no lazy loading, no responsive sizing
-<img src="/hero.jpg" />
-
-// BAD: no alt text — accessibility violation
-<Image src={heroImage} alt="" />
-
-// BAD: missing priority on LCP image — slower First Contentful Paint
-<Image src={heroImage} alt="Hero" /> // should have priority
-\`\`\`
-
-Configure remote image domains in \`next.config.ts\`:
-\`\`\`typescript
-// next.config.ts
-const config = {
-  images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: 'cdn.example.com' },
-    ],
-  },
-}
-export default config
-\`\`\`
-
----
-
-## Font Optimization
-
-\`\`\`tsx
-// app/layout.tsx
-import { Inter, JetBrains_Mono } from 'next/font/google'
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',       // CSS variable for flexibility
-  display: 'swap',
-})
-
-const mono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
-})
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en" className={\`\${inter.variable} \${mono.variable}\`}>
-      <body className="font-sans">{children}</body>
-    </html>
-  )
-}
-\`\`\`
-
----
+## Font Optimization (next/font)
+- Use \`next/font/google\` or \`next/font/local\` — self-hosted, no external requests
+- Apply via CSS variables (\`variable\` option) for flexibility across the app
+- Set \`display: 'swap'\` to prevent invisible text during loading
 
 ## Bundle Optimization
-
-- Use \`next/dynamic\` for heavy client components that are not needed on first render:
-\`\`\`tsx
-import dynamic from 'next/dynamic'
-
-const RichEditor = dynamic(() => import('./rich-editor'), {
-  loading: () => <div className="animate-pulse h-64 bg-gray-100" />,
-  ssr: false, // only if component truly cannot render on server
-})
-\`\`\`
-
-- Analyze bundle size regularly:
-\`\`\`bash
-ANALYZE=true npm run build
-\`\`\`
-
-- Prefer named imports over namespace imports for tree-shaking:
-\`\`\`typescript
-// Good: tree-shakeable
-import { format } from 'date-fns'
-
-// Bad: imports entire library
-import * as dateFns from 'date-fns'
-\`\`\`
-
----
+- Use \`next/dynamic\` for heavy client components not needed on first render
+- Set \`ssr: false\` only for components that truly cannot render on the server
+- Prefer named imports for tree-shaking: \`import { format } from 'date-fns'\`
+- Analyze bundle size regularly with \`ANALYZE=true npm run build\`
 
 ## Metadata & SEO
-
-\`\`\`tsx
-// app/blog/[slug]/page.tsx
-import type { Metadata } from 'next'
-import { getPost } from '@/lib/posts'
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ slug: string }>
-}): Promise<Metadata> {
-  const { slug } = await params
-  const post = await getPost(slug)
-
-  return {
-    title: post.title,
-    description: post.excerpt,
-    openGraph: {
-      title: post.title,
-      description: post.excerpt,
-      images: [post.coverImage],
-      type: 'article',
-      publishedTime: post.publishedAt,
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: post.title,
-      description: post.excerpt,
-    },
-  }
-}
-\`\`\`
-
-- Use file-based metadata: \`robots.ts\`, \`sitemap.ts\`, \`opengraph-image.tsx\` for dynamic OG images
+- Export \`metadata\` (static) or \`generateMetadata\` (dynamic) from every page
+- Include title, description, and OpenGraph/Twitter card metadata
+- Use file-based metadata: \`robots.ts\`, \`sitemap.ts\`, \`opengraph-image.tsx\`
 - Implement JSON-LD structured data for rich search results
+
+## Navigation
+- Always use \`next/link\` for internal navigation — never raw \`<a>\` tags
+- \`next/link\` provides client-side navigation, prefetching, and scroll restoration
 `,
       },
       {
@@ -802,6 +352,8 @@ const API_KEY = process.env.NEXT_PUBLIC_API_KEY // anyone can read this in brows
       {
         name: 'nextjs-route-generator',
         description: 'Generate complete Next.js App Router route segments with all conventions',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Next.js Route Generator
 
 Generate a complete Next.js App Router route segment with:
@@ -884,7 +436,7 @@ export default function Loading() {
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `node -e "
+          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/page\\.(tsx|jsx)$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -897,7 +449,7 @@ if (hasUseClient && !hasInteractivity) {
 if (!hasUseClient && /export (default )?(async )?function/.test(c) && !/export (const )?metadata|generateMetadata/.test(c)) {
   console.log('Warning: page.tsx has no metadata export. Add metadata or generateMetadata for SEO.');
 }
-" -- "$CLAUDE_FILE_PATH"`,
+" -- "$FILE_PATH"`,
           timeout: 5,
         }],
       },
@@ -906,7 +458,7 @@ if (!hasUseClient && /export (default )?(async )?function/.test(c) && !/export (
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `node -e "
+          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.(tsx|jsx)$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -916,7 +468,7 @@ if (/<img\\s/.test(c) && !/next\\/image/.test(c)) {
 if (/<a\\s+href=/.test(c) && /href=[\"\\x27]\\//.test(c) && !/next\\/link/.test(c)) {
   console.log('Warning: Raw <a> tag with internal href detected. Use next/link for client-side navigation and prefetching.');
 }
-" -- "$CLAUDE_FILE_PATH"`,
+" -- "$FILE_PATH"`,
           timeout: 5,
         }],
       },
@@ -925,7 +477,7 @@ if (/<a\\s+href=/.test(c) && /href=[\"\\x27]\\//.test(c) && !/next\\/link/.test(
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `node -e "
+          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/actions?\\.ts$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -938,7 +490,7 @@ if (/['\"]use server['\"]/.test(c)) {
     }
   }
 }
-" -- "$CLAUDE_FILE_PATH"`,
+" -- "$FILE_PATH"`,
           timeout: 5,
         }],
       },

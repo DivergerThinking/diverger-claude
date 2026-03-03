@@ -121,6 +121,34 @@ describe('generateSettings', () => {
     expect(() => JSON.parse(result.content)).not.toThrow();
   });
 
+  it('should include additionalDirectories when present', () => {
+    const config = makeConfig({
+      settings: {
+        permissions: {
+          additionalDirectories: ['/shared/libs', '/external/api'],
+        },
+      },
+    });
+    const result = generateSettings(config, '/project');
+    const parsed = JSON.parse(result.content);
+
+    expect(parsed.permissions.additionalDirectories).toEqual(['/shared/libs', '/external/api']);
+  });
+
+  it('should not include additionalDirectories when empty', () => {
+    const config = makeConfig({
+      settings: {
+        permissions: {
+          additionalDirectories: [],
+        },
+      },
+    });
+    const result = generateSettings(config, '/project');
+    const parsed = JSON.parse(result.content);
+
+    expect(parsed.permissions.additionalDirectories).toBeUndefined();
+  });
+
   it('should include $schema as first key', () => {
     const config = makeConfig();
     const result = generateSettings(config, '/project');

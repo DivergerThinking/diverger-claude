@@ -45,112 +45,40 @@ Gray-box E2E testing for React Native. Automatic synchronization with the app.
         description: 'Detox E2E testing conventions — element selection, synchronization, device API, and test structure',
         content: `# Detox E2E Testing Conventions
 
-## Element Selection Rules
-- ALWAYS use \`testID\` prop as the primary element identifier — match with \`by.id()\`
-- Forward \`testID\` to the nearest native component in custom components — \`testID\` only works on native views (View, Text, TouchableOpacity, etc.)
-- Use unique, descriptive testID names with a consistent naming convention: \`'ScreenName.ElementDescription'\`
-- Never use element text or label in testID names — test IDs must be independent of displayed content
-- Use \`by.text()\` for verifying user-visible text, not for selecting interaction targets
-- Use \`by.label()\` for accessibility label matching — useful for elements with dynamic text
-- Never use index-based matchers (\`atIndex()\`) unless absolutely necessary — they are brittle and order-dependent
-- Combine matchers with \`and()\` for precise selection: \`by.id('item').and(by.text('Expected'))\`
+## Element Selection
+- ALWAYS use \`testID\` prop with \`by.id()\` as primary matcher
+- Forward \`testID\` to the nearest native component in custom components
+- Use consistent naming: \`'ScreenName.ElementDescription'\`
+- Use \`by.text()\` for verification, not interaction targets
+- Never use index-based matchers (\`atIndex()\`) — brittle and order-dependent
+- Combine matchers with \`and()\` for precise selection
 
-### Correct
-\`\`\`jsx
-// Component: always forward testID to native view
-const LoginButton = ({ testID, onPress }) => (
-  <TouchableOpacity testID={testID} onPress={onPress}>
-    <Text>Log In</Text>
-  </TouchableOpacity>
-);
+## Synchronization
+- Trust Detox auto-sync — it waits for animations, network, bridge, and timers
+- Never use arbitrary sleeps — use \`waitFor\` with \`.withTimeout(ms)\`
+- Every \`waitFor\` MUST include \`.withTimeout(ms)\` — without it, waitFor is a no-op
+- Use \`device.disableSynchronization()\` ONLY for loading state tests — re-enable immediately
+- Use \`device.setURLBlacklist()\` for endpoints that block sync (analytics, long-polling)
 
-// Test: use by.id() for interaction, by.text() for verification
-await element(by.id('Login.SubmitButton')).tap();
-await expect(element(by.text('Welcome back!'))).toBeVisible();
-\`\`\`
-
-### Anti-Pattern
-\`\`\`jsx
-// BAD: testID not forwarded to native component
-const LoginButton = ({ testID }) => (
-  <View>
-    <Text testID={testID}>Log In</Text>  // testID on Text, not the tappable element
-  </View>
-);
-
-// BAD: selecting by text for interaction — breaks with i18n
-await element(by.text('Log In')).tap();
-
-// BAD: index-based selector — breaks if layout changes
-await element(by.type('RCTView')).atIndex(3).tap();
-\`\`\`
-
----
-
-## Synchronization Rules
-- Trust Detox auto-synchronization — it waits for animations, network, React Native bridge, and timers by default
-- Never use arbitrary sleeps or manual polling — always use \`waitFor\` with a timeout when synchronization is insufficient
-- Every \`waitFor\` call MUST include \`.withTimeout(ms)\` — omitting it causes the waitFor to do nothing
-- Use \`device.disableSynchronization()\` ONLY for testing loading states or infinite animations — re-enable immediately with \`device.enableSynchronization()\`
-- Use \`device.setURLBlacklist()\` to ignore specific network endpoints that prevent synchronization (analytics, long-polling)
-
-### Correct
-\`\`\`typescript
-// Wait for async element with explicit timeout
-await waitFor(element(by.id('Dashboard.Content')))
-  .toBeVisible()
-  .withTimeout(10000);
-
-// Disable sync only for loading state test
-await device.disableSynchronization();
-await expect(element(by.id('LoadingSpinner'))).toBeVisible();
-await device.enableSynchronization();
-\`\`\`
-
-### Anti-Pattern
-\`\`\`typescript
-// BAD: arbitrary sleep
-await new Promise(resolve => setTimeout(resolve, 3000));
-await expect(element(by.id('Dashboard.Content'))).toBeVisible();
-
-// BAD: waitFor without timeout does nothing
-await waitFor(element(by.id('Dashboard.Content'))).toBeVisible();
-
-// BAD: disabling sync globally and forgetting to re-enable
-await device.disableSynchronization();
-await element(by.id('Submit')).tap();
-// Sync never re-enabled — all subsequent tests are unsafe
-\`\`\`
-
----
-
-## Device API Usage
-- Use \`device.launchApp({newInstance: true})\` for a fresh app start — use in \`beforeAll\` for suite-level setup
-- Use \`device.reloadReactNative()\` for faster state resets — only resets JS state, native state persists
-- Use \`device.sendToHome()\` followed by \`device.launchApp({newInstance: false})\` to test background/foreground transitions
-- Use \`device.openURL({url: 'scheme://path'})\` to test deep link handling
-- Use \`device.setURLBlacklist([patterns])\` to block network requests that interfere with synchronization
-- Use \`device.launchApp({delete: true})\` to uninstall and reinstall the app for a truly clean state
-
----
+## Device API
+- \`device.launchApp({newInstance: true})\` — fresh start in \`beforeAll\`
+- \`device.reloadReactNative()\` — fast JS-only reset in \`beforeEach\`
+- \`device.sendToHome()\` + \`launchApp({newInstance: false})\` — background/foreground testing
+- \`device.openURL({url: 'scheme://path'})\` — deep link testing
+- \`device.launchApp({delete: true})\` — full reinstall for clean state
 
 ## Test Structure
-- Structure tests by user journey or feature flow: \`describe('Login Flow', ...)\`
-- Keep each test focused on one user flow step — one assertion per test when possible
-- Use \`beforeAll\` for expensive one-time setup (app launch, authentication)
-- Use \`beforeEach\` with \`device.reloadReactNative()\` for per-test state isolation
-- Clean up test data in \`afterAll\` — do not leave artifacts that affect other test suites
-- Run tests serially in CI — parallel execution requires dedicated devices per worker
-- Use \`test.retryTimes(count)\` via Jest for flaky test mitigation — but always investigate root cause
-
----
+- Structure by user journey: \`describe('Login Flow', ...)\`
+- Keep each test focused on one flow step
+- \`beforeAll\` for expensive setup, \`beforeEach\` for per-test reset
+- Clean up in \`afterAll\` — no artifacts left for other suites
+- Run serially in CI — parallel requires dedicated devices per worker
 
 ## Artifacts & Debugging
-- Configure artifacts in \`.detoxrc.js\` to capture: screenshots, videos, device logs, timeline traces
-- Use \`shouldTakeAutomaticSnapshots\` to auto-capture screenshots on test failure
-- Use \`--loglevel verbose\` or \`--loglevel trace\` to debug synchronization issues in CI
-- Use \`device.takeScreenshot('name')\` for manual screenshot capture at specific test points
-- Keep only failed test artifacts in CI to save storage: \`"shouldKeepArtifactsOfPassingTests": false\`
+- Configure in \`.detoxrc.js\`: screenshots, videos, logs, timeline traces
+- Use \`shouldTakeAutomaticSnapshots\` for failure screenshots
+- Use \`--loglevel verbose\` to debug sync issues in CI
+- Keep only failed test artifacts: \`"shouldKeepArtifactsOfPassingTests": false\`
 `,
       },
       {
@@ -161,101 +89,31 @@ await element(by.id('Submit')).tap();
         content: `# Detox Configuration Best Practices
 
 ## .detoxrc.js Structure
-Configure Detox at the project root with \`.detoxrc.js\` (or \`.detoxrc.json\`, \`detox.config.js\`):
+- Configure \`testRunner\` with Jest: args, setupTimeout (120000ms), teardownTimeout (30000ms)
+- Define \`apps\` for each platform: iOS (\`ios.app\` + xcodebuild), Android (\`android.apk\` + gradle)
+- Define \`devices\`: iOS simulator and Android emulator with specific device types
+- Create \`configurations\` combining device + app (e.g., \`ios.sim.debug\`, \`android.emu.debug\`)
+- Configure \`artifacts\`: screenshots on failure, video on failure, logs and timeline for all
 
-\`\`\`javascript
-/** @type {import('detox').DetoxConfig} */
-module.exports = {
-  testRunner: {
-    args: {
-      $0: 'jest',
-      config: 'e2e/jest.config.js',
-    },
-    jest: {
-      setupTimeout: 120000,
-      teardownTimeout: 30000,
-    },
-  },
-  apps: {
-    'ios.debug': {
-      type: 'ios.app',
-      binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/MyApp.app',
-      build: 'xcodebuild -workspace ios/MyApp.xcworkspace -scheme MyApp -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build',
-    },
-    'android.debug': {
-      type: 'android.apk',
-      binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
-      build: 'cd android && ./gradlew assembleDebug assembleAndroidTest -DtestBuildType=debug',
-      reversePorts: [8081],
-    },
-  },
-  devices: {
-    simulator: {
-      type: 'ios.simulator',
-      device: { type: 'iPhone 15' },
-    },
-    emulator: {
-      type: 'android.emulator',
-      device: { avdName: 'Pixel_7_API_34' },
-    },
-  },
-  configurations: {
-    'ios.sim.debug': {
-      device: 'simulator',
-      app: 'ios.debug',
-    },
-    'android.emu.debug': {
-      device: 'emulator',
-      app: 'android.debug',
-    },
-  },
-  artifacts: {
-    rootDir: 'e2e/artifacts',
-    plugins: {
-      screenshot: { shouldTakeAutomaticSnapshots: true, keepOnlyFailedTestsArtifacts: true },
-      video: 'failing',
-      log: 'all',
-      timeline: 'all',
-    },
-  },
-};
-\`\`\`
+## Jest Configuration (e2e/jest.config.js)
+- Set \`testMatch\` to \`e2e/**/*.test.{js,ts}\`
+- Set \`testTimeout: 120000\` and \`maxWorkers: 1\` (serial execution)
+- Use Detox Jest runner globals: globalSetup, globalTeardown, reporter, testEnvironment
 
-## Jest Configuration for Detox (e2e/jest.config.js)
-\`\`\`javascript
-/** @type {import('@jest/types').Config.InitialOptions} */
-module.exports = {
-  rootDir: '..',
-  testMatch: ['<rootDir>/e2e/**/*.test.{js,ts}'],
-  testTimeout: 120000,
-  maxWorkers: 1,
-  globalSetup: 'detox/runners/jest/globalSetup',
-  globalTeardown: 'detox/runners/jest/globalTeardown',
-  reporters: ['detox/runners/jest/reporter'],
-  testEnvironment: 'detox/runners/jest/testEnvironment',
-  verbose: true,
-};
-\`\`\`
+## Directory Structure
+- \`e2e/\` — test files organized by user flow
+- \`e2e/jest.config.js\` — Jest config for Detox
+- \`e2e/artifacts/\` — auto-generated test artifacts
+- \`.detoxrc.js\` — Detox configuration at project root
 
-## Test File Directory Structure
-\`\`\`
-e2e/
-  jest.config.js          # Jest config for Detox
-  login.test.ts           # Login flow E2E tests
-  onboarding.test.ts      # Onboarding flow E2E tests
-  checkout.test.ts        # Checkout flow E2E tests
-  artifacts/              # Auto-generated test artifacts
-.detoxrc.js               # Detox configuration
-\`\`\`
-
-## CI Configuration Tips
-- Build the app binary once and reuse across test runs — separate build and test steps
-- Use headless emulator/simulator mode in CI: \`--headless\` or \`-no-window\`
-- Use \`--retries N\` to re-run failed test files up to N times
-- Use \`--reuse\` flag to avoid reinitializing the device between test files
-- Set \`maxWorkers: 1\` in Jest config — Detox tests must run serially per device
-- Increase \`setupTimeout\` in CI (120000ms+) to account for slower emulator boot times
-- Persist artifacts directory as CI build artifacts for post-failure analysis
+## CI Configuration
+- Build binary once, reuse across test runs (separate build and test steps)
+- Use headless mode: \`--headless\` or \`-no-window\`
+- Use \`--retries N\` to re-run failed test files
+- Use \`--reuse\` flag to avoid reinitializing device between files
+- Set \`maxWorkers: 1\` — Detox tests must run serially per device
+- Increase \`setupTimeout\` in CI (120000ms+) for slower emulator boot
+- Persist artifacts as CI build artifacts for post-failure analysis
 `,
       },
     ],
@@ -327,6 +185,8 @@ Available skills: detox-test-generator
       {
         name: 'detox-test-generator',
         description: 'Generate Detox E2E test suites for React Native user flows',
+        context: 'fork',
+        allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
         content: `# Detox E2E Test Generator
 
 ## Purpose
@@ -446,8 +306,9 @@ it('should open product detail via deep link', async () => {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "e2e/.*\\.(test|spec)\\.(ts|js)$" && grep -cE "\\b(test\\.only|describe\\.only|fit|fdescribe)\\b" "$CLAUDE_FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && echo "HOOK_EXIT:1:Focused test detected (.only) in Detox E2E test — remove before committing to avoid skipping other E2E tests" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "e2e/.*\\.(test|spec)\\.(ts|js)$" && grep -cE "\\b(test\\.only|describe\\.only|fit|fdescribe)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test detected (.only) in Detox E2E test — remove before committing to avoid skipping other E2E tests" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for .only in Detox E2E tests',
           },
         ],
       },
@@ -458,8 +319,9 @@ it('should open product detail via deep link', async () => {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "e2e/.*\\.(test|spec)\\.(ts|js)$" && grep -nE "waitFor\\(" "$CLAUDE_FILE_PATH" | while read line; do linenum=$(echo "$line" | cut -d: -f1); context=$(sed -n "${linenum},$((linenum+3))p" "$CLAUDE_FILE_PATH"); echo "$context" | grep -q "withTimeout" || { echo "HOOK_EXIT:0:Warning: waitFor() without .withTimeout() at line $linenum — without a timeout, waitFor does nothing in Detox"; break; }; done 2>/dev/null || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "e2e/.*\\.(test|spec)\\.(ts|js)$" && grep -nE "waitFor\\(" "$FILE_PATH" | while read line; do linenum=$(echo "$line" | cut -d: -f1); context=$(sed -n "${linenum},$((linenum+3))p" "$FILE_PATH"); echo "$context" | grep -q "withTimeout" || { echo "Warning: waitFor() without .withTimeout() at line $linenum — without a timeout, waitFor does nothing in Detox" >&2; exit 2; }; done 2>/dev/null || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for waitFor() without .withTimeout() in Detox tests',
           },
         ],
       },

@@ -44,229 +44,51 @@ Kotlin-idiomatic code. Null safety, data classes, coroutines for async.
         description: 'Kotlin naming conventions, null safety, and idiomatic patterns from official coding conventions',
         content: `# Kotlin Style & Null Safety
 
-## Why This Matters
-Kotlin's design emphasizes safety, conciseness, and interoperability. These rules are derived
-from the official Kotlin Coding Conventions and eliminate the most common sources of bugs:
-NullPointerException, non-exhaustive branching, and Java-isms that ignore Kotlin idioms.
-
----
-
 ## Naming Conventions
 
 | Element | Convention | Example |
 |---------|-----------|---------|
 | Packages | lowercase, no underscores | \`org.example.network\` |
 | Classes, objects | PascalCase (nouns) | \`UserRepository\`, \`ConnectionPool\` |
-| Interfaces | PascalCase (adjectives or nouns) | \`Serializable\`, \`EventListener\` |
 | Functions | camelCase (verbs) | \`findById()\`, \`processPayment()\` |
 | Properties, locals | camelCase | \`activeUserCount\`, \`retryDelay\` |
 | Constants | SCREAMING_SNAKE_CASE | \`MAX_CONNECTIONS\`, \`DEFAULT_PORT\` |
-| Enum entries | SCREAMING_SNAKE_CASE or PascalCase | \`PENDING\`, \`InProgress\` |
-| Type parameters | single uppercase letter or short PascalCase | \`T\`, \`K\`, \`V\`, \`ResponseT\` |
 | Backing properties | underscore prefix | \`_items\` exposed as \`items\` |
-
-### Correct
-\`\`\`kotlin
-const val MAX_RETRY_COUNT = 3
-val DEFAULT_TIMEOUT = 30.seconds
-
-class OrderRepository(
-    private val database: Database,
-) {
-    private val _orders = MutableStateFlow<List<Order>>(emptyList())
-    val orders: StateFlow<List<Order>> = _orders.asStateFlow()
-
-    suspend fun findByCustomerId(customerId: CustomerId): List<Order> {
-        return database.query("SELECT * FROM orders WHERE customer_id = ?", customerId.value)
-    }
-}
-\`\`\`
-
-### Anti-Pattern
-\`\`\`kotlin
-// Bad: Java-style naming, no type safety, meaningless names
-val max_retry = 3  // snake_case for non-constant
-class order_repo {   // lowercase with underscore
-    fun get(id: Any): Any? { // generic names, Any type
-        return db.query("SELECT * FROM orders WHERE id = " + id) // SQL injection
-    }
-}
-\`\`\`
-
----
 
 ## Null Safety
 
-### Never Use !! (Non-Null Assertion)
-The \`!!\` operator defeats Kotlin's null safety and throws NPE at runtime.
+- NEVER use \`!!\` (non-null assertion) — use \`?.\`, \`?:\`, \`requireNotNull()\`, or \`checkNotNull()\`
+- Use safe calls (\`?.\`) and elvis (\`?:\`) for null handling
+- Use \`?.let { }\` for nullable transformations
+- Use \`lateinit\` only for framework-injected properties guaranteed to be initialized
+- Explicitly type Java interop values — never let compiler infer platform types (\`String!\`)
 
-\`\`\`kotlin
-// Anti-pattern: crashes at runtime if user is null
-val name = repository.findUser(id)!!.name
+## Sealed Types & Data Classes
 
-// Correct: safe call + elvis with meaningful fallback
-val name = repository.findUser(id)?.name
-    ?: throw UserNotFoundException("User $id not found")
+- Use \`sealed interface\`/\`sealed class\` for state machines and exhaustive branching
+- Use \`data class\` for DTOs with \`val\` properties — no business logic, no \`var\`
+- Use \`copy()\` for non-destructive mutation of data classes
+- Compiler enforces exhaustiveness in \`when\` on sealed types — no \`else\` needed
 
-// Correct: requireNotNull with context for preconditions
-val user = requireNotNull(repository.findUser(id)) {
-    "User $id must exist at this point — data integrity violation"
-}
-\`\`\`
+## When Expressions
 
-### Use Safe Calls and Elvis Operator
-\`\`\`kotlin
-// Correct: chained safe calls with fallback
-val city = user?.address?.city ?: "Unknown"
-
-// Correct: nullable transformation with let
-user?.let { activeUser ->
-    notificationService.sendWelcome(activeUser.email)
-}
-
-// Correct: early return with elvis
-fun processOrder(order: Order?) {
-    val validOrder = order ?: return
-    // proceed with non-null validOrder
-}
-\`\`\`
-
-### Prefer lateinit for DI-Injected Properties
-\`\`\`kotlin
-// Correct: lateinit for framework-injected fields
-class UserController {
-    @Inject
-    lateinit var userService: UserService
-}
-
-// Anti-pattern: nullable type for something that is always initialized
-class UserController {
-    @Inject
-    var userService: UserService? = null  // forces ?. everywhere
-}
-\`\`\`
-
-### Platform Type Safety
-\`\`\`kotlin
-// Correct: explicitly declare types from Java interop
-val userName: String = javaApi.getUserName()   // fails fast if null
-val email: String? = javaApi.getEmail()        // handles nullable gracefully
-
-// Anti-pattern: let compiler infer platform type (String!)
-val userName = javaApi.getUserName()  // type is String! — unsafe
-\`\`\`
-
----
-
-## Sealed Types for State Machines
-
-\`\`\`kotlin
-// Correct: sealed interface for UI state (no shared mutable state)
-sealed interface UiState {
-    data object Loading : UiState
-    data class Success(val data: List<Item>) : UiState
-    data class Error(val message: String, val cause: Throwable? = null) : UiState
-}
-
-// Correct: exhaustive when — compiler enforces all branches
-fun render(state: UiState) = when (state) {
-    is UiState.Loading -> showSpinner()
-    is UiState.Success -> showItems(state.data)
-    is UiState.Error -> showError(state.message)
-    // No else needed — compiler verifies exhaustiveness
-}
-\`\`\`
-
----
-
-## Data Classes
-
-\`\`\`kotlin
-// Correct: immutable DTO with copy() for modifications
-data class UserProfile(
-    val id: UserId,
-    val name: String,
-    val email: String,
-    val tier: UserTier = UserTier.FREE,
-)
-
-val updated = profile.copy(tier = UserTier.PREMIUM)
-
-// Anti-pattern: mutable data class with logic
-data class UserProfile(
-    var id: Long,        // mutable — breaks hashCode/equals stability
-    var name: String,
-) {
-    fun validate() { }   // business logic does not belong in data class
-}
-\`\`\`
-
----
-
-## When Expressions Over If-Else Chains
-
-\`\`\`kotlin
-// Correct: when as expression with exhaustive matching
-val discount = when (customer.tier) {
-    Tier.PLATINUM -> 0.30
-    Tier.GOLD -> 0.20
-    Tier.SILVER -> 0.10
-    Tier.FREE -> 0.0
-}
-
-// Correct: when with range and guard conditions
-fun classifyHttpStatus(code: Int): String = when (code) {
-    in 200..299 -> "Success"
-    in 300..399 -> "Redirect"
-    in 400..499 -> "Client Error"
-    in 500..599 -> "Server Error"
-    else -> "Unknown ($code)"
-}
-
-// Anti-pattern: long if-else chain
-val discount = if (tier == Tier.PLATINUM) 0.30
-    else if (tier == Tier.GOLD) 0.20
-    else if (tier == Tier.SILVER) 0.10
-    else 0.0
-\`\`\`
-
----
+- Use \`when\` expressions instead of if-else chains for multi-branch logic
+- Use range matching: \`in 200..299\`, guard conditions, and type checks
+- Prefer exhaustive \`when\` on enums/sealed types — avoid unnecessary \`else\`
 
 ## Scope Functions
 
-| Function | Object ref | Return value | Use case |
-|----------|-----------|-------------|----------|
-| \`let\` | \`it\` | Lambda result | Nullable transformations, scoping |
-| \`run\` | \`this\` | Lambda result | Object configuration + compute result |
-| \`with\` | \`this\` | Lambda result | Grouping calls on an object |
-| \`apply\` | \`this\` | Object itself | Object configuration (builder-style) |
-| \`also\` | \`it\` | Object itself | Side effects (logging, validation) |
+| Function | Ref | Returns | Use case |
+|----------|-----|---------|----------|
+| \`let\` | \`it\` | Lambda result | Nullable transforms, scoping |
+| \`apply\` | \`this\` | Object | Configuration (builder-style) |
+| \`also\` | \`it\` | Object | Side effects (logging) |
+| \`run\` | \`this\` | Lambda result | Config + compute |
+| \`with\` | \`this\` | Lambda result | Grouping calls |
 
-\`\`\`kotlin
-// Correct: apply for object configuration
-val connection = Connection().apply {
-    host = "localhost"
-    port = 8080
-    timeout = 30.seconds
-}
-
-// Correct: let for nullable transformation
-val length = name?.let { it.trim().length } ?: 0
-
-// Correct: also for side effects
-val user = userRepository.findById(id).also {
-    logger.info("Fetched user: \${it.name}")
-}
-
-// Anti-pattern: deeply nested scope functions
-obj.let { a ->
-    a.run {
-        also { b ->
-            b.apply { /* unreadable */ }
-        }
-    }
-}
-\`\`\`
+- Never nest scope functions more than 2 levels
+- Prefer \`val\` over \`var\` — mutable state must be justified
+- Use immutable collections (\`List\`, \`Map\`, \`Set\`) in public API
 `,
       },
       {
@@ -276,291 +98,37 @@ obj.let { a ->
         description: 'Kotlin coroutines structured concurrency, Flow patterns, and error handling',
         content: `# Kotlin Coroutines & Flow Best Practices
 
-## Why This Matters
-Coroutines are Kotlin's foundation for asynchronous programming. Incorrect usage causes
-resource leaks, silent failures, and untestable code. These rules enforce structured
-concurrency and safe error propagation as defined in the official Coroutines Guide.
-
----
-
 ## Structured Concurrency
 
-### Always Use a CoroutineScope — Never GlobalScope
-\`\`\`kotlin
-// Anti-pattern: GlobalScope breaks structured concurrency
-GlobalScope.launch {
-    fetchData() // leaked coroutine — no lifecycle, no cancellation
-}
-
-// Correct: scoped to a lifecycle
-class UserViewModel : ViewModel() {
-    fun loadUsers() {
-        viewModelScope.launch {
-            val users = userRepository.getAll()
-            _uiState.value = UiState.Success(users)
-        }
-    }
-}
-
-// Correct: custom scope with SupervisorJob
-class OrderService(
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-) {
-    fun processAsync(order: Order) {
-        scope.launch { process(order) }
-    }
-
-    fun shutdown() {
-        scope.cancel()
-    }
-}
-\`\`\`
-
-### Use SupervisorJob When Children Must Be Independent
-\`\`\`kotlin
-// Correct: one failed child does not cancel siblings
-supervisorScope {
-    launch { fetchUserProfile(userId) }    // failure here
-    launch { fetchUserOrders(userId) }     // still runs
-    launch { fetchRecommendations(userId) } // still runs
-}
-
-// Anti-pattern: coroutineScope cancels everything on first failure
-coroutineScope {
-    launch { fetchUserProfile(userId) }    // failure here
-    launch { fetchUserOrders(userId) }     // CANCELLED
-    launch { fetchRecommendations(userId) } // CANCELLED
-}
-\`\`\`
-
-### Cancel Scopes When Their Lifecycle Ends
-\`\`\`kotlin
-class WebSocketManager : Closeable {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-    fun connect(url: String) {
-        scope.launch { /* ... */ }
-    }
-
-    override fun close() {
-        scope.cancel() // cancel all coroutines on cleanup
-    }
-}
-\`\`\`
-
----
+- NEVER use \`GlobalScope\` — always launch within a lifecycle-bound scope
+- Use \`viewModelScope\`/\`lifecycleScope\` on Android, custom \`CoroutineScope\` elsewhere
+- Use \`SupervisorJob\` when child failures should not cancel siblings
+- Cancel scopes when their lifecycle ends (\`scope.cancel()\` in \`close()\`/\`onDestroy()\`)
 
 ## Dispatchers
 
-| Dispatcher | Use case |
-|-----------|----------|
-| \`Dispatchers.Main\` | UI updates, lightweight UI logic |
-| \`Dispatchers.IO\` | Network calls, file I/O, database queries |
-| \`Dispatchers.Default\` | CPU-intensive work (sorting, parsing, computation) |
+- \`Dispatchers.Main\`: UI updates
+- \`Dispatchers.IO\`: network, file I/O, database
+- \`Dispatchers.Default\`: CPU-intensive computation
+- Inject dispatchers as constructor parameters for testability
+- Never call blocking APIs inside coroutines without \`withContext(Dispatchers.IO)\`
 
-### Inject Dispatchers for Testability
-\`\`\`kotlin
-// Correct: injectable dispatcher
-class DataProcessor(
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) {
-    suspend fun loadAndParse(path: String): Config = withContext(ioDispatcher) {
-        val raw = File(path).readText()
-        parseConfig(raw)
-    }
-}
+## Error Handling
 
-// Anti-pattern: hardcoded dispatcher — cannot test without real I/O
-class DataProcessor {
-    suspend fun loadAndParse(path: String): Config = withContext(Dispatchers.IO) {
-        val raw = File(path).readText()
-        parseConfig(raw)
-    }
-}
-\`\`\`
-
-### Never Block the Coroutine Dispatcher
-\`\`\`kotlin
-// Anti-pattern: blocking call inside coroutine
-suspend fun readFile(path: String): String {
-    return File(path).readText() // blocks the dispatcher thread
-}
-
-// Correct: use withContext(Dispatchers.IO) for blocking I/O
-suspend fun readFile(path: String): String = withContext(Dispatchers.IO) {
-    File(path).readText()
-}
-\`\`\`
-
----
-
-## Coroutine Error Handling
-
-### Use try/catch Within Coroutines for Expected Errors
-\`\`\`kotlin
-viewModelScope.launch {
-    _uiState.value = UiState.Loading
-    try {
-        val users = userRepository.getAll()
-        _uiState.value = UiState.Success(users)
-    } catch (e: HttpException) {
-        _uiState.value = UiState.Error("Server error: \${e.code()}")
-    } catch (e: IOException) {
-        _uiState.value = UiState.Error("Network error — check your connection")
-    }
-}
-\`\`\`
-
-### Use CoroutineExceptionHandler for Uncaught Errors in Root Coroutines
-\`\`\`kotlin
-val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
-    logger.error("Unhandled coroutine exception", throwable)
-    crashReporter.report(throwable)
-}
-
-val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + exceptionHandler)
-\`\`\`
-
-### Use runCatching / Result<T> for Functional Error Handling
-\`\`\`kotlin
-suspend fun fetchUser(id: UserId): Result<User> = runCatching {
-    api.getUser(id.value)
-}
-
-// Caller
-fetchUser(id)
-    .onSuccess { user -> showProfile(user) }
-    .onFailure { error -> showError(error.message ?: "Unknown error") }
-\`\`\`
-
-### launch vs async Exception Behavior
-\`\`\`kotlin
-// launch: propagates exceptions automatically (uncaught → crashes parent)
-scope.launch {
-    throw IOException("Connection lost") // propagated to parent/handler
-}
-
-// async: defers exception to .await() call
-val deferred = scope.async {
-    throw IOException("Connection lost") // nothing happens yet
-}
-try {
-    deferred.await() // exception thrown HERE
-} catch (e: IOException) {
-    handleError(e)
-}
-\`\`\`
-
----
+- Use try/catch within coroutines for expected errors (network, parsing)
+- Use \`CoroutineExceptionHandler\` for uncaught errors in root coroutines
+- Use \`runCatching\` / \`Result<T>\` for functional error handling
+- \`launch\`: propagates exceptions automatically to parent
+- \`async\`: defers exceptions to \`.await()\` call
 
 ## Flow Patterns
 
-### Cold Flows — Use flow { } for Streams
-\`\`\`kotlin
-fun observePrices(symbol: String): Flow<Price> = flow {
-    while (currentCoroutineContext().isActive) {
-        val price = api.getLatestPrice(symbol)
-        emit(price)
-        delay(1.seconds)
-    }
-}
-\`\`\`
-
-### StateFlow for Observable State (Replaces LiveData)
-\`\`\`kotlin
-class SearchViewModel : ViewModel() {
-    private val _query = MutableStateFlow("")
-    val query: StateFlow<String> = _query.asStateFlow()
-
-    private val _results = MutableStateFlow<List<Item>>(emptyList())
-    val results: StateFlow<List<Item>> = _results.asStateFlow()
-
-    init {
-        _query
-            .debounce(300.milliseconds)
-            .filter { it.length >= 2 }
-            .flatMapLatest { query -> searchRepository.search(query) }
-            .onEach { _results.value = it }
-            .launchIn(viewModelScope)
-    }
-}
-\`\`\`
-
-### SharedFlow for Events (One-Shot Signals)
-\`\`\`kotlin
-class EventBus {
-    private val _events = MutableSharedFlow<AppEvent>()
-    val events: SharedFlow<AppEvent> = _events.asSharedFlow()
-
-    suspend fun emit(event: AppEvent) {
-        _events.emit(event)
-    }
-}
-\`\`\`
-
-### Use flowOn() — Never withContext Inside flow { }
-\`\`\`kotlin
-// Correct: flowOn changes upstream context
-fun loadItems(): Flow<Item> = flow {
-    val items = database.queryAll()
-    items.forEach { emit(it) }
-}.flowOn(Dispatchers.IO)
-
-// Anti-pattern: withContext inside flow violates context preservation
-fun loadItems(): Flow<Item> = flow {
-    withContext(Dispatchers.IO) {  // IllegalStateException!
-        val items = database.queryAll()
-        items.forEach { emit(it) }
-    }
-}
-\`\`\`
-
-### Collect Flows in Lifecycle-Aware Manner
-\`\`\`kotlin
-// Correct: repeatOnLifecycle for safe collection in Android
-lifecycleScope.launch {
-    repeatOnLifecycle(Lifecycle.State.STARTED) {
-        viewModel.uiState.collect { state ->
-            render(state)
-        }
-    }
-}
-\`\`\`
-
-### Error Handling in Flows
-\`\`\`kotlin
-// Correct: catch operator for upstream errors
-repository.observeUpdates()
-    .map { parseUpdate(it) }
-    .catch { e ->
-        logger.error("Stream error", e)
-        emit(FallbackUpdate)
-    }
-    .onCompletion { cause ->
-        if (cause != null) logger.warn("Flow completed with error", cause)
-    }
-    .collect { update -> applyUpdate(update) }
-\`\`\`
-
-### Buffering and Conflation
-\`\`\`kotlin
-// buffer: decouple fast emitter from slow collector
-sensorReadings()
-    .buffer()
-    .collect { reading -> processSlowly(reading) }
-
-// conflate: skip intermediate values when collector is slow
-locationUpdates()
-    .conflate()
-    .collect { location -> updateMap(location) }
-
-// collectLatest: cancel previous collection on new value
-searchQuery
-    .collectLatest { query ->
-        val results = search(query) // cancelled if new query arrives
-        showResults(results)
-    }
-\`\`\`
+- Use \`flow { }\` for cold streams, \`StateFlow\` for observable state, \`SharedFlow\` for events
+- Use \`flowOn()\` to change upstream context — NEVER \`withContext\` inside \`flow { }\`
+- Collect flows in lifecycle-aware manner: \`repeatOnLifecycle\` on Android
+- Use \`catch\` operator for upstream error handling
+- Use \`buffer()\`/\`conflate()\`/\`collectLatest\` for backpressure management
+- Expose \`StateFlow\`/\`SharedFlow\` as read-only via \`.asStateFlow()\`/\`.asSharedFlow()\`
 `,
       },
       {
@@ -570,164 +138,30 @@ searchQuery
         description: 'Kotlin project structure, Gradle conventions, and security patterns',
         content: `# Kotlin Project Structure & Security
 
-## Why This Matters
-Consistent project structure reduces cognitive load and onboarding time. Security
-rules prevent the most common Kotlin/JVM vulnerabilities: injection, deserialization,
-and leaked credentials.
-
----
-
 ## Project Structure
 
-### Standard Gradle Layout
-\`\`\`
-project/
-  build.gradle.kts          # Build configuration (Kotlin DSL)
-  settings.gradle.kts       # Project and module settings
-  gradle.properties          # Build properties
-  gradle/
-    libs.versions.toml       # Version catalog (centralized dependencies)
-  src/
-    main/
-      kotlin/
-        com/example/
-          Application.kt     # Entry point (thin — wire deps, delegate)
-          config/             # Configuration classes
-          domain/             # Domain models, business logic
-            model/
-            service/
-            repository/
-          api/                # API layer (controllers, routes)
-          infra/              # Infrastructure (database, HTTP clients)
-      resources/
-        application.yaml     # Runtime configuration
-    test/
-      kotlin/
-        com/example/
-          domain/             # Unit tests mirroring src/ structure
-          api/                # Integration tests
-      resources/
-        application-test.yaml
-\`\`\`
-
-### Module Organization for Multi-Module Projects
-\`\`\`
-project/
-  settings.gradle.kts
-  gradle/libs.versions.toml
-  app/                       # Application module (entry point)
-    build.gradle.kts
-  core/                      # Shared domain models and interfaces
-    build.gradle.kts
-  data/                      # Data layer (repositories, data sources)
-    build.gradle.kts
-  features/
-    user/                    # Feature module
-      build.gradle.kts
-    order/
-      build.gradle.kts
-\`\`\`
-
----
+- Standard Gradle layout: \`src/main/kotlin/\`, \`src/test/kotlin/\`, \`src/main/resources/\`
+- Thin entry point — wire dependencies, delegate to domain/service layer
+- Organize by domain: \`domain/\`, \`api/\`, \`infra/\`, \`config/\`
+- Multi-module: \`app/\`, \`core/\` (shared models), \`data/\`, \`features/\`
 
 ## Gradle Conventions (Kotlin DSL)
 
-### Version Catalog (gradle/libs.versions.toml)
-\`\`\`toml
-[versions]
-kotlin = "2.1.0"
-coroutines = "1.10.2"
-ktor = "3.0.0"
+- Use version catalog (\`gradle/libs.versions.toml\`) for centralized dependency management
+- Pin JDK version: \`kotlin { jvmToolchain(21) }\`
+- Use \`alias(libs.plugins.kotlin.jvm)\` for plugin declarations
+- Use \`useJUnitPlatform()\` in test tasks
 
-[libraries]
-kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
-kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
-ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
+## Security
 
-[plugins]
-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
-\`\`\`
-
-### build.gradle.kts Best Practices
-\`\`\`kotlin
-plugins {
-    alias(libs.plugins.kotlin.jvm)
-}
-
-kotlin {
-    jvmToolchain(21)  // Pin JDK version
-}
-
-dependencies {
-    implementation(libs.kotlinx.coroutines.core)
-    testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(kotlin("test"))
-}
-
-tasks.test {
-    useJUnitPlatform()
-}
-\`\`\`
-
----
-
-## Kotlin-Specific Security
-
-### Never Use String Concatenation for Queries
-\`\`\`kotlin
-// Anti-pattern: SQL injection vulnerability
-fun findUser(name: String): User? {
-    val sql = "SELECT * FROM users WHERE name = '$name'"
-    return db.query(sql).firstOrNull()
-}
-
-// Correct: parameterized query
-fun findUser(name: String): User? {
-    return db.query("SELECT * FROM users WHERE name = ?", name).firstOrNull()
-}
-\`\`\`
-
-### Avoid Unsafe Deserialization
-\`\`\`kotlin
-// Anti-pattern: Java serialization with untrusted data
-val obj = ObjectInputStream(untrustedStream).readObject()
-
-// Correct: use kotlinx.serialization with explicit schema
-@Serializable
-data class UserPayload(val name: String, val email: String)
-
-val user = Json.decodeFromString<UserPayload>(jsonString)
-\`\`\`
-
-### Secure Random Generation
-\`\`\`kotlin
-// Anti-pattern: predictable randomness
-val token = (1..32).map { ('a'..'z').random() }.joinToString("")
-
-// Correct: cryptographic randomness
-import java.security.SecureRandom
-import java.util.Base64
-
-val token = ByteArray(32).also { SecureRandom().nextBytes(it) }
-    .let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
-\`\`\`
-
-### Validate External Input
-\`\`\`kotlin
-// Correct: validate and constrain all external input
-fun createUser(request: CreateUserRequest): User {
-    require(request.name.isNotBlank()) { "Name must not be blank" }
-    require(request.email.contains("@")) { "Invalid email format" }
-    require(request.age in 0..150) { "Age must be between 0 and 150" }
-    return userRepository.create(request)
-}
-\`\`\`
-
-### Credential Safety
+- NEVER use string concatenation/interpolation for SQL — use parameterized queries
+- NEVER use \`ObjectInputStream\` for untrusted data — use kotlinx.serialization or Moshi
+- Use \`SecureRandom\` for cryptographic randomness — not \`kotlin.random\`
+- Validate all external input with \`require()\` / \`check()\` at entry points
 - Never hardcode API keys, passwords, or secrets in source code
-- Use environment variables or secret managers (Vault, AWS Secrets Manager)
+- Use environment variables or secret managers for credentials
 - Never log sensitive data — passwords, tokens, PII
-- Use \`@Transient\` or \`@kotlinx.serialization.Transient\` to exclude sensitive fields from serialization
+- Mark sensitive fields with \`@Transient\` to prevent serialization
 `,
       },
     ],
@@ -1028,8 +462,9 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "\\!\\!([^=]|$)" "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: Non-null assertion (!!) detected — prefer safe calls (?.), elvis (?:), or requireNotNull()" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "\\!\\!([^=]|$)" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: Non-null assertion (!!) detected — prefer safe calls (?.), elvis (?:), or requireNotNull()" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for non-null assertion (!!) usage',
           },
         ],
       },
@@ -1040,8 +475,9 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "GlobalScope\\." "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:1:GlobalScope usage detected — use a lifecycle-bound CoroutineScope instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "GlobalScope\\." "$FILE_PATH" | head -5 | grep -q "." && { echo "GlobalScope usage detected — use a lifecycle-bound CoroutineScope instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for GlobalScope usage',
           },
         ],
       },
@@ -1052,8 +488,9 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "\\bRuntime\\.getRuntime\\(\\)\\.exec\\b|\\bProcessBuilder\\(.*\\$" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: Process execution detected — verify no unsanitized user input reaches the command" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "\\bRuntime\\.getRuntime\\(\\)\\.exec\\b|\\bProcessBuilder\\(.*\\$" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: Process execution detected — verify no unsanitized user input reaches the command" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for process execution patterns',
           },
         ],
       },
@@ -1064,8 +501,9 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "ObjectInputStream|readObject\\(\\)" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:1:Unsafe deserialization detected (ObjectInputStream) — use kotlinx.serialization or Moshi instead" || true',
+              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "ObjectInputStream|readObject\\(\\)" "$FILE_PATH" | head -3 | grep -q "." && { echo "Unsafe deserialization detected (ObjectInputStream) — use kotlinx.serialization or Moshi instead" >&2; exit 2; } || exit 0',
             timeout: 10,
+            statusMessage: 'Checking for unsafe deserialization',
           },
         ],
       },
