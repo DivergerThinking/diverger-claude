@@ -13,6 +13,7 @@ import { registerRecordLearningTool } from './tools/record-learning.js';
 import { registerCheckPluginHealthTool } from './tools/check-plugin-health.js';
 import { registerRepairConfigTool } from './tools/repair-config.js';
 import { registerExtractLearningsTool } from './tools/extract-learnings.js';
+import { registerIngestCIErrorsTool } from './tools/ingest-ci-errors.js';
 
 const version = process.env.DIVERGER_VERSION ?? '0.0.0';
 
@@ -31,6 +32,7 @@ registerRecordLearningTool(server);
 registerCheckPluginHealthTool(server);
 registerRepairConfigTool(server);
 registerExtractLearningsTool(server);
+registerIngestCIErrorsTool(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

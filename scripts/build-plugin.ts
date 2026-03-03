@@ -683,7 +683,15 @@ Ejecuta el proceso de release del proyecto: $ARGUMENTS
    - Ejecuta linter
    - Ejecuta test suite completo con cobertura
 
-3. **Determinar nueva version**:
+3. **Validacion de consistencia** (OBLIGATORIO — no continuar si falla):
+   - Ejecuta \`npm run build\` (incluye build:plugin)
+   - Verifica que \`plugin/.claude-plugin/plugin.json\` version == \`package.json\` version
+   - Ejecuta \`npm run typecheck\` — 0 errores
+   - Ejecuta \`npm test\` con cobertura
+   - Si ALGUNO falla → DETENER release y reportar errores
+   - **No continuar al paso 4 hasta que todas las validaciones pasen**
+
+4. **Determinar nueva version**:
    - Si $ARGUMENTS incluye version (ej: "v2.0.0"), usa esa
    - Si no, analiza los commits desde el ultimo tag para sugerir:
      - MAJOR: breaking changes (commits con "BREAKING" o "!")
@@ -691,23 +699,23 @@ Ejecuta el proceso de release del proyecto: $ARGUMENTS
      - PATCH: fixes (commits con "fix:")
    - Presenta sugerencia y pide confirmacion
 
-4. **Actualizar changelog**:
+5. **Actualizar changelog**:
    - Lee commits desde el ultimo tag: \`git log $(git describe --tags --abbrev=0)..HEAD --oneline\`
    - Agrupa por tipo (Anadido, Cambiado, Corregido, Eliminado)
    - Genera entrada en CHANGELOG.md siguiendo el formato existente
    - Presenta al usuario para revision/edits
 
-5. **Bump de version**:
+6. **Bump de version**:
    - Actualiza version en el archivo de manifiesto (package.json / pyproject.toml / Cargo.toml)
    - Si hay otros archivos con version hardcodeada, actualiza tambien
    - Commit: "release: vX.Y.Z -- <descripcion breve>"
 
-6. **Tag y push**:
+7. **Tag y push**:
    - Crea tag: \`git tag vX.Y.Z\`
    - Presenta al usuario el resumen de lo que se va a pushear
    - Si confirma: \`git push origin <branch> --tags\`
 
-7. **Post-release**:
+8. **Post-release**:
    - Verifica que el CI pipeline se ejecuto correctamente (si hay GitHub Actions: \`gh run list --limit 1\`)
    - Si hay publish automatico, verifica que el paquete se publico
    - Sugiere crear GitHub Release con \`gh release create\` si no es automatico
@@ -715,7 +723,49 @@ Ejecuta el proceso de release del proyecto: $ARGUMENTS
   },
 ];
 
-const allMcpSkills = [...mcpSkills, ...intelligenceSkills, ...workflowSkills];
+const ciSkills = [
+  {
+    name: 'diverger-ci-learn',
+    content: `---
+name: diverger-ci-learn
+description: Analyze recent CI failures and learn from error patterns
+user-invocable: true
+disable-model-invocation: true
+---
+
+# Aprender de Errores de CI
+
+Analiza los ultimos fallos de CI y extrae aprendizajes: $ARGUMENTS
+
+## Pasos
+
+1. **Detectar CI provider**:
+   - Busca \`.github/workflows/\` -> GitHub Actions
+   - Busca \`.gitlab-ci.yml\` -> GitLab CI
+
+2. **Obtener fallos recientes**:
+   - GitHub Actions: \`gh run list --status=failure --limit=5 --json databaseId,displayTitle,conclusion,createdAt\`
+   - Para cada run fallido: \`gh run view {id} --log-failed\`
+
+3. **Procesar con MCP tool**:
+   - Llama a \`ingest_ci_errors\` con el log de cada run
+   - Acumula resultados
+
+4. **Analizar patrones**:
+   - Hay errores recurrentes? (mismo patron en multiples runs)
+   - Son prevenibles? (build stale, lint, types)
+   - Requieren nueva regla? (>= 3 ocurrencias)
+
+5. **Reportar**:
+   - Resumen de errores procesados
+   - Patrones descubiertos con frecuencia
+   - Reglas auto-generadas (si threshold alcanzado)
+   - Recomendaciones para prevencion
+`,
+  },
+];
+
+const allMcpSkills = [...mcpSkills, ...intelligenceSkills, ...workflowSkills, ...ciSkills];
 
 for (const skill of allMcpSkills) {
   const skillDir = path.join(PLUGIN_DIR, 'skills', skill.name);
@@ -817,6 +867,57 @@ console.log(`  intelligence agents: ${intelligenceAgents.length} files`);
 // --- Write intelligence hook scripts ---
 const intelligenceHookScripts = [
   {
+    filename: 'pre-commit-validator.sh',
+    content: `#!/bin/bash
+# PreToolUse blocker: Validate commit prerequisites before allowing git commit
+# Blocks commits when plugin build is stale or TypeScript has errors
+
+INPUT=$(cat)
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+# Only intercept git commit commands
+if ! echo "$COMMAND" | grep -qE '^\\s*git\\s+commit'; then
+  exit 0
+fi
+
+ERRORS=""
+
+# Check 1: Plugin version consistency (package.json must match plugin.json)
+if [ -f "package.json" ] && [ -f "plugin/.claude-plugin/plugin.json" ]; then
+  PKG_VERSION=$(jq -r '.version' package.json 2>/dev/null || echo "")
+  PLUGIN_VERSION=$(jq -r '.version' plugin/.claude-plugin/plugin.json 2>/dev/null || echo "")
+  if [ -n "$PKG_VERSION" ] && [ -n "$PLUGIN_VERSION" ] && [ "$PKG_VERSION" != "$PLUGIN_VERSION" ]; then
+    ERRORS="\${ERRORS}Plugin build stale: package.json=\${PKG_VERSION} but plugin.json=\${PLUGIN_VERSION}. Run npm run build:plugin first. "
+  fi
+fi
+
+# Check 2: TypeScript compilation (only if tsconfig.json exists)
+if [ -f "tsconfig.json" ] && command -v npx >/dev/null 2>&1; then
+  TSC_OUTPUT=$(npx tsc --noEmit --pretty false 2>&1 || true)
+  TSC_EXIT=$?
+  if echo "$TSC_OUTPUT" | grep -qE 'error TS[0-9]+'; then
+    TSC_COUNT=$(echo "$TSC_OUTPUT" | grep -cE 'error TS[0-9]+' || echo "0")
+    ERRORS="\${ERRORS}TypeScript compilation: \${TSC_COUNT} error(s) detected. Fix type errors before committing. "
+  fi
+fi
+
+# If errors found, deny the commit
+if [ -n "$ERRORS" ]; then
+  jq -n --arg reason "Pre-commit validation failed: \${ERRORS}" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: $reason
+    }
+  }'
+  exit 0
+fi
+
+# All checks passed
+exit 0
+`,
+  },
+  {
     filename: 'error-tracker.sh',
     content: `#!/bin/bash
 # PostToolUse hook: Capture tool errors to session error log
@@ -887,6 +988,20 @@ console.log(`  intelligence hook scripts: ${intelligenceHookScripts.length} file
 const intelligenceHooks: HooksJson = JSON.parse(
   readFileSync(path.join(PLUGIN_DIR, 'hooks', 'hooks.json'), 'utf-8'),
 );
+
+// Add pre-commit-validator to PreToolUse.Bash
+if (!intelligenceHooks['PreToolUse']) intelligenceHooks['PreToolUse'] = {};
+const preToolUse = intelligenceHooks['PreToolUse'] as Record<string, HooksJsonEntry[]>;
+if (!preToolUse['Bash']) preToolUse['Bash'] = [];
+const hasPreCommitValidator = preToolUse['Bash'].some((h) => h.command.includes('pre-commit-validator'));
+if (!hasPreCommitValidator) {
+  preToolUse['Bash'].push({
+    type: 'command',
+    command: 'bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-commit-validator.sh',
+    timeout: 30,
+    statusMessage: 'Validating commit prerequisites...',
+  });
+}
 
 // Add error-tracker to PostToolUse.Bash, PostToolUse.Write, and PostToolUse.Edit
 if (!intelligenceHooks['PostToolUse']) intelligenceHooks['PostToolUse'] = {};

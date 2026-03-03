@@ -144,7 +144,7 @@ Al actualizar (`diverger sync`), se aplica un merge inteligente:
 | Rules tech-specific | En `.claude/rules/` | En `.claude/rules/` (igual) |
 | Actualización CLI | `diverger update` | `diverger update` (igual) |
 | Actualización plugin | N/A | `diverger plugin install` o `diverger update --all` |
-| MCP tools | No disponible | 13 tools programáticas |
+| MCP tools | No disponible | 14 tools programáticas |
 | Telemetría local | No disponible | `diverger telemetry enable` |
 
 ## Sistema de Memoria y Aprendizaje
@@ -153,8 +153,11 @@ diverger-claude incluye un sistema de memoria conductual que aprende de los erro
 
 - **Captura automática**: Los errores de Bash, Write y Edit se registran durante la sesión
 - **Aprendizaje entre sesiones**: Al iniciar una nueva sesión, los errores se clasifican y almacenan como patrones
+- **Aprendizaje de CI**: Ingesta de errores de GitHub Actions / GitLab CI via `/diverger-ci-learn`
+- **Validación preventiva**: Hook pre-commit bloquea commits con build stale o errores TypeScript
 - **Reglas auto-generadas**: Cuando un patrón alcanza 3 ocurrencias, se genera una regla `.claude/rules/learned/*.md` que Claude lee automáticamente
 - **Auto-reparación**: Health check detecta y repara problemas en `.claude/` según modelo de confianza
+- **Detección de tecnologías desconocidas**: Identifica frameworks no soportados y sugiere abrir GitHub Issues
 - **Consolidación periódica**: Cada 7 días se eliminan patrones obsoletos y se optimiza la memoria
 
 Para más detalles, ver la [guía del sistema de memoria](docs/guia-memoria.md).

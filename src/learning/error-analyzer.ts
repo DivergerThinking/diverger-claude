@@ -82,6 +82,25 @@ const CLASSIFIERS: Classifier[] = [
     confidence: 75,
     descriptionFn: () => 'JSON inválido en archivo de configuración',
   },
+  // Process-level classifiers (CI/release errors)
+  {
+    match: /plugin\.json.*version.*mismatch|plugin.*stale|build:plugin/i,
+    category: 'config-issue',
+    confidence: 80,
+    descriptionFn: () => 'Plugin build stale — versiones desincronizadas',
+  },
+  {
+    match: /UNIVERSAL_\w+_NAMES|constant.*mismatch|agent.*not.*found.*in.*set/i,
+    category: 'code-pattern',
+    confidence: 75,
+    descriptionFn: () => 'Inconsistencia de constantes — UNIVERSAL_* desactualizado',
+  },
+  {
+    match: /CI.*fail|workflow.*fail|GitHub.*Actions.*error|pipeline.*error/i,
+    category: 'tool-error',
+    confidence: 70,
+    descriptionFn: () => 'Fallo de pipeline CI detectado',
+  },
 ];
 
 /**

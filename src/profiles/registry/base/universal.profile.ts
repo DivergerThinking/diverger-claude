@@ -39,6 +39,58 @@ function buildUniversalHookScripts(): HookScriptDefinition[] {
       }),
     },
     {
+      filename: 'pre-commit-validator.sh',
+      isPreToolUse: true,
+      content: `#!/bin/bash
+# PreToolUse blocker: Validate commit prerequisites before allowing git commit
+# Blocks commits when plugin build is stale or TypeScript has errors
+
+INPUT=$(cat)
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+# Only intercept git commit commands
+if ! echo "$COMMAND" | grep -qE '^\\s*git\\s+commit'; then
+  exit 0
+fi
+
+ERRORS=""
+
+# Check 1: Plugin version consistency (package.json must match plugin.json)
+if [ -f "package.json" ] && [ -f "plugin/.claude-plugin/plugin.json" ]; then
+  PKG_VERSION=$(jq -r '.version' package.json 2>/dev/null || echo "")
+  PLUGIN_VERSION=$(jq -r '.version' plugin/.claude-plugin/plugin.json 2>/dev/null || echo "")
+  if [ -n "$PKG_VERSION" ] && [ -n "$PLUGIN_VERSION" ] && [ "$PKG_VERSION" != "$PLUGIN_VERSION" ]; then
+    ERRORS="\${ERRORS}Plugin build stale: package.json=\${PKG_VERSION} but plugin.json=\${PLUGIN_VERSION}. Run npm run build:plugin first. "
+  fi
+fi
+
+# Check 2: TypeScript compilation (only if tsconfig.json exists)
+if [ -f "tsconfig.json" ] && command -v npx >/dev/null 2>&1; then
+  TSC_OUTPUT=$(npx tsc --noEmit --pretty false 2>&1 || true)
+  TSC_EXIT=$?
+  if echo "$TSC_OUTPUT" | grep -qE 'error TS[0-9]+'; then
+    TSC_COUNT=$(echo "$TSC_OUTPUT" | grep -cE 'error TS[0-9]+' || echo "0")
+    ERRORS="\${ERRORS}TypeScript compilation: \${TSC_COUNT} error(s) detected. Fix type errors before committing. "
+  fi
+fi
+
+# If errors found, deny the commit
+if [ -n "$ERRORS" ]; then
+  jq -n --arg reason "Pre-commit validation failed: \${ERRORS}" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: $reason
+    }
+  }'
+  exit 0
+fi
+
+# All checks passed
+exit 0
+`,
+    },
+    {
       filename: 'check-trailing-newline.sh',
       isPreToolUse: false,
       content: `#!/bin/bash
@@ -115,6 +167,19 @@ Clean Code, SOLID, and security-first development. Conventional Commits for all 
           },
         ],
       },
+      // Pre-commit validation: block commits with stale builds or type errors
+      {
+        event: 'PreToolUse',
+        matcher: 'Bash',
+        hooks: [
+          {
+            type: 'command',
+            command: 'bash .claude/hooks/pre-commit-validator.sh',
+            timeout: 30,
+            statusMessage: 'Validating commit prerequisites...',
+          },
+        ],
+      },
       // Post-write quality checks (exit codes)
       {
         event: 'PostToolUse',
@@ -143,6 +208,30 @@ Clean Code, SOLID, and security-first development. Conventional Commits for all 
     ],
     hookScripts: buildUniversalHookScripts(),
     rules: [
+      {
+        path: 'development-process.md',
+        governance: 'recommended',
+        description: 'Development process rules for build, commit, and CI awareness',
+        content: `# Development Process Rules
+
+## Pre-commit Checklist
+Before committing, always verify:
+1. \`npm run build\` completes without errors (includes plugin build)
+2. \`npm run typecheck\` passes
+3. \`npm test\` passes
+4. Plugin version in \`plugin/.claude-plugin/plugin.json\` matches \`package.json\`
+
+## After Modifying Source Code
+- If you changed files in \`src/\`: run \`npm run build\` before committing
+- If you changed plugin-related code: run \`npm run build:plugin\` to regenerate plugin assets
+- If you added/renamed agents, skills, or hooks: update \`UNIVERSAL_*\` constants in \`src/core/constants.ts\`
+
+## CI Awareness
+- Check recent CI status before starting work: \`gh run list --limit 3\`
+- If CI is failing, prioritize fixing it before new work
+- After pushing, verify CI passes: \`gh run watch\`
+`,
+      },
       {
         path: 'architecture-and-style.md',
         governance: 'mandatory',

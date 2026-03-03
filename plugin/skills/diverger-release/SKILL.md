@@ -23,7 +23,15 @@ Ejecuta el proceso de release del proyecto: $ARGUMENTS
    - Ejecuta linter
    - Ejecuta test suite completo con cobertura
 
-3. **Determinar nueva version**:
+3. **Validacion de consistencia** (OBLIGATORIO — no continuar si falla):
+   - Ejecuta `npm run build` (incluye build:plugin)
+   - Verifica que `plugin/.claude-plugin/plugin.json` version == `package.json` version
+   - Ejecuta `npm run typecheck` — 0 errores
+   - Ejecuta `npm test` con cobertura
+   - Si ALGUNO falla → DETENER release y reportar errores
+   - **No continuar al paso 4 hasta que todas las validaciones pasen**
+
+4. **Determinar nueva version**:
    - Si $ARGUMENTS incluye version (ej: "v2.0.0"), usa esa
    - Si no, analiza los commits desde el ultimo tag para sugerir:
      - MAJOR: breaking changes (commits con "BREAKING" o "!")
@@ -31,23 +39,23 @@ Ejecuta el proceso de release del proyecto: $ARGUMENTS
      - PATCH: fixes (commits con "fix:")
    - Presenta sugerencia y pide confirmacion
 
-4. **Actualizar changelog**:
+5. **Actualizar changelog**:
    - Lee commits desde el ultimo tag: `git log $(git describe --tags --abbrev=0)..HEAD --oneline`
    - Agrupa por tipo (Anadido, Cambiado, Corregido, Eliminado)
    - Genera entrada en CHANGELOG.md siguiendo el formato existente
    - Presenta al usuario para revision/edits
 
-5. **Bump de version**:
+6. **Bump de version**:
    - Actualiza version en el archivo de manifiesto (package.json / pyproject.toml / Cargo.toml)
    - Si hay otros archivos con version hardcodeada, actualiza tambien
    - Commit: "release: vX.Y.Z -- <descripcion breve>"
 
-6. **Tag y push**:
+7. **Tag y push**:
    - Crea tag: `git tag vX.Y.Z`
    - Presenta al usuario el resumen de lo que se va a pushear
    - Si confirma: `git push origin <branch> --tags`
 
-7. **Post-release**:
+8. **Post-release**:
    - Verifica que el CI pipeline se ejecuto correctamente (si hay GitHub Actions: `gh run list --limit 1`)
    - Si hay publish automatico, verifica que el paquete se publico
    - Sugiere crear GitHub Release con `gh release create` si no es automatico

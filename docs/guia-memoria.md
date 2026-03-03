@@ -65,6 +65,33 @@ Este patrón se ha detectado 3 veces. Categoría: tool-error.
 
 Claude Code lee automáticamente todas las reglas en `.claude/rules/` al inicio de sesión.
 
+### 2b. Aprendizaje de CI (bajo demanda)
+
+Además de los errores capturados localmente, el sistema puede ingestar errores de pipelines de CI/CD usando el skill `/diverger-ci-learn` o la tool MCP `ingest_ci_errors`.
+
+**Flujo:**
+1. Al iniciar sesión, si hay `.github/workflows/` y existe un run fallido reciente, se muestra una notificación
+2. El usuario ejecuta `/diverger-ci-learn` para analizar los fallos
+3. El skill detecta el proveedor CI (GitHub Actions o GitLab CI)
+4. Obtiene los logs de runs fallidos via `gh run view --log-failed`
+5. Parsea los logs y extrae errores estructurados
+6. Los errores se procesan a través del mismo pipeline de aprendizaje (clasificación → patrones → reglas)
+
+**Proveedores soportados:**
+- **GitHub Actions**: Parsea formato `{job}\t{step}\t{line}` de `--log-failed`
+- **GitLab CI**: Parsea bloques de error con formato `$ command\n...error output...`
+
+Esto cierra el ciclo de aprendizaje para errores que ocurren fuera de la sesión local de Claude Code.
+
+### 2c. Validación preventiva (pre-commit)
+
+El hook `pre-commit-validator.sh` intercepta comandos `git commit` y verifica:
+
+1. **Plugin build actualizado**: La versión en `package.json` debe coincidir con `plugin/.claude-plugin/plugin.json`
+2. **TypeScript sin errores**: `npx tsc --noEmit` debe completar sin errores
+
+Si alguna validación falla, el commit es bloqueado con un mensaje explicativo. Esto previene que errores recurrentes (build stale, type errors) lleguen a CI.
+
 ### 3. Auto-reparación (inicio de sesión)
 
 El health check se ejecuta en cada `onSessionStart()` y detecta problemas en `.claude/`:
@@ -126,7 +153,8 @@ La sincronización usa una sección delimitada para no interferir con otros cont
 | `record_learning` | Registrar un aprendizaje manual (anti-pattern, best-practice, error-pattern) |
 | `extract_learnings` | Procesar errores de sesión bajo demanda (sin esperar a next session) |
 | `repair_config` | Diagnóstico y reparación de .claude/ (modos: auto, report-only) |
-| `check_plugin_health` | Diagnóstico de salud del plugin |
+| `check_plugin_health` | Diagnóstico de salud del plugin (9 checks) |
+| `ingest_ci_errors` | Ingestar errores de CI (GitHub Actions / GitLab CI) al pipeline de aprendizaje |
 
 ## Skills disponibles
 
@@ -136,6 +164,7 @@ La sincronización usa una sección delimitada para no interferir con otros cont
 | `/diverger-repair` | Diagnosticar y reparar configuración .claude/ |
 | `/diverger-health` | Verificar salud completa del plugin |
 | `/diverger-evolve` | Analizar evolución del proyecto y recomendar actualizaciones |
+| `/diverger-ci-learn` | Analizar fallos de CI recientes y extraer aprendizajes |
 
 ## Esquema de datos
 

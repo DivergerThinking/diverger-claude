@@ -16,7 +16,7 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - **migration-helper**: Asiste en migraciones de versiones y frameworks
 - **evolution-advisor**: Analiza cambios del proyecto y recomienda actualizaciones de configuración
 
-### 15 Skills
+### 16 Skills
 
 #### Configuración y gestión
 - `/diverger-init` — Detecta stack y genera configuración .claude/
@@ -29,6 +29,7 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - `/diverger-repair` — Diagnostica y repara configuración .claude/
 - `/diverger-health` — Verifica salud completa del plugin
 - `/diverger-evolve` — Analiza evolución del proyecto y recomienda actualizaciones
+- `/diverger-ci-learn` — Analiza fallos de CI recientes y extrae aprendizajes
 
 #### Workflows de alta calidad
 - `/diverger-audit` — Auditoría integral de calidad, seguridad y conformidad
@@ -43,17 +44,18 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - `/git-workflow-guide` — Guía de flujo de trabajo Git
 - `/security-guide` — Guía de seguridad
 
-### 6 Hooks de protección
+### 7 Hooks de protección
 
 Los hooks se activan automáticamente via eventos de Claude Code:
 - **PreToolUse/Write**: Secret scanner — detecta credenciales antes de escribir archivos
 - **PreToolUse/Bash**: Destructive command blocker — bloquea comandos peligrosos (`rm -rf /`, `DROP TABLE`, etc.)
+- **PreToolUse/Bash**: Pre-commit validator — bloquea commits si el plugin build está desactualizado o hay errores TypeScript
 - **PostToolUse/Write**: Long lines checker — verifica que no se generen líneas excesivamente largas
 - **PostToolUse/Write**: Trailing newline checker — asegura que los archivos terminen con newline
 - **PostToolUse/Write, Edit, Bash**: Error tracker — captura errores para el sistema de aprendizaje
 - **SessionEnd**: Session learner — señaliza errores pendientes para procesamiento
 
-### Servidor MCP (13 tools)
+### Servidor MCP (14 tools)
 
 Acceso programático al motor de diverger-claude:
 
@@ -72,7 +74,8 @@ Acceso programático al motor de diverger-claude:
 - `record_learning` — Registra aprendizajes manuales (anti-pattern, best-practice, error-pattern)
 - `extract_learnings` — Procesa errores de sesión y extrae patrones bajo demanda
 - `repair_config` — Diagnóstico y reparación de .claude/ (modos: auto, report-only)
-- `check_plugin_health` — Diagnóstico de salud del plugin (8 checks + auto-fix)
+- `check_plugin_health` — Diagnóstico de salud del plugin (9 checks + auto-fix)
+- `ingest_ci_errors` — Ingesta errores de CI (GitHub Actions / GitLab CI) al sistema de aprendizaje
 
 ## Instalación
 
@@ -332,4 +335,15 @@ Diagnóstico de salud del plugin.
 - `pluginDir` (string, opcional): Directorio del plugin
 - `cliVersion` (string, opcional): Versión actual del CLI
 
-**Retorna:** Reporte de salud con status global (healthy/degraded/unhealthy) y resultados individuales de 8 checks.
+**Retorna:** Reporte de salud con status global (healthy/degraded/unhealthy) y resultados individuales de 9 checks.
+
+### ingest_ci_errors
+
+Ingesta errores de CI al sistema de aprendizaje.
+
+**Parámetros:**
+- `projectDir` (string): Directorio raíz del proyecto
+- `source` (string): Proveedor de CI: `github-actions` o `gitlab-ci`
+- `logContent` (string): Contenido del log de CI a analizar
+
+**Retorna:** Resumen con errores encontrados, patrones actualizados y reglas generadas.

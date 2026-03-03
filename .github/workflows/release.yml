@@ -43,6 +43,22 @@ jobs:
       - name: Build plugin
         run: npm run build:plugin
 
+      - name: Validate release consistency
+        run: |
+          PKG_VERSION=$(jq -r '.version' package.json)
+          PLUGIN_VERSION=$(jq -r '.version' plugin/.claude-plugin/plugin.json)
+          if [ "$PKG_VERSION" != "$PLUGIN_VERSION" ]; then
+            echo "::error::Version mismatch: package.json=$PKG_VERSION, plugin.json=$PLUGIN_VERSION"
+            echo "::error::Run 'npm run build:plugin' and commit the result"
+            exit 1
+          fi
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) doesn't match package.json ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Release consistency OK: v${PKG_VERSION}"
+
       - name: Validate plugin.json
         run: node -e "JSON.parse(require('fs').readFileSync('plugin/.claude-plugin/plugin.json','utf-8'))"
 

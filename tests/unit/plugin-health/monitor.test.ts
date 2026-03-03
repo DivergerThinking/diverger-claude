@@ -3,6 +3,19 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { checkPluginHealth } from '../../../src/plugin-health/monitor.js';
+import { UNIVERSAL_AGENT_NAMES, UNIVERSAL_HOOK_SCRIPT_FILENAMES } from '../../../src/core/constants.js';
+
+/** Write all UNIVERSAL_* agents and hooks to a temp plugin dir for a "complete" fixture */
+async function writeUniversalComponents(pluginDir: string): Promise<void> {
+  await fs.mkdir(path.join(pluginDir, 'agents'), { recursive: true });
+  for (const name of UNIVERSAL_AGENT_NAMES) {
+    await fs.writeFile(path.join(pluginDir, 'agents', `${name}.md`), `---\nname: ${name}\n---\n`);
+  }
+  await fs.mkdir(path.join(pluginDir, 'hooks', 'scripts'), { recursive: true });
+  for (const name of UNIVERSAL_HOOK_SCRIPT_FILENAMES) {
+    await fs.writeFile(path.join(pluginDir, 'hooks', 'scripts', name), '#!/bin/bash\nexit 0\n');
+  }
+}
 
 describe('Plugin Health Monitor', () => {
   let tempDir: string;
@@ -23,23 +36,23 @@ describe('Plugin Health Monitor', () => {
   });
 
   it('should report healthy for a valid plugin structure', async () => {
-    // Create minimal valid plugin structure
+    // Create minimal valid plugin structure with all UNIVERSAL_* components
     await fs.mkdir(path.join(tempDir, '.claude-plugin'), { recursive: true });
     await fs.writeFile(
       path.join(tempDir, '.claude-plugin', 'plugin.json'),
       JSON.stringify({ name: 'diverger-claude', version: '1.6.0' }),
     );
 
-    await fs.mkdir(path.join(tempDir, 'hooks', 'scripts'), { recursive: true });
+    await writeUniversalComponents(tempDir);
+
     await fs.writeFile(
       path.join(tempDir, 'hooks', 'hooks.json'),
       JSON.stringify({
         PreToolUse: {
-          Write: [{ type: 'command', command: 'bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/test.sh' }],
+          Write: [{ type: 'command', command: 'bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/secret-scanner.sh' }],
         },
       }),
     );
-    await fs.writeFile(path.join(tempDir, 'hooks', 'scripts', 'test.sh'), '#!/bin/bash\n');
 
     await fs.mkdir(path.join(tempDir, 'mcp'), { recursive: true });
     await fs.writeFile(path.join(tempDir, 'mcp', 'server.js'), 'console.log("ok")');
@@ -47,9 +60,6 @@ describe('Plugin Health Monitor', () => {
       path.join(tempDir, '.mcp.json'),
       JSON.stringify({ mcpServers: { 'diverger-claude': { command: 'node', args: ['mcp/server.js'] } } }),
     );
-
-    await fs.mkdir(path.join(tempDir, 'agents'), { recursive: true });
-    await fs.writeFile(path.join(tempDir, 'agents', 'test-agent.md'), '---\nname: test\n---\n');
 
     await fs.mkdir(path.join(tempDir, 'skills', 'test-skill'), { recursive: true });
     await fs.writeFile(path.join(tempDir, 'skills', 'test-skill', 'SKILL.md'), '---\nname: test\n---\n');
@@ -66,14 +76,12 @@ describe('Plugin Health Monitor', () => {
       JSON.stringify({ name: 'diverger-claude', version: '1.5.0' }),
     );
 
-    // Create minimal valid rest
-    await fs.mkdir(path.join(tempDir, 'hooks', 'scripts'), { recursive: true });
+    // Create valid rest with all UNIVERSAL_* components
+    await writeUniversalComponents(tempDir);
     await fs.writeFile(path.join(tempDir, 'hooks', 'hooks.json'), '{}');
     await fs.mkdir(path.join(tempDir, 'mcp'), { recursive: true });
     await fs.writeFile(path.join(tempDir, 'mcp', 'server.js'), '');
     await fs.writeFile(path.join(tempDir, '.mcp.json'), JSON.stringify({ mcpServers: { 'diverger-claude': { command: 'node' } } }));
-    await fs.mkdir(path.join(tempDir, 'agents'), { recursive: true });
-    await fs.writeFile(path.join(tempDir, 'agents', 'a.md'), '---\n---\n');
     await fs.mkdir(path.join(tempDir, 'skills', 's'), { recursive: true });
     await fs.writeFile(path.join(tempDir, 'skills', 's', 'SKILL.md'), '');
 

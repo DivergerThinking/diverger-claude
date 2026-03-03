@@ -52,6 +52,31 @@ export async function onSessionStart(projectRoot: string, options?: { onError?: 
       // Learning failures must never block session start
     }
 
+    // --- Check for recent CI failures (non-blocking notification) ---
+    try {
+      const ghWorkflowsDir = path.join(projectRoot, '.github', 'workflows');
+      const hasGitHubCI = await fs.stat(ghWorkflowsDir).then(() => true).catch(() => false);
+      if (hasGitHubCI) {
+        const { execSync } = await import('child_process');
+        const result = execSync(
+          'gh run list --status=failure --limit=1 --json databaseId,createdAt 2>/dev/null',
+          { cwd: projectRoot, timeout: 5000, encoding: 'utf-8' },
+        );
+        const runs = JSON.parse(result) as Array<{ databaseId: number; createdAt: string }>;
+        if (runs.length > 0) {
+          const lastFailure = runs[0]!;
+          const failedAt = new Date(lastFailure.createdAt);
+          const store = await memory.getStore();
+          const lastSession = store.stats.lastSession;
+          if (!lastSession || failedAt > new Date(lastSession)) {
+            messages.push(`CI failure detected (run #${lastFailure.databaseId}) — run /diverger-ci-learn to analyze`);
+          }
+        }
+      }
+    } catch {
+      // gh CLI not available or no auth — skip silently
+    }
+
     // --- Change detection ---
     const changes = await detectChanges(projectRoot, meta);
     if (changes.hasChanges) {

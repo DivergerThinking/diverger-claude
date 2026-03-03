@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.4.0] - 2026-03-03
+
+### Añadido
+- **Validación preventiva pre-commit**: Hook `pre-commit-validator.sh` que bloquea `git commit` si el plugin build está desactualizado o hay errores TypeScript
+- **Aprendizaje de CI**: Parser de logs de GitHub Actions y GitLab CI (`src/learning/ci-error-parser.ts`)
+- **MCP `ingest_ci_errors`**: Nueva tool MCP para ingestar errores de CI al sistema de aprendizaje (→ 14 MCP tools total)
+- **Skill `/diverger-ci-learn`**: Skill para analizar fallos de CI recientes y extraer aprendizajes (→ 16 skills total)
+- **Detección de tecnologías desconocidas**: `src/detection/unknown-tech-tracker.ts` identifica frameworks no soportados y abre GitHub Issues automáticamente
+- **Filtros de frameworks**: `src/detection/unknown-tech-filters.ts` distingue frameworks/tools de utilidades comunes (~80 exclusiones)
+- **Health check de consistencia**: `checkConstantsConsistency` valida que UNIVERSAL_* constants coincidan con el contenido real del plugin (→ 9 health checks total)
+- **Reglas de proceso**: Sección "Development Process Rules" en el profile universal con checklist pre-commit y CI awareness
+- **3 clasificadores de errores de proceso**: Plugin stale, constants mismatch, CI failure
+- **Notificación de fallos CI**: Al iniciar sesión, notifica si hay runs de CI fallidos recientes
+- **Gate de consistencia en release.yml**: Valida que package.json, plugin.json y tag version coincidan antes de publicar
+
+### Cambiado
+- **Release skill mejorado**: `/diverger-release` incluye paso obligatorio de validación de consistencia (paso 3)
+- **Evolution advisor**: Detecta tecnologías desconocidas y sugiere abrir GitHub Issues
+- **EvolutionAdvice type**: Nuevo tipo `'unknown-technology'` con campo `data` opcional
+- 7 hooks (era 6), 14 MCP tools (era 13), 16 skills (era 15), 9 health checks (era 8)
+
 ## [2.3.0] - 2026-03-03
 
 ### Añadido

@@ -1,12 +1,14 @@
 import type { DivergentMeta } from '../core/types.js';
-import { mapDependencies } from './dependency-mapper.js';
+import { mapDependencies, mapDependencyToTechnology } from './dependency-mapper.js';
 import { detectArchitectureChanges } from './architecture-detector.js';
+import { shouldReport } from '../detection/unknown-tech-filters.js';
 
 export interface EvolutionAdvice {
-  type: 'new-profile' | 'architecture-change' | 'dependency-update';
+  type: 'new-profile' | 'architecture-change' | 'dependency-update' | 'unknown-technology';
   description: string;
   suggestedAction: string;
   priority: 'high' | 'medium' | 'low';
+  data?: Record<string, unknown>;
 }
 
 /**
@@ -45,6 +47,20 @@ export async function analyzeEvolution(
         priority: 'medium',
       });
     }
+  }
+
+  // Detect unknown technologies (new deps that don't map to any known tech)
+  const unmapped = newDependencies.filter(
+    (dep) => !mapDependencyToTechnology(dep) && shouldReport(dep),
+  );
+  if (unmapped.length > 0) {
+    advice.push({
+      type: 'unknown-technology',
+      description: `${unmapped.length} tecnologías desconocidas detectadas: ${unmapped.join(', ')}`,
+      suggestedAction: 'Considera abrir un GitHub Issue para solicitar soporte de estas tecnologías',
+      priority: 'medium',
+      data: { unknownDeps: unmapped },
+    });
   }
 
   // Detect architecture changes

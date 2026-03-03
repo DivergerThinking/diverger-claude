@@ -3,12 +3,14 @@ import { readJsonOrNull, fileExists } from '../utils/fs.js';
 import { checkHooksJson, checkHookScripts } from './hook-checker.js';
 import { checkMcpServer, checkMcpConfig } from './mcp-checker.js';
 import { checkVersionConsistency } from './version-checker.js';
+import { checkConstantsConsistency } from './constants-checker.js';
 import type { HookCheckResult } from './hook-checker.js';
 import type { McpCheckResult } from './mcp-checker.js';
 import type { VersionCheckResult } from './version-checker.js';
+import type { ConstantsCheckResult } from './constants-checker.js';
 import fg from 'fast-glob';
 
-export type HealthCheckResult = HookCheckResult | McpCheckResult | VersionCheckResult | IntegrityCheckResult;
+export type HealthCheckResult = HookCheckResult | McpCheckResult | VersionCheckResult | IntegrityCheckResult | ConstantsCheckResult;
 
 export interface IntegrityCheckResult {
   check: 'agents-integrity' | 'skills-integrity' | 'plugin-json';
@@ -51,6 +53,9 @@ export async function checkPluginHealth(
 
   // Version
   checks.push(await checkVersionConsistency(pluginDir, cliVersion));
+
+  // Constants consistency
+  checks.push(await checkConstantsConsistency(pluginDir));
 
   // Compute overall status
   const hasUnhealthy = checks.some((c) => c.status === 'unhealthy');

@@ -87,6 +87,7 @@ export const UNIVERSAL_SKILL_NAMES: ReadonlySet<string> = new Set([
 export const UNIVERSAL_HOOK_SCRIPT_FILENAMES: ReadonlySet<string> = new Set([
   'secret-scanner.sh', 'destructive-cmd-blocker.sh',
   'check-long-lines.sh', 'check-trailing-newline.sh',
+  'pre-commit-validator.sh',
 ]);
 
 /** Memory file (project-level behavioral memory) */
