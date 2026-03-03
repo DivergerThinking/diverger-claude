@@ -1,5 +1,5 @@
 ---
-name: security-reviewer
+name: security-checker
 description: Reviews code for security vulnerabilities (OWASP Top 10 2025)
 model: sonnet
 tools:

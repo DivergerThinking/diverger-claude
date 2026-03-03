@@ -21,5 +21,5 @@ Use the MCP tools provided by the diverger-claude server to diagnose and repair 
 4. For issues with confidence 50-69:
    - Explain the issue and suggest manual steps
 5. For info-level issues:
-   - Mention them as suggestions (e.g., "consider running `diverger sync`")
+   - Mention them as suggestions (e.g., "consider running \`diverger sync\`")
 6. After repairs, optionally run `check_config` to verify the configuration is now healthy.

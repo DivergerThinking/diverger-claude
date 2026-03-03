@@ -38,20 +38,20 @@
         "statusMessage": "Tracking errors..."
       }
     ],
-    "Edit": [
-      {
-        "type": "command",
-        "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/error-tracker.sh",
-        "timeout": 5,
-        "statusMessage": "Tracking errors..."
-      }
-    ],
     "Bash": [
       {
         "type": "command",
         "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/error-tracker.sh",
         "timeout": 5,
         "statusMessage": "Tracking errors for learning..."
+      }
+    ],
+    "Edit": [
+      {
+        "type": "command",
+        "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/error-tracker.sh",
+        "timeout": 5,
+        "statusMessage": "Tracking errors..."
       }
     ]
   },

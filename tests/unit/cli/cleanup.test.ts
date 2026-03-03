@@ -28,7 +28,7 @@ describe('diverger cleanup', () => {
     mkdirSync(hooksPath, { recursive: true });
 
     // Universal agents
-    for (const name of ['code-reviewer', 'test-writer', 'security-reviewer', 'doc-writer', 'refactor-assistant', 'migration-helper']) {
+    for (const name of ['code-reviewer', 'test-writer', 'security-checker', 'doc-writer', 'refactor-assistant', 'migration-helper']) {
       writeFileSync(path.join(agentsPath, `${name}.md`), `# ${name}`);
     }
 
@@ -133,7 +133,7 @@ describe('diverger cleanup', () => {
     // Universal files should be gone
     expect(existsSync(path.join(tempDir, '.claude', 'agents', 'code-reviewer.md'))).toBe(false);
     expect(existsSync(path.join(tempDir, '.claude', 'agents', 'test-writer.md'))).toBe(false);
-    expect(existsSync(path.join(tempDir, '.claude', 'agents', 'security-reviewer.md'))).toBe(false);
+    expect(existsSync(path.join(tempDir, '.claude', 'agents', 'security-checker.md'))).toBe(false);
     expect(existsSync(path.join(tempDir, '.claude', 'skills', 'architecture-style-guide'))).toBe(false);
     expect(existsSync(path.join(tempDir, '.claude', 'skills', 'security-guide'))).toBe(false);
     expect(existsSync(path.join(tempDir, '.claude', 'hooks', 'secret-scanner.sh'))).toBe(false);
