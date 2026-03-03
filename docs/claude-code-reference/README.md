@@ -1,32 +1,34 @@
 # Claude Code Reference Documentation
 
-Documentación de referencia extraída de la documentación oficial de Claude Code.
-Estos archivos sirven como base de conocimiento para que la librería genere
+Documentacion de referencia extraida de la documentacion oficial de Claude Code.
+Estos archivos sirven como base de conocimiento para que la libreria genere
 configuraciones `.claude` adaptadas a cada proyecto.
 
 ## Archivos
 
 | Archivo | Contenido |
 |---|---|
-| `01-claude-md.md` | Sistema CLAUDE.md, jerarquía, imports, reglas modulares |
-| `02-settings.md` | Configuración completa, schema, variables de entorno |
-| `03-hooks.md` | Sistema de eventos, handlers, códigos de salida |
-| `04-skills.md` | Comandos slash personalizados, frontmatter, invocación |
+| `01-claude-md.md` | Sistema CLAUDE.md, jerarquia, imports, reglas modulares |
+| `02-settings.md` | Configuracion completa, schema, variables de entorno |
+| `03-hooks.md` | Sistema de eventos, handlers, codigos de salida |
+| `04-skills.md` | Comandos slash personalizados, frontmatter, invocacion |
 | `05-mcp.md` | Model Context Protocol, transportes, alcances |
-| `06-subagents.md` | Agentes especializados, formato, memoria persistente |
+| `06-subagents.md` | Agentes especializados, formato, memoria, permisos, aislamiento |
 | `07-plugins.md` | Sistema de extensiones, estructura, marketplaces |
 | `08-permissions.md` | Sistema de permisos, reglas, modos |
-| `09-best-practices.md` | Mejores prácticas oficiales, patrones, anti-patrones |
+| `09-best-practices.md` | Mejores practicas oficiales, patrones, anti-patrones |
+| `10-agent-teams.md` | Equipos de agentes (experimental), coordinacion, tareas compartidas |
+| `11-lsp.md` | Language Server Protocol, configuracion, plugins oficiales |
 
-## Política de Actualización
+## Politica de Actualizacion
 
-Estos documentos deben actualizarse contra la documentación oficial cada vez que:
-- Un empleado instala/actualiza la librería
-- Se detecta una nueva versión de Claude Code
-- Se ejecuta el comando de sincronización de la librería
+Estos documentos deben actualizarse contra la documentacion oficial cada vez que:
+- Un empleado instala/actualiza la libreria
+- Se detecta una nueva version de Claude Code
+- Se ejecuta el comando de sincronizacion de la libreria
 
 Fuentes oficiales:
 - https://code.claude.com/docs/en/overview
-- https://code.claude.com/docs/llms.txt (índice completo para descubrimiento)
+- https://code.claude.com/docs/llms.txt (indice completo para descubrimiento)
 
-Última actualización: 2026-02-28
+Ultima actualizacion: 2026-03-03
