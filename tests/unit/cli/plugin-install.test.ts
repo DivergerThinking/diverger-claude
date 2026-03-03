@@ -91,19 +91,12 @@ describe('plugin command helpers', () => {
       mkdirSync(path.join(pluginDir, 'agents'), { recursive: true });
       writeFileSync(path.join(pluginDir, 'agents', 'test.md'), '# Test agent');
 
-      // Create tarball — try with forward slashes (bsdtar), fallback to --force-local (GNU tar)
+      // Create tarball using cwd to avoid absolute path issues on Windows
       tarball = path.join(tempDir, 'test-plugin.tar.gz');
-      const tarballFwd = tarball.replace(/\\/g, '/');
-      const tempDirFwd = tempDir.replace(/\\/g, '/');
-      try {
-        execSync(`tar -czf "${tarballFwd}" -C "${tempDirFwd}" plugin/`, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
-      } catch {
-        execSync(`tar --force-local -czf "${tarballFwd}" -C "${tempDirFwd}" plugin/`, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
-      }
+      execSync(`tar -czf test-plugin.tar.gz plugin/`, {
+        cwd: tempDir,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
     });
 
     afterEach(() => {
