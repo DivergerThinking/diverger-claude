@@ -77,9 +77,13 @@ export function registerUpdateCommand(program: Command): void {
       }
 
       // Determine install type and run update
+      // Use --@divergerthinking:registry instead of --registry to scope only
+      // our package to GitHub Packages. --registry applies globally and causes
+      // E404 for transitive deps like @anthropic-ai/sdk on the public registry.
       const isGlobal = isGlobalInstall();
       const flag = isGlobal ? '-g' : '--save-dev';
-      const cmd = `npm install ${flag} ${PKG_NAME}@latest --registry=${REGISTRY}`;
+      const scopedRegistry = `--@divergerthinking:registry=${REGISTRY}`;
+      const cmd = `npm install ${flag} ${PKG_NAME}@latest ${scopedRegistry}`;
 
       log.info(`Actualizando${isGlobal ? ' (global)' : ' (local)'}...`);
       log.dim(`  $ ${cmd}`);
