@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0] - 2026-03-03
+
+### Añadido
+- **CONTRIBUTING.md**: Guía completa de contribución (profiles, analyzers, MCP tools, testing, release)
+- **Documentación actualizada**: README, guía del plugin, guía de uso, guía de instalación, guía de profiles, plugin README — todos reflejan el estado actual (61 profiles, 8 MCP tools, telemetría, update --all)
+
+### Cambiado
+- README refleja 61 profiles, 10 analyzers, 8 MCP tools, telemetría, `update --all`
+- Guía de profiles lista todos los 61 profiles disponibles por categoría
+- Guía del plugin documenta 8 MCP tools con parámetros completos de sync_config, cleanup_project, eject_project
+- Guía de uso incluye telemetría y `update --all`
+- Guía de instalación incluye post-install automático y telemetría
+
 ## [1.5.0] - 2026-03-03
 
 ### Añadido

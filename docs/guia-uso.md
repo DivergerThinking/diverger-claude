@@ -89,7 +89,26 @@ Opciones: `--dry-run` (ver sin borrar), `--force` (incluir archivos modificados)
 
 > **Nota:** `diverger update` ejecuta cleanup automáticamente tras actualizar si el plugin está instalado.
 
-### 8. Versión y actualización
+### 8. Telemetría local (opt-in)
+
+diverger-claude incluye un sistema de telemetría local para diagnosticar problemas. Los datos se almacenan **solo en tu máquina** en `~/.diverger/telemetry.json`.
+
+```bash
+# Activar telemetría
+diverger telemetry enable
+# O via variable de entorno: DIVERGER_TELEMETRY=1
+
+# Ver eventos registrados
+diverger telemetry show
+
+# Desactivar
+diverger telemetry disable
+
+# Limpiar datos
+diverger telemetry clear
+```
+
+### 9. Versión y actualización
 
 ```bash
 # Ver versión instalada
@@ -98,12 +117,15 @@ diverger --version
 # Verificar si hay actualización disponible
 diverger update --check
 
-# Actualizar CLI + plugin
-diverger update
-diverger plugin install
+# Actualizar CLI + plugin en un solo comando
+diverger update --all
+
+# O por separado
+diverger update            # Solo CLI
+diverger plugin install    # Solo plugin
 ```
 
-### 9. Eject
+### 10. Eject
 
 ```bash
 diverger eject

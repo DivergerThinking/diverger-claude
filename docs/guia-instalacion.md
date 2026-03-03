@@ -199,7 +199,7 @@ Esto descarga la última versión del plugin desde GitHub Releases y lo instala 
 
 ### Post-instalación
 
-Tras instalar el plugin, regenera la configuración de tu proyecto:
+Tras instalar el plugin, el CLI ofrece automáticamente inicializar la configuración y limpiar duplicados. También puedes hacerlo manualmente:
 
 ```bash
 diverger init --force    # Regenera config en modo plugin (solo tech-specific)
@@ -260,14 +260,44 @@ npm update @divergerthinking/diverger-claude
 ### Después de actualizar
 
 ```bash
-# Si tienes el plugin: actualízalo también
-diverger plugin install
+# Actualizar CLI + plugin en un solo comando
+diverger update --all
+
+# O por separado
+diverger update            # Solo CLI (ejecuta cleanup auto si plugin instalado)
+diverger plugin install    # Solo plugin
 
 # Sincroniza la configuración .claude/ de tus proyectos con los nuevos profiles
 diverger sync
 ```
 
 El comando `sync` aplica un **three-way merge** para actualizar tu configuración respetando los cambios que tu equipo haya hecho manualmente. El `update` ejecuta `cleanup` automáticamente si el plugin está instalado.
+
+---
+
+## Telemetría local (opt-in)
+
+diverger-claude incluye un sistema de telemetría **local** para diagnosticar problemas. Los datos se almacenan solo en tu máquina y nunca se envían a ningún servidor.
+
+```bash
+# Activar telemetría (opt-in)
+diverger telemetry enable
+
+# O via variable de entorno (persistente)
+export DIVERGER_TELEMETRY=1        # Linux/macOS
+$env:DIVERGER_TELEMETRY = "1"      # Windows PowerShell
+
+# Ver eventos registrados
+diverger telemetry show
+
+# Desactivar
+diverger telemetry disable
+
+# Limpiar datos
+diverger telemetry clear
+```
+
+Los datos se almacenan en `~/.diverger/telemetry.json` con un máximo de 1000 eventos (rolling window).
 
 ---
 

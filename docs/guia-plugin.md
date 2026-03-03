@@ -15,12 +15,12 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - **refactor-assistant**: Sugiere refactorings con patrones del framework
 - **migration-helper**: Asiste en migraciones de versiones y frameworks
 
-### 6+ Skills
+### 4 Skills
 
 - `/diverger-init` — Detecta stack y genera configuración .claude/
 - `/diverger-status` — Muestra estado del stack y validación de configuración
 - `/diverger-sync` — Sincroniza configuración con cambios detectados
-- `/diverger-check` — Valida la configuración existente
+- `/diverger-check` — Valida la configuración existente y detecta issues de gobernanza
 
 ### 4 Hooks de protección
 
@@ -30,15 +30,17 @@ Los hooks se activan automáticamente para proteger la calidad del código:
 - **Post-checkout**: Actualización tras cambio de rama
 - **File-save**: Validaciones al guardar archivos
 
-### Servidor MCP (6 tools)
+### Servidor MCP (8 tools)
 
 Acceso programático al motor de diverger-claude:
-- `detect_stack` — Detecta tecnologías
-- `generate_config` — Genera configuración
-- `check_config` — Valida configuración
-- `sync_config` — Sincroniza configuración
-- `list_profiles` — Lista profiles disponibles
+- `detect_stack` — Detecta tecnologías del proyecto
+- `generate_config` — Genera configuración .claude/ completa
+- `check_config` — Valida configuración existente
+- `sync_config` — Sincroniza configuración (soporta `resolveConflicts`: ours/theirs/report y `dryRun`)
+- `list_profiles` — Lista profiles disponibles (61 profiles)
 - `get_profile` — Detalle de un profile
+- `cleanup_project` — Elimina componentes duplicados del plugin (soporta `dryRun`)
+- `eject_project` — Eyecta el plugin manteniendo configuración local
 
 ## Instalación
 
@@ -210,12 +212,14 @@ Sincroniza configuración con el stack actual.
 
 **Parámetros:**
 - `rootDir` (string): Directorio raíz del proyecto
+- `resolveConflicts` (string, opcional): Estrategia de resolución: `'ours'` (default, mantiene versión nueva), `'theirs'` (mantiene versión del equipo), `'report'` (devuelve conflictos sin escribir)
+- `dryRun` (boolean, opcional): Si `true`, muestra cambios sin aplicarlos (default: `false`)
 
 **Retorna:** Archivos actualizados, conflictos resueltos, archivos sin cambios.
 
 ### list_profiles
 
-Lista todos los profiles disponibles.
+Lista todos los profiles disponibles (61 profiles en 5 capas).
 
 **Retorna:** Lista con nombre, capa, descripción de cada profile.
 
@@ -227,3 +231,23 @@ Obtiene detalles completos de un profile.
 - `profileId` (string): ID del profile
 
 **Retorna:** Contenido completo del profile.
+
+### cleanup_project
+
+Elimina componentes universales duplicados cuando el plugin está instalado.
+
+**Parámetros:**
+- `projectDir` (string): Directorio raíz del proyecto
+- `force` (boolean, opcional): Incluir archivos modificados por el equipo (default: `false`)
+- `dryRun` (boolean, opcional): Mostrar sin borrar (default: `false`)
+
+**Retorna:** Lista de archivos eliminados, archivos preservados, estadísticas.
+
+### eject_project
+
+Eyecta el plugin manteniendo toda la configuración generada como archivos locales.
+
+**Parámetros:**
+- `projectDir` (string): Directorio raíz del proyecto
+
+**Retorna:** Estado de eyección, archivos conservados.

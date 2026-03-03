@@ -49,19 +49,27 @@ Ejemplo para `code-reviewer`:
 - Representan buenas prácticas sugeridas
 - `diverger sync` respeta los cambios del equipo
 
-## Profiles disponibles
+## Profiles disponibles (61 total)
 
-### Lenguajes
+### Base (1)
+- `base/universal` - Clean code, seguridad genérica, agentes universales
+
+### Lenguajes (9)
 - `languages/typescript` - TypeScript strict mode, patrones, naming
 - `languages/python` - PEP 8, type hints, patrones
 - `languages/java` - SOLID, Optional, streams, concurrencia
 - `languages/go` - Idioms, error handling, interfaces
 - `languages/rust` - Ownership, Result/Option, traits
 - `languages/csharp` - Async/await, LINQ, nullable refs
+- `languages/kotlin` - Coroutines, null safety, extensions
+- `languages/swift` - Protocol-oriented, optionals, concurrency
+- `languages/dart` - Null safety, async, Flutter patterns
 
-### Frameworks
+### Frameworks (23)
 - `frameworks/react` - Hooks, componentes, estado
 - `frameworks/nextjs` - App Router, Server Components, caching
+- `frameworks/remix` - Loaders/actions, nested routes, progressive enhancement
+- `frameworks/astro` - Content collections, islands, zero JS
 - `frameworks/express` - Middleware, error handling, seguridad
 - `frameworks/nestjs` - Módulos, DI, guards, pipes
 - `frameworks/fastapi` - Async, Pydantic, DI
@@ -78,19 +86,36 @@ Ejemplo para `code-reviewer`:
 - `frameworks/actix-web` - Handlers, extractors, middleware
 - `frameworks/axum` - Tower layers, extractors, routing
 - `frameworks/rocket` - Guards, fairings, managed state
+- `frameworks/prisma` - Schema, migrations, client, relations
+- `frameworks/trpc` - Type-safe APIs, routers, procedures
+- `frameworks/react-native` - Components, navigation, native modules
+- `frameworks/expo` - Managed workflow, EAS, OTA updates
+- `frameworks/flutter` - Widgets, state, platform channels
+- `frameworks/swiftui` - Views, modifiers, data flow
+- `frameworks/jetpack-compose` - Composables, state, navigation
 
-### Testing
+### Testing (9)
 - `testing/jest` - Mocking, snapshots, coverage
 - `testing/vitest` - Features Vitest, benchmarks
 - `testing/pytest` - Fixtures, parametrize, markers
 - `testing/junit` - JUnit 5, assertions, lifecycle
 - `testing/cypress` - E2E, component testing
 - `testing/playwright` - Page Objects, auto-waiting
+- `testing/detox` - React Native E2E, device sync
+- `testing/xctest` - XCTest/XCUITest, iOS testing
+- `testing/espresso` - Android UI testing, matchers
 
-### Infraestructura
+### Infraestructura (19)
 - `infra/docker` - Multi-stage, seguridad, compose
 - `infra/kubernetes` - Resources, probes, security context
 - `infra/github-actions` - Workflows, caching, secrets
+- `infra/gitlab-ci` - Pipelines, stages, caching, artifacts
+- `infra/jenkins` - Declarative pipelines, shared libraries
+- `infra/circleci` - Orbs, workflows, caching, parallelism
+- `infra/azure-pipelines` - YAML pipelines, templates, stages
 - `infra/aws` - IAM, S3, Lambda
 - `infra/terraform` - Modules, state, naming
 - `infra/vercel` - Deploy, edge functions
+- `infra/fastlane` - iOS/Android automation, lanes
+- `infra/bun` - Runtime, bundler, package manager
+- `infra/deno` - Permissions, web APIs, deploy

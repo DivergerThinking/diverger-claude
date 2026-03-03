@@ -77,7 +77,9 @@ diverger plugin status   # Verificar estado del plugin
 | `diverger plugin status` | Estado de instalación del plugin |
 | `diverger plugin uninstall` | Desinstalar el plugin |
 | `diverger update` | Actualizar CLI a la última versión |
+| `diverger update --all` | Actualizar CLI + plugin en un solo comando |
 | `diverger update --check` | Verificar si hay actualización disponible |
+| `diverger telemetry` | Gestionar telemetría local (enable/disable/show/clear) |
 | `diverger eject` | Desconectar manteniendo configs |
 | `diverger --version` | Mostrar versión instalada |
 
@@ -90,19 +92,19 @@ diverger plugin status   # Verificar estado del plugin
 | `-f, --force` | Sin confirmaciones |
 | `-d, --dry-run` | Solo mostrar, no escribir |
 
-## Tecnologías soportadas
+## Tecnologías soportadas (61 profiles)
 
-### Lenguajes
-TypeScript, Python, Java, Go, Rust, C#
+### Lenguajes (9)
+TypeScript, Python, Java, Go, Rust, C#, Kotlin, Swift, Dart
 
-### Frameworks
-React, Next.js, Angular, Vue.js, Svelte, Nuxt, Express, NestJS, Flask, FastAPI, Django, Spring Boot, Gin, Echo, Fiber, Actix-web, Axum, Rocket
+### Frameworks (23)
+React, Next.js, Angular, Vue.js, Svelte, Nuxt, Remix, Astro, Express, NestJS, Flask, FastAPI, Django, Spring Boot, Gin, Echo, Fiber, Actix-web, Axum, Rocket, Prisma, tRPC, React Native, Expo, Flutter, SwiftUI, Jetpack Compose
 
-### Testing
-Jest, Vitest, Pytest, JUnit, Cypress, Playwright
+### Testing (9)
+Jest, Vitest, Pytest, JUnit, Cypress, Playwright, Detox, XCTest, Espresso
 
-### Infraestructura
-Docker, Kubernetes, GitHub Actions, AWS, Terraform, Vercel
+### Infraestructura (19)
+Docker, Kubernetes, GitHub Actions, GitLab CI, Jenkins, CircleCI, Azure Pipelines, AWS, Terraform, Vercel, Fastlane, Bun, Deno
 
 ## Sistema de profiles
 
@@ -141,7 +143,9 @@ Al actualizar (`diverger sync`), se aplica un merge inteligente:
 | MCP server | No disponible | Auto-registrado |
 | Rules tech-specific | En `.claude/rules/` | En `.claude/rules/` (igual) |
 | Actualización CLI | `diverger update` | `diverger update` (igual) |
-| Actualización plugin | N/A | `diverger plugin install` |
+| Actualización plugin | N/A | `diverger plugin install` o `diverger update --all` |
+| MCP tools | No disponible | 8 tools programáticas |
+| Telemetría local | No disponible | `diverger telemetry enable` |
 
 ## Desarrollo
 

@@ -9,7 +9,7 @@ Plugin universal de desarrollo para Claude Code por DivergerThinking.
 | Agentes | 6 | code-reviewer, test-writer, security-checker, doc-writer, refactor-assistant, migration-helper |
 | Skills | 6+ | diverger-check, diverger-sync, diverger-init, diverger-status, diverger-sync (MCP) y más |
 | Hooks | 4 | Protecciones pre-commit, pre-push, post-checkout, file-save |
-| MCP Server | 1 | 6 tools: detect_stack, generate_config, check_config, sync_config, list_profiles, get_profile |
+| MCP Server | 1 | 8 tools: detect_stack, generate_config, check_config, sync_config, list_profiles, get_profile, cleanup_project, eject_project |
 
 ## Instalación
 
@@ -20,9 +20,9 @@ Plugin universal de desarrollo para Claude Code por DivergerThinking.
 diverger plugin install
 ```
 
-Descarga automáticamente la última versión desde GitHub Releases. Para una versión específica: `diverger plugin install --tag v1.1.2`
+Descarga automáticamente la última versión desde GitHub Releases. Para una versión específica: `diverger plugin install --tag v1.6.0`
 
-Tras instalar:
+Tras instalar, el CLI ofrece automáticamente inicializar la configuración y limpiar duplicados. También puedes hacerlo manualmente:
 
 ```bash
 diverger init --force    # Regenera config en modo plugin
@@ -68,14 +68,16 @@ npm ci && npm run build:plugin
 
 ## MCP Tools
 
-El servidor MCP expone 6 herramientas para acceso programático:
+El servidor MCP expone 8 herramientas para acceso programático:
 
 - `detect_stack` — Detecta tecnologías del proyecto
 - `generate_config` — Genera configuración .claude/ completa
 - `check_config` — Valida configuración existente
-- `sync_config` — Sincroniza con cambios del stack
+- `sync_config` — Sincroniza con cambios del stack (soporta `resolveConflicts`: ours/theirs/report y `dryRun`)
 - `list_profiles` — Lista profiles disponibles
 - `get_profile` — Obtiene detalles de un profile
+- `cleanup_project` — Elimina componentes duplicados del plugin (soporta `dryRun`)
+- `eject_project` — Eyecta el plugin manteniendo configuración local
 
 ## Gestión
 
