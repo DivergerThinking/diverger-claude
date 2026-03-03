@@ -180,12 +180,16 @@ async function cleanSettingsHooks(targetDir: string, dryRun: boolean): Promise<b
  * Core cleanup logic — no UI dependencies.
  * Detects plugin, finds universal duplicates, removes identical files,
  * and cleans universal hooks from settings.json.
+ *
+ * When dryRun is true, collects what would be removed but does not
+ * actually delete files or modify settings.json.
  */
 export async function performCleanup(opts: {
   targetDir: string;
   force?: boolean;
+  dryRun?: boolean;
 }): Promise<CleanupResult> {
-  const { targetDir, force = false } = opts;
+  const { targetDir, force = false, dryRun = false } = opts;
 
   const pluginPath = detectPluginInstalled(targetDir);
   if (!pluginPath && !force) {
@@ -208,20 +212,23 @@ export async function performCleanup(opts: {
     };
   }
 
-  // Delete files and directories
-  const removed: string[] = [];
-  for (const target of toRemove) {
-    if (target.isDirectory) {
-      await fs.rm(target.path, { recursive: true });
-    } else {
-      await fs.unlink(target.path);
-    }
-    removed.push(target.relativePath);
-  }
+  // Collect what would be removed
+  const removed: string[] = toRemove.map((t) => t.relativePath);
 
-  // Clean settings.json hooks
-  if (settingsClean) {
-    await cleanSettingsHooks(targetDir, false);
+  if (!dryRun) {
+    // Delete files and directories
+    for (const target of toRemove) {
+      if (target.isDirectory) {
+        await fs.rm(target.path, { recursive: true });
+      } else {
+        await fs.unlink(target.path);
+      }
+    }
+
+    // Clean settings.json hooks
+    if (settingsClean) {
+      await cleanSettingsHooks(targetDir, false);
+    }
   }
 
   return {

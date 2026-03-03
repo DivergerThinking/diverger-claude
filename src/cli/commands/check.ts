@@ -4,6 +4,7 @@ import type { CliOptions } from '../../core/types.js';
 import { withSpinner } from '../ui/spinner.js';
 import { DivergerError, extractErrorMessage } from '../../core/errors.js';
 import * as log from '../ui/logger.js';
+import { recordEvent } from '../../telemetry/index.js';
 
 export function registerCheckCommand(program: Command): void {
   program
@@ -11,6 +12,7 @@ export function registerCheckCommand(program: Command): void {
     .description('Validar la configuración .claude/ existente')
     .option('--dir <path>', 'Directorio objetivo')
     .action(async (opts) => {
+      const startTime = Date.now();
       const targetDir = opts.dir ?? process.cwd();
       const options: CliOptions = {
         output: log.getOutputMode(),
@@ -48,6 +50,15 @@ export function registerCheckCommand(program: Command): void {
         if (options.output === 'json') {
           log.jsonOutput(result);
         }
+
+        recordEvent({
+          command: 'check',
+          pluginMode: false,
+          detectedStack: [],
+          profileCount: 0,
+          errorCode: result.valid ? undefined : 'VALIDATION_ISSUES',
+          durationMs: Date.now() - startTime,
+        }).catch(() => {}); // fire-and-forget, never block CLI
 
         if (!result.valid) {
           process.exit(1);

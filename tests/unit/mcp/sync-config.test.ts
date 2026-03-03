@@ -33,6 +33,17 @@ function createMockServer() {
   };
 }
 
+/** Helper to create standard sync mock with configurable merge results */
+function setupSyncMock(results: Array<{ path: string; outcome: string; content?: string }>) {
+  const mockSync = vi.fn().mockResolvedValue({
+    results,
+    pendingMeta: { version: '0.5.0', fileHashes: {} },
+    oldMeta: { version: '0.4.0', fileHashes: {} },
+  });
+  vi.mocked(DivergerEngine).mockImplementation(() => ({ sync: mockSync }) as never);
+  return mockSync;
+}
+
 describe('sync_config MCP tool', () => {
   let mockServer: ReturnType<typeof createMockServer>;
 
@@ -68,20 +79,16 @@ describe('sync_config MCP tool', () => {
     expect(parsed.summary.skip).toBe(1);
   });
 
-  it('writes auto-apply files and force-resolves conflicts', async () => {
+  it('writes auto-apply files and force-resolves conflicts with ours (default)', async () => {
     vi.mocked(fileExists).mockResolvedValue(true);
-    const mockSync = vi.fn().mockResolvedValue({
-      results: [
-        { path: '/project/CLAUDE.md', outcome: 'auto-apply', content: '# updated' },
-        { path: '/project/.claude/rules/security.md', outcome: 'conflict', content: '# ours' },
-      ],
-      pendingMeta: { version: '0.5.0', fileHashes: {} },
-      oldMeta: { version: '0.4.0', fileHashes: {} },
-    });
-    vi.mocked(DivergerEngine).mockImplementation(() => ({ sync: mockSync }) as never);
+    setupSyncMock([
+      { path: '/project/CLAUDE.md', outcome: 'auto-apply', content: '# updated' },
+      { path: '/project/.claude/rules/security.md', outcome: 'conflict', content: '# ours' },
+    ]);
 
     const handler = mockServer.getHandler('sync_config')!;
-    const result = await handler({ projectDir: '/project' });
+    // Pass explicit defaults since Zod parsing is bypassed in unit tests
+    const result = await handler({ projectDir: '/project', resolveConflicts: 'ours', dryRun: false });
     const parsed = JSON.parse(result.content[0].text);
 
     // Auto-apply file + conflict file both written
@@ -91,6 +98,8 @@ describe('sync_config MCP tool', () => {
     expect(parsed.conflicts[0].resolution).toBe('auto-resolved (ours)');
     expect(parsed.summary.autoApply).toBe(1);
     expect(parsed.summary.conflict).toBe(1);
+    expect(parsed.resolveConflicts).toBe('ours');
+    expect(parsed.dryRun).toBe(false);
   });
 
   it('calls finalizeMetaAfterWrite and saveMeta', async () => {
@@ -128,5 +137,130 @@ describe('sync_config MCP tool', () => {
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.error).toBe('SYNC_ERROR');
+  });
+
+  // --- New tests for resolveConflicts parameter ---
+
+  describe('resolveConflicts: theirs', () => {
+    it('skips writing conflict files and marks as kept-theirs', async () => {
+      vi.mocked(fileExists).mockResolvedValue(true);
+      setupSyncMock([
+        { path: '/project/CLAUDE.md', outcome: 'auto-apply', content: '# updated' },
+        { path: '/project/.claude/rules/security.md', outcome: 'conflict', content: '# ours' },
+      ]);
+
+      const handler = mockServer.getHandler('sync_config')!;
+      const result = await handler({ projectDir: '/project', resolveConflicts: 'theirs' });
+      const parsed = JSON.parse(result.content[0].text);
+
+      // Only auto-apply written, conflict NOT written
+      expect(vi.mocked(writeFileAtomic)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(writeFileAtomic)).toHaveBeenCalledWith('/project/CLAUDE.md', '# updated');
+      expect(parsed.conflicts).toHaveLength(1);
+      expect(parsed.conflicts[0].resolution).toBe('kept-theirs');
+      expect(parsed.resolveConflicts).toBe('theirs');
+    });
+  });
+
+  describe('resolveConflicts: report', () => {
+    it('does not write conflict files but returns conflict content', async () => {
+      vi.mocked(fileExists).mockResolvedValue(true);
+      setupSyncMock([
+        { path: '/project/CLAUDE.md', outcome: 'auto-apply', content: '# updated' },
+        { path: '/project/.claude/rules/security.md', outcome: 'conflict', content: '# ours version' },
+      ]);
+
+      const handler = mockServer.getHandler('sync_config')!;
+      const result = await handler({ projectDir: '/project', resolveConflicts: 'report' });
+      const parsed = JSON.parse(result.content[0].text);
+
+      // Only auto-apply written, conflict NOT written
+      expect(vi.mocked(writeFileAtomic)).toHaveBeenCalledTimes(1);
+      expect(parsed.conflicts).toHaveLength(1);
+      expect(parsed.conflicts[0].resolution).toBe('unresolved');
+      expect(parsed.conflicts[0].content).toBe('# ours version');
+      expect(parsed.resolveConflicts).toBe('report');
+    });
+
+    it('still writes auto-apply and merged files', async () => {
+      vi.mocked(fileExists).mockResolvedValue(true);
+      setupSyncMock([
+        { path: '/project/CLAUDE.md', outcome: 'auto-apply', content: '# auto' },
+        { path: '/project/.claude/rules/merged.md', outcome: 'merged', content: '# merged' },
+        { path: '/project/.claude/rules/conflict.md', outcome: 'conflict', content: '# conflict' },
+      ]);
+
+      const handler = mockServer.getHandler('sync_config')!;
+      await handler({ projectDir: '/project', resolveConflicts: 'report' });
+
+      expect(vi.mocked(writeFileAtomic)).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(writeFileAtomic)).toHaveBeenCalledWith('/project/CLAUDE.md', '# auto');
+      expect(vi.mocked(writeFileAtomic)).toHaveBeenCalledWith('/project/.claude/rules/merged.md', '# merged');
+    });
+  });
+
+  // --- New tests for dryRun parameter ---
+
+  describe('dryRun: true', () => {
+    it('does not write any files', async () => {
+      vi.mocked(fileExists).mockResolvedValue(true);
+      setupSyncMock([
+        { path: '/project/CLAUDE.md', outcome: 'auto-apply', content: '# updated' },
+        { path: '/project/.claude/rules/security.md', outcome: 'conflict', content: '# ours' },
+      ]);
+
+      const handler = mockServer.getHandler('sync_config')!;
+      const result = await handler({ projectDir: '/project', dryRun: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(vi.mocked(writeFileAtomic)).not.toHaveBeenCalled();
+      expect(parsed.dryRun).toBe(true);
+      expect(parsed.updated).toHaveLength(1);
+      expect(parsed.conflicts).toHaveLength(1);
+    });
+
+    it('does not save meta', async () => {
+      vi.mocked(fileExists).mockResolvedValue(true);
+      setupSyncMock([
+        { path: '/project/CLAUDE.md', outcome: 'auto-apply', content: '# updated' },
+      ]);
+
+      const handler = mockServer.getHandler('sync_config')!;
+      await handler({ projectDir: '/project', dryRun: true });
+
+      expect(vi.mocked(finalizeMetaAfterWrite)).not.toHaveBeenCalled();
+      expect(vi.mocked(saveMeta)).not.toHaveBeenCalled();
+    });
+
+    it('returns conflict details with preview resolution', async () => {
+      vi.mocked(fileExists).mockResolvedValue(true);
+      setupSyncMock([
+        { path: '/project/.claude/rules/security.md', outcome: 'conflict', content: '# conflict content' },
+      ]);
+
+      const handler = mockServer.getHandler('sync_config')!;
+      const result = await handler({ projectDir: '/project', dryRun: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.conflicts[0].resolution).toBe('preview');
+      expect(parsed.conflicts[0].content).toBe('# conflict content');
+    });
+
+    it('takes precedence over resolveConflicts', async () => {
+      vi.mocked(fileExists).mockResolvedValue(true);
+      setupSyncMock([
+        { path: '/project/CLAUDE.md', outcome: 'auto-apply', content: '# auto' },
+        { path: '/project/.claude/rules/security.md', outcome: 'conflict', content: '# ours' },
+      ]);
+
+      const handler = mockServer.getHandler('sync_config')!;
+      const result = await handler({ projectDir: '/project', dryRun: true, resolveConflicts: 'ours' });
+      const parsed = JSON.parse(result.content[0].text);
+
+      // Nothing written even though resolveConflicts is 'ours'
+      expect(vi.mocked(writeFileAtomic)).not.toHaveBeenCalled();
+      expect(parsed.dryRun).toBe(true);
+      expect(parsed.conflicts[0].resolution).toBe('preview');
+    });
   });
 });

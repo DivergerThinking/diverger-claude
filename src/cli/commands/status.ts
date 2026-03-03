@@ -5,6 +5,9 @@ import { withSpinner } from '../ui/spinner.js';
 import { DivergerError, extractErrorMessage } from '../../core/errors.js';
 import * as log from '../ui/logger.js';
 import { loadMeta } from '../../governance/history.js';
+import { detectPluginInstalled } from '../plugin-detect.js';
+import { readPluginVersion } from './plugin.js';
+import { getVersion } from '../version.js';
 
 export function registerStatusCommand(program: Command): void {
   program
@@ -71,8 +74,44 @@ export function registerStatusCommand(program: Command): void {
           log.keyValue('Arquitectura', detection.architecture);
         }
 
+        // Plugin section
+        log.blank();
+        log.header('Plugin');
+        const pluginPath = detectPluginInstalled(targetDir);
+        const cliVersion = getVersion();
+        let pluginVersion: string | null = null;
+        let pluginSynced: boolean | undefined;
+
+        if (pluginPath) {
+          pluginVersion = readPluginVersion(pluginPath);
+          log.keyValue('Instalado', 'sí');
+          log.keyValue('Ubicación', pluginPath);
+          log.keyValue('Versión plugin', pluginVersion ?? 'desconocida');
+          log.keyValue('Versión CLI', cliVersion);
+          if (pluginVersion && pluginVersion !== cliVersion) {
+            pluginSynced = false;
+            log.warn(`Versiones desincronizadas: CLI v${cliVersion} vs Plugin v${pluginVersion}`);
+            log.dim('  Ejecuta `diverger update --all` para sincronizar.');
+          } else {
+            pluginSynced = pluginVersion ? true : undefined;
+          }
+        } else {
+          log.keyValue('Instalado', 'no');
+          log.dim('  Instala con: diverger plugin install');
+        }
+
         if (options.output === 'json') {
-          log.jsonOutput({ meta, detection });
+          log.jsonOutput({
+            meta,
+            detection,
+            plugin: {
+              installed: !!pluginPath,
+              path: pluginPath ?? undefined,
+              pluginVersion: pluginVersion ?? undefined,
+              cliVersion,
+              synced: pluginSynced,
+            },
+          });
         }
       } catch (err) {
         if (err instanceof DivergerError) {

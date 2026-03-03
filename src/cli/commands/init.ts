@@ -14,6 +14,7 @@ import * as log from '../ui/logger.js';
 import { displayDiffs, displayDiffSummary } from '../ui/diff-display.js';
 import { buildSummary } from '../ui/summary.js';
 import { detectPluginInstalled, shouldSuppressDeprecation } from '../plugin-detect.js';
+import { recordEvent } from '../../telemetry/index.js';
 
 interface InitResult {
   writeResults: WriteResult[];
@@ -241,6 +242,79 @@ function showInitSummary(
   }
 }
 
+/**
+ * Programmatic init -- no interactive prompts, no banners, just engine calls.
+ * Used for post-install auto-init in `diverger plugin install`.
+ */
+export async function performInit(opts: {
+  targetDir: string;
+  force?: boolean;
+  pluginMode?: boolean;
+  outputMode?: 'rich' | 'quiet' | 'json';
+}): Promise<{ success: boolean; profileCount?: number }> {
+  const options: CliOptions = {
+    output: opts.outputMode ?? 'quiet',
+    force: opts.force ?? false,
+    dryRun: false,
+    targetDir: opts.targetDir,
+    pluginMode: opts.pluginMode ?? false,
+  };
+
+  const engine = new DivergerEngine();
+
+  try {
+    const detection = await engine.detect({
+      projectRoot: opts.targetDir,
+      options,
+    });
+
+    // Apply confidence threshold (non-interactive)
+    const confirmed: DetectionResult = {
+      ...detection,
+      technologies: detection.technologies.filter(
+        (t) => t.confidence >= CONFIDENCE_THRESHOLD,
+      ),
+    };
+
+    if (confirmed.technologies.length === 0) {
+      return { success: false };
+    }
+
+    const ctx = {
+      projectRoot: opts.targetDir,
+      options,
+    };
+
+    const result = await engine.initWithDetection(confirmed, ctx);
+    await engine.writeFiles(result.files, opts.targetDir, { force: options.force });
+
+    // Save meta
+    const ruleGovernance: Record<string, GovernanceLevel> = {};
+    for (const file of result.files) {
+      if (file.governance) {
+        ruleGovernance[toRelativeMetaKey(file.path, opts.targetDir)] = file.governance;
+      }
+    }
+    const trackedDeps = extractTrackedDeps(confirmed.technologies);
+    const initialMeta = createMeta(
+      result.files,
+      confirmed.technologies.map((t) => t.id),
+      result.config.appliedProfiles,
+      ruleGovernance,
+      trackedDeps,
+      opts.targetDir,
+    );
+    await saveMeta(opts.targetDir, initialMeta);
+
+    return {
+      success: true,
+      profileCount: result.config.appliedProfiles.length,
+    };
+  } catch {
+    return { success: false };
+  }
+}
+
 export function registerInitCommand(program: Command): void {
   program
     .command('init')
@@ -251,6 +325,7 @@ export function registerInitCommand(program: Command): void {
     .option('--no-plugin', 'Forzar modo completo (ignorar plugin instalado)', false)
     .option('--dir <path>', 'Directorio objetivo (por defecto: directorio actual)')
     .action(async (opts) => {
+      const startTime = Date.now();
       const targetDir = opts.dir ?? process.cwd();
       const outputMode = log.getOutputMode();
 
@@ -298,6 +373,14 @@ export function registerInitCommand(program: Command): void {
 
         const initResult = await generateAndWrite(engine, confirmed, options);
         showInitSummary(initResult, confirmed, options);
+
+        recordEvent({
+          command: 'init',
+          pluginMode: options.pluginMode ?? false,
+          detectedStack: confirmed.technologies.map((t) => t.id),
+          profileCount: initResult.composed.appliedProfiles?.length ?? 0,
+          durationMs: Date.now() - startTime,
+        }).catch(() => {}); // fire-and-forget, never block CLI
       } catch (err) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);

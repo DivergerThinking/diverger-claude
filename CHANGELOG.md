@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.5.0] - 2026-03-03
+
+### Añadido
+- **MCP `cleanup_project`**: Nueva tool MCP para limpiar componentes duplicados del plugin (con `dryRun`)
+- **MCP `eject_project`**: Nueva tool MCP para eyectar el plugin y mantener configuración local
+- **MCP `sync_config` mejorado**: Nuevos parámetros `resolveConflicts` (`ours`/`theirs`/`report`) y `dryRun`
+- **Telemetría opt-in local**: Sistema de telemetría local en `~/.diverger/telemetry.json`
+  - Subcomandos: `diverger telemetry enable|disable|show|clear`
+  - Activación via `DIVERGER_TELEMETRY=1` o `diverger telemetry enable`
+  - Máximo 1000 eventos con rolling window
+- **`diverger update --all`**: Actualiza CLI + plugin en un solo comando
+- **`diverger status` con info del plugin**: Sección Plugin con path, versión y estado de sincronización
+- **Post-install automático**: `diverger plugin install` ofrece inicializar config y limpiar duplicados
+- **Funciones puras reutilizables**: `performInit()`, `performCleanup()`, `performEject()`, `doPluginInstall()` extraídas para uso programático
+
+### Cambiado
+- 8 MCP tools (era 6)
+- 929 tests, 75 test files
+
 ## [1.4.0] - 2026-03-03
 
 ### Añadido

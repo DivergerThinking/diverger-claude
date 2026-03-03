@@ -1,6 +1,6 @@
 {
   "name": "@divergerthinking/diverger-claude",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Herramienta para detectar stack tecnológico y generar configuración .claude/ adaptada",
   "type": "module",
   "main": "dist/index.js",

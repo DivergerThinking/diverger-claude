@@ -6,6 +6,8 @@ import { registerCheckConfigTool } from '../../src/mcp/tools/check-config.js';
 import { registerSyncConfigTool } from '../../src/mcp/tools/sync-config.js';
 import { registerListProfilesTool } from '../../src/mcp/tools/list-profiles.js';
 import { registerGetProfileTool } from '../../src/mcp/tools/get-profile.js';
+import { registerCleanupProjectTool } from '../../src/mcp/tools/cleanup-project.js';
+import { registerEjectProjectTool } from '../../src/mcp/tools/eject-project.js';
 import { readFileSync } from 'fs';
 import path from 'path';
 
@@ -17,7 +19,7 @@ describe('MCP server integration', () => {
     expect(server).toBeDefined();
   });
 
-  it('all 6 tools register successfully', () => {
+  it('all 8 tools register successfully', () => {
     const server = new McpServer({ name: 'diverger-claude', version: pkg.version });
 
     // These should not throw
@@ -27,6 +29,8 @@ describe('MCP server integration', () => {
     registerSyncConfigTool(server);
     registerListProfilesTool(server);
     registerGetProfileTool(server);
+    registerCleanupProjectTool(server);
+    registerEjectProjectTool(server);
   });
 
   it('server name matches expected value', () => {

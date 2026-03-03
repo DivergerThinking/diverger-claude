@@ -7,6 +7,7 @@ import { withSpinner } from '../ui/spinner.js';
 import { resolveConflict } from '../ui/prompts.js';
 import { DivergerError, extractErrorMessage } from '../../core/errors.js';
 import * as log from '../ui/logger.js';
+import { recordEvent } from '../../telemetry/index.js';
 
 /** Display per-file merge outcomes. Returns true if conflicts were found. */
 function displayMergeOutcomes(mergeResults: MergeResult[]): boolean {
@@ -149,6 +150,7 @@ export function registerSyncCommand(program: Command): void {
     .option('-f, --force', 'Aplicar todos los cambios sin preguntar', false)
     .option('--dir <path>', 'Directorio objetivo')
     .action(async (opts) => {
+      const startTime = Date.now();
       const options: CliOptions = {
         output: log.getOutputMode(),
         force: opts.force ?? false,
@@ -180,6 +182,14 @@ export function registerSyncCommand(program: Command): void {
         await saveMeta(options.targetDir, finalMeta);
 
         showSyncSummary(mergeResults, options);
+
+        recordEvent({
+          command: 'sync',
+          pluginMode: options.pluginMode ?? false,
+          detectedStack: finalMeta.detectedStack ?? [],
+          profileCount: finalMeta.appliedProfiles?.length ?? 0,
+          durationMs: Date.now() - startTime,
+        }).catch(() => {}); // fire-and-forget, never block CLI
       } catch (err) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);

@@ -4,6 +4,7 @@ import * as log from '../ui/logger.js';
 import { getVersion } from '../version.js';
 import { performCleanup } from './cleanup.js';
 import { detectPluginInstalled } from '../plugin-detect.js';
+import { doPluginInstall } from './plugin.js';
 
 const PKG_NAME = '@divergerthinking/diverger-claude';
 const REGISTRY = 'https://npm.pkg.github.com';
@@ -51,6 +52,7 @@ export function registerUpdateCommand(program: Command): void {
     .command('update')
     .description('Actualizar diverger-claude a la última versión')
     .option('--check', 'Solo verificar si hay actualización disponible', false)
+    .option('--all', 'Actualizar CLI y plugin', false)
     .option('--no-cleanup', 'No ejecutar cleanup automático tras la actualización')
     .action(async (opts) => {
       const currentVersion = getVersion();
@@ -123,6 +125,24 @@ export function registerUpdateCommand(program: Command): void {
           } catch {
             log.warn('No se pudo completar el cleanup automático. Ejecuta `diverger cleanup` manualmente.');
           }
+        }
+      }
+
+      // --all: also update the plugin
+      if (opts.all) {
+        const pluginPath = detectPluginInstalled(process.cwd());
+        if (pluginPath) {
+          log.blank();
+          log.info('Actualizando plugin...');
+          const pluginResult = await doPluginInstall({ quiet: true });
+          if (pluginResult) {
+            log.success(`Plugin actualizado a ${pluginResult.tag}`);
+          } else {
+            log.warn('No se pudo actualizar el plugin. Ejecuta `diverger plugin install` manualmente.');
+          }
+        } else {
+          log.blank();
+          log.dim('Plugin no instalado — usa `diverger plugin install` para instalarlo.');
         }
       }
 

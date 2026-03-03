@@ -9,6 +9,8 @@ import { DivergerError, extractErrorMessage } from '../../core/errors.js';
 import { detectPluginInstalled } from '../plugin-detect.js';
 import { getVersion } from '../version.js';
 import * as log from '../ui/logger.js';
+import { performInit } from './init.js';
+import { performCleanup } from './cleanup.js';
 
 const GITHUB_REPO = 'DivergerThinking/diverger-claude';
 const PLUGIN_NAME = 'diverger-claude';
@@ -143,6 +145,91 @@ export function readPluginVersion(pluginPath: string): string | null {
   }
 }
 
+/**
+ * Reusable plugin install logic — download, extract, and verify plugin.
+ * Returns { tag, path } on success, null on failure.
+ */
+export async function doPluginInstall(opts?: { tag?: string; quiet?: boolean }): Promise<{ tag: string; path: string } | null> {
+  const quiet = opts?.quiet ?? false;
+
+  try {
+    // Resolve tag and asset download URL
+    let tag: string;
+    let downloadUrl: string;
+    if (opts?.tag) {
+      tag = opts.tag.startsWith('v') ? opts.tag : `v${opts.tag}`;
+      if (!quiet) log.info(`Versión solicitada: ${tag}`);
+      const releaseInfo = await getReleaseByTag(tag);
+      downloadUrl = releaseInfo?.assetUrl ?? buildTarballUrl(tag);
+    } else {
+      if (!quiet) log.info('Consultando última versión...');
+      const { tag: latestTag, error, assetUrl } = await getLatestReleaseTag();
+      if (!latestTag) {
+        if (!quiet) {
+          log.error('No se pudo obtener la última versión.');
+          if (error) log.dim(`  ${error}`);
+        }
+        return null;
+      }
+      tag = latestTag;
+      if (!quiet) log.info(`Última versión: ${tag}`);
+      downloadUrl = assetUrl ?? buildTarballUrl(tag);
+    }
+
+    // Download
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'diverger-plugin-'));
+    const tarballPath = path.join(tempDir, `${PLUGIN_NAME}-plugin-${tag}.tar.gz`);
+
+    if (!quiet) {
+      log.info('Descargando plugin...');
+      log.dim(`  ${downloadUrl}`);
+    }
+
+    try {
+      await downloadFile(downloadUrl, tarballPath);
+    } catch (err) {
+      if (!quiet) {
+        log.error('Error al descargar el plugin.');
+        log.dim(`  ${extractErrorMessage(err)}`);
+        log.dim('  Verifica que la versión existe y tienes conexión a internet.');
+      }
+      await fs.rm(tempDir, { recursive: true, force: true });
+      return null;
+    }
+
+    // Extract
+    if (!quiet) log.info(`Instalando en ${PLUGIN_DIR}...`);
+
+    try {
+      if (existsSync(PLUGIN_DIR)) {
+        await fs.rm(PLUGIN_DIR, { recursive: true });
+      }
+      await extractPlugin(tarballPath, PLUGIN_DIR);
+    } catch (err) {
+      if (!quiet) {
+        log.error('Error al extraer el plugin.');
+        log.dim(`  ${extractErrorMessage(err)}`);
+      }
+      await fs.rm(tempDir, { recursive: true, force: true });
+      return null;
+    }
+
+    // Cleanup temp
+    await fs.rm(tempDir, { recursive: true, force: true });
+
+    // Verify
+    const verifyPath = path.join(PLUGIN_DIR, '.claude-plugin', 'plugin.json');
+    if (!existsSync(verifyPath)) {
+      if (!quiet) log.error('La instalación no se completó correctamente (plugin.json no encontrado).');
+      return null;
+    }
+
+    return { tag, path: PLUGIN_DIR };
+  } catch {
+    return null;
+  }
+}
+
 export function registerPluginCommand(program: Command): void {
   const pluginCmd = program
     .command('plugin')
@@ -176,82 +263,46 @@ export function registerPluginCommand(program: Command): void {
           }
         }
 
-        // Resolve tag and asset download URL
-        let tag: string;
-        let downloadUrl: string;
-        if (opts.tag) {
-          tag = opts.tag.startsWith('v') ? opts.tag : `v${opts.tag}`;
-          log.info(`Versión solicitada: ${tag}`);
-          // Fetch release by tag to get the API asset URL (needed for private repos)
-          const releaseInfo = await getReleaseByTag(tag);
-          downloadUrl = releaseInfo?.assetUrl ?? buildTarballUrl(tag);
+        const result = await doPluginInstall({ tag: opts.tag });
+        if (!result) {
+          process.exit(1);
+        }
+
+        const installedVersion = readPluginVersion(result.path);
+        log.blank();
+        log.success(`Plugin diverger-claude ${installedVersion ? `v${installedVersion}` : result.tag} instalado correctamente.`);
+
+        const outputMode = log.getOutputMode();
+
+        // Post-install auto init+cleanup (interactive mode only)
+        if (outputMode === 'rich') {
+          log.blank();
+          const runInit = await confirmAction('¿Inicializar configuración .claude/ ahora? (recomendado)');
+          if (runInit) {
+            log.info('Inicializando configuración...');
+            const initResult = await performInit({ targetDir: process.cwd(), force: true, pluginMode: true, outputMode: 'quiet' });
+            if (initResult.success) {
+              await performCleanup({ targetDir: process.cwd() });
+              log.success(`Configuración generada (${initResult.profileCount ?? 0} profiles) y limpiada.`);
+            } else {
+              log.warn('No se pudo inicializar la configuración automáticamente.');
+              log.dim('  Ejecuta `diverger init --force` manualmente.');
+            }
+          } else {
+            log.blank();
+            log.info('Siguientes pasos:');
+            log.dim('  1. diverger init --force   (regenerar config en modo plugin)');
+            log.dim('  2. diverger cleanup        (eliminar componentes duplicados de .claude/)');
+          }
         } else {
-          log.info('Consultando última versión...');
-          const { tag: latestTag, error, assetUrl } = await getLatestReleaseTag();
-          if (!latestTag) {
-            log.error('No se pudo obtener la última versión.');
-            if (error) log.dim(`  ${error}`);
-            process.exit(1);
-          }
-          tag = latestTag;
-          log.info(`Última versión: ${tag}`);
-          downloadUrl = assetUrl ?? buildTarballUrl(tag);
+          log.blank();
+          log.info('Siguientes pasos:');
+          log.dim('  1. diverger init --force   (regenerar config en modo plugin)');
+          log.dim('  2. diverger cleanup        (eliminar componentes duplicados de .claude/)');
         }
 
-        // Download
-        const tarballUrl = downloadUrl;
-        const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'diverger-plugin-'));
-        const tarballPath = path.join(tempDir, `${PLUGIN_NAME}-plugin-${tag}.tar.gz`);
-
-        log.info('Descargando plugin...');
-        log.dim(`  ${tarballUrl}`);
-
-        try {
-          await downloadFile(tarballUrl, tarballPath);
-        } catch (err) {
-          log.error('Error al descargar el plugin.');
-          log.dim(`  ${extractErrorMessage(err)}`);
-          log.dim('  Verifica que la versión existe y tienes conexión a internet.');
-          await fs.rm(tempDir, { recursive: true, force: true });
-          process.exit(1);
-        }
-
-        // Extract
-        log.info(`Instalando en ${PLUGIN_DIR}...`);
-
-        try {
-          // Remove existing installation if present (for clean upgrade)
-          if (existsSync(PLUGIN_DIR)) {
-            await fs.rm(PLUGIN_DIR, { recursive: true });
-          }
-          await extractPlugin(tarballPath, PLUGIN_DIR);
-        } catch (err) {
-          log.error('Error al extraer el plugin.');
-          log.dim(`  ${extractErrorMessage(err)}`);
-          await fs.rm(tempDir, { recursive: true, force: true });
-          process.exit(1);
-        }
-
-        // Cleanup temp
-        await fs.rm(tempDir, { recursive: true, force: true });
-
-        // Verify
-        const verifyPath = path.join(PLUGIN_DIR, '.claude-plugin', 'plugin.json');
-        if (!existsSync(verifyPath)) {
-          log.error('La instalación no se completó correctamente (plugin.json no encontrado).');
-          process.exit(1);
-        }
-
-        const installedVersion = readPluginVersion(PLUGIN_DIR);
-        log.blank();
-        log.success(`Plugin diverger-claude ${installedVersion ? `v${installedVersion}` : tag} instalado correctamente.`);
-        log.blank();
-        log.info('Siguientes pasos:');
-        log.dim('  1. diverger init --force   (regenerar config en modo plugin)');
-        log.dim('  2. diverger cleanup        (eliminar componentes duplicados de .claude/)');
-
-        if (log.getOutputMode() === 'json') {
-          log.jsonOutput({ installed: true, version: installedVersion, path: PLUGIN_DIR, tag });
+        if (outputMode === 'json') {
+          log.jsonOutput({ installed: true, version: installedVersion, path: result.path, tag: result.tag });
         }
       } catch (err) {
         if (err instanceof DivergerError) {
