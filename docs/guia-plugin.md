@@ -42,14 +42,38 @@ Acceso programático al motor de diverger-claude:
 
 ## Instalación
 
-### Via marketplace (recomendado)
+### Via CLI (recomendado)
+
+Si ya tienes el CLI de diverger-claude instalado:
+
+```bash
+diverger plugin install
+```
+
+Esto descarga automáticamente la última versión del plugin desde GitHub Releases y lo instala en `~/.claude/plugins/diverger-claude/`.
+
+Para instalar una versión específica:
+
+```bash
+diverger plugin install --tag v1.0.0
+```
+
+Verificar el estado de la instalación:
+
+```bash
+diverger plugin status
+```
+
+### Via marketplace
+
+Desde una sesión de Claude Code:
 
 ```bash
 /plugin marketplace add DivergerThinking/diverger-claude
 /plugin install diverger-claude@divergerthinking-tools
 ```
 
-### Instalación local
+### Instalación local (desarrollo)
 
 Para desarrollo o pruebas:
 
@@ -65,6 +89,15 @@ npm run build:plugin
 # Instalar en tu proyecto
 cd /tu/proyecto
 /plugin install /ruta/a/diverger-claude/plugin
+```
+
+## Post-instalación
+
+Tras instalar el plugin, regenera la configuración de tu proyecto para activar el modo plugin:
+
+```bash
+diverger init --force    # Regenera config en modo plugin
+diverger cleanup         # Elimina componentes duplicados de .claude/
 ```
 
 ## Uso de Skills
@@ -109,6 +142,32 @@ Los hooks se ejecutan automáticamente. No requieren configuración adicional. P
 - Verificación de tests antes de push
 - Detección de problemas de seguridad comunes
 - Actualización de configuración al cambiar de rama
+
+## Gestión del plugin
+
+### Verificar estado
+
+```bash
+diverger plugin status
+```
+
+Muestra: ubicación, versión del plugin, versión del CLI, y si están sincronizadas.
+
+### Actualizar
+
+```bash
+diverger plugin install
+```
+
+El comando detecta si ya existe una instalación y ofrece reinstalar/actualizar.
+
+### Desinstalar
+
+```bash
+diverger plugin uninstall
+```
+
+Elimina el plugin. Después ejecuta `diverger init --force` para regenerar la configuración completa sin plugin.
 
 ## Referencia MCP Tools
 
@@ -163,22 +222,3 @@ Obtiene detalles completos de un profile.
 - `profileId` (string): ID del profile
 
 **Retorna:** Contenido completo del profile.
-
-## Actualización
-
-### Via marketplace
-
-```bash
-/plugin update diverger-claude@divergerthinking-tools
-```
-
-### Manual
-
-```bash
-cd /ruta/a/diverger-claude
-git pull
-npm ci
-npm run build:plugin
-```
-
-El plugin se actualiza automáticamente en los proyectos que lo usen.

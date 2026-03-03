@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0] - 2026-03-03
+
+### Añadido
+- **Comando `diverger plugin install`**: Descarga e instala el plugin desde GitHub Releases automáticamente
+  - Soporte para `--tag vX.Y.Z` para instalar versión específica
+  - Detecta instalación existente y ofrece reinstalar/actualizar
+  - Compatible con Windows (MSYS path conversion para GNU tar)
+- **Comando `diverger plugin status`**: Muestra estado de instalación, versión, y sincronización con CLI
+- **Comando `diverger plugin uninstall`**: Desinstala el plugin con confirmación interactiva
+- **Documentación de migración CLI → Plugin**: Guía paso a paso con 3 comandos
+
+### Cambiado
+- Deprecation message ahora sugiere `diverger plugin install` en lugar de marketplace
+- 875 tests, 70 test files, 0 errores TypeScript
+
 ## [1.0.0] - 2026-03-03
 
 ### Añadido

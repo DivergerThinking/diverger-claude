@@ -269,7 +269,7 @@ export function registerInitCommand(program: Command): void {
       // Phase 4B: Deprecation notice when CLI is used without plugin
       if (!pluginMode && !shouldSuppressDeprecation(outputMode)) {
         log.dim('diverger-claude ahora está disponible como plugin de Claude Code.');
-        log.dim('Instala con: /plugin marketplace add DivergerThinking/diverger-claude');
+        log.dim('Instala con: diverger plugin install');
         log.dim('El CLI seguirá funcionando pero el plugin es la vía recomendada.');
         log.blank();
       }

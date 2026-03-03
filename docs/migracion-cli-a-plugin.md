@@ -4,113 +4,125 @@ Guía para migrar de la instalación CLI (`npm install -g @divergerthinking/dive
 
 ## Prerrequisitos
 
-- Claude Code CLI instalado
+- CLI diverger-claude instalado (`diverger --version` funciona)
 - Node.js 20+
-- Acceso al repositorio DivergerThinking/diverger-claude (para marketplace)
 
-## Paso 1: Instalar el plugin
-
-### Via marketplace (recomendado)
+## Migración rápida (3 comandos)
 
 ```bash
+diverger plugin install      # Descarga e instala el plugin
+diverger init --force        # Regenera config en modo plugin
+diverger cleanup             # Elimina duplicados de .claude/
+```
+
+## Paso a paso detallado
+
+### Paso 1: Instalar el plugin
+
+```bash
+diverger plugin install
+```
+
+Esto descarga la última versión del plugin desde GitHub Releases y lo instala en `~/.claude/plugins/diverger-claude/`.
+
+Para verificar que se instaló correctamente:
+
+```bash
+diverger plugin status
+```
+
+**Alternativas:**
+
+Via marketplace (desde una sesión de Claude Code):
+```
 /plugin marketplace add DivergerThinking/diverger-claude
-/plugin install diverger-claude@divergerthinking-tools
 ```
 
-### Manualmente
+### Paso 2: Re-generar configuración en modo plugin
 
 ```bash
-git clone https://github.com/DivergerThinking/diverger-claude.git
-cd diverger-claude
-npm ci && npm run build:plugin
-/plugin install /ruta/a/diverger-claude/plugin
+diverger init --force
 ```
 
-## Paso 2: Re-generar configuración con modo plugin
+El CLI auto-detecta el plugin y activa `pluginMode`. En este modo solo genera los archivos tech-specific (rules, CLAUDE.md, settings.json), ya que los componentes universales (agentes, skills, hooks) los proporciona el plugin.
 
-En tu proyecto, ejecuta:
-
+Para forzar el modo completo (legacy):
+```bash
+diverger init --force --no-plugin
 ```
-/diverger-init
-```
 
-Esto usa el skill del plugin (que internamente llama al MCP tool `detect_stack` + `generate_config` con `pluginMode: true`).
-
-Alternativamente, si usas el CLI con el plugin instalado, se activa `pluginMode` automáticamente:
+### Paso 3: Limpiar duplicados
 
 ```bash
-diverger init                    # Auto-detecta el plugin, activa pluginMode
-diverger init --no-plugin        # Fuerza modo completo (legacy)
+diverger cleanup
 ```
 
-La diferencia con el modo legacy es que en `pluginMode` solo se generan los archivos tech-specific (rules, CLAUDE.md, settings.json), ya que los componentes universales (agentes, skills, hooks) los proporciona el plugin.
+Elimina automáticamente los archivos que el CLI generaba en `.claude/` y que ahora provee el plugin:
 
-## Paso 3: Verificar
+| Antes (CLI) | Ahora (Plugin) | Acción |
+|-------------|----------------|--------|
+| `.claude/agents/*.md` | Plugin los provee | Eliminados por cleanup |
+| `.claude/skills/*/SKILL.md` | Plugin los provee | Eliminados por cleanup |
+| `.claude/hooks/*.sh` | Plugin los provee | Eliminados por cleanup |
+| Hooks en `settings.json` | Plugin los provee | Limpiados por cleanup |
 
-```
-/diverger-status
-```
-
-Confirma que:
-- Las tecnologías se detectan correctamente
-- La configuración es válida
-- No hay issues reportados
-
-## Paso 4: Limpiar duplicados
-
-Si antes usabas el CLI, puede que tengas archivos duplicados:
-
-| CLI generaba | Plugin genera |
-|-------------|---------------|
-| `.claude/agents/*.md` | `plugin/agents/*.md` |
-| `.claude/skills/*/SKILL.md` | `plugin/skills/*/SKILL.md` |
-| `.claude/hooks/hooks.json` | `plugin/hooks/hooks.json` |
-
-**Archivos que NO se duplican** (siempre en `.claude/`):
+**Archivos que NO se tocan** (siempre en `.claude/`):
 - `.claude/CLAUDE.md` — Instrucciones del proyecto
 - `.claude/settings.json` — Configuración de permisos
 - `.claude/rules/*.md` — Reglas del stack
 
-Revisa y elimina manualmente los agentes/skills/hooks que el CLI generó en `.claude/` si el plugin ya los proporciona.
+Los archivos modificados por el equipo se preservan. Usa `--force` para eliminar también los modificados, o `--dry-run` para ver qué se eliminaría.
 
-## Paso 5: Desinstalar CLI (opcional)
-
-Si el plugin cubre todas tus necesidades:
+### Paso 4: Verificar
 
 ```bash
-npm uninstall -g @divergerthinking/diverger-claude
+diverger plugin status    # Plugin instalado, versión sincronizada
+diverger status           # Stack detectado, config válida
 ```
 
-## Rollback
+## Actualización del plugin
 
-Si necesitas volver al CLI:
+Cuando hay nueva versión:
+
+```bash
+diverger update           # Actualiza el CLI (incluye auto-cleanup)
+diverger plugin install   # Actualiza el plugin
+diverger sync             # Sincroniza config con nuevos profiles
+```
+
+## Desinstalar el plugin
+
+```bash
+diverger plugin uninstall
+diverger init --force         # Regenera config completa sin plugin
+```
+
+## Rollback al CLI sin plugin
 
 1. Desinstalar el plugin:
-   ```
-   /plugin uninstall diverger-claude@divergerthinking-tools
-   ```
-
-2. Reinstalar el CLI:
    ```bash
-   npm install -g @divergerthinking/diverger-claude --@divergerthinking:registry=https://npm.pkg.github.com
+   diverger plugin uninstall
    ```
 
-3. Re-generar configuración:
+2. Re-generar configuración completa:
    ```bash
    diverger init --force
    ```
 
+Todo vuelve a funcionar como antes — el CLI genera todos los archivos en `.claude/`.
+
 ## Diferencias clave CLI vs Plugin
 
-| Aspecto | CLI | Plugin |
-|---------|-----|--------|
-| Instalación | `npm install -g` | `/plugin install` |
-| Ejecución | `diverger init` | `/diverger-init` |
-| Agentes | En `.claude/agents/` | Via plugin system |
-| Skills | En `.claude/skills/` | Via plugin system |
-| Hooks | En `.claude/hooks/` | Via plugin system |
-| MCP | Requiere config manual | Auto-registrado |
-| Actualización | `diverger update` | `/plugin update` |
-| Detección stack | Igual | Igual |
+| Aspecto | CLI solo | CLI + Plugin |
+|---------|----------|--------------|
+| Agentes universales | En `.claude/agents/` | Plugin los provee |
+| Skills universales | En `.claude/skills/` | Plugin los provee |
+| Hooks universales | En `.claude/hooks/` | Plugin los provee |
+| MCP server | No disponible | Auto-registrado |
+| Rules tech-specific | En `.claude/rules/` | En `.claude/rules/` (igual) |
+| settings.json | En `.claude/` | En `.claude/` (igual) |
+| CLAUDE.md | En raíz | En raíz (igual) |
+| Actualización CLI | `diverger update` | `diverger update` (igual) |
+| Actualización plugin | N/A | `diverger plugin install` |
+| Detección de stack | Igual | Igual |
 | Profiles | Igual | Igual |
-| Rules | En `.claude/rules/` | En `.claude/rules/` (sin cambio) |
