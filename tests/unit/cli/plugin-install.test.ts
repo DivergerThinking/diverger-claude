@@ -91,13 +91,19 @@ describe('plugin command helpers', () => {
       mkdirSync(path.join(pluginDir, 'agents'), { recursive: true });
       writeFileSync(path.join(pluginDir, 'agents', 'test.md'), '# Test agent');
 
-      // Create tarball — convert to MSYS paths so GNU tar doesn't interpret C: as remote host
+      // Create tarball — try with forward slashes (bsdtar), fallback to --force-local (GNU tar)
       tarball = path.join(tempDir, 'test-plugin.tar.gz');
-      const toTarPath = (p: string) =>
-        p.replace(/\\/g, '/').replace(/^([A-Za-z]):\//, (_m: string, d: string) => `/${d.toLowerCase()}/`);
-      execSync(`tar -czf "${toTarPath(tarball)}" -C "${toTarPath(tempDir)}" plugin/`, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
+      const tarballFwd = tarball.replace(/\\/g, '/');
+      const tempDirFwd = tempDir.replace(/\\/g, '/');
+      try {
+        execSync(`tar -czf "${tarballFwd}" -C "${tempDirFwd}" plugin/`, {
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+      } catch {
+        execSync(`tar --force-local -czf "${tarballFwd}" -C "${tempDirFwd}" plugin/`, {
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+      }
     });
 
     afterEach(() => {

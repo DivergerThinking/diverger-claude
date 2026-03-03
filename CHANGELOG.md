@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.2] - 2026-03-03
+
+### Corregido
+- **Compatibilidad tar cross-platform**: `extractPlugin` intenta tar con forward slashes (bsdtar/Windows), con fallback a `--force-local` (GNU tar/Git Bash) — funciona tanto desde PowerShell como desde Git Bash
+
 ## [1.1.1] - 2026-03-03
 
 ### Corregido

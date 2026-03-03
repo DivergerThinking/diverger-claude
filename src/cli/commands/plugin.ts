@@ -114,28 +114,22 @@ async function downloadFile(url: string, dest: string): Promise<void> {
   await fs.writeFile(dest, buffer);
 }
 
-/**
- * Convert a Windows path to MSYS-style for GNU tar compatibility.
- * GNU tar interprets C: as a remote host specifier, so C:/Users/...
- * must become /c/Users/... on Windows.
- */
-function toTarPath(p: string): string {
-  // Replace backslashes with forward slashes
-  let result = p.replace(/\\/g, '/');
-  // Convert drive letter: C:/... → /c/...
-  result = result.replace(/^([A-Za-z]):\//, (_match, drive: string) => `/${drive.toLowerCase()}/`);
-  return result;
-}
-
 /** Extract the plugin tarball to the target directory. */
 export async function extractPlugin(tarball: string, targetDir: string): Promise<void> {
   await fs.mkdir(targetDir, { recursive: true });
-  const tarballPath = toTarPath(tarball);
-  const target = toTarPath(targetDir);
-  // --strip-components=1 removes the top-level plugin/ directory from the tarball
-  execSync(`tar -xzf "${tarballPath}" --strip-components=1 -C "${target}"`, {
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+  // Use forward slashes — works with Windows bsdtar and Linux/Mac GNU tar
+  const tarballPath = tarball.replace(/\\/g, '/');
+  const target = targetDir.replace(/\\/g, '/');
+  const baseCmd = `tar -xzf "${tarballPath}" --strip-components=1 -C "${target}"`;
+  try {
+    execSync(baseCmd, { stdio: ['pipe', 'pipe', 'pipe'] });
+  } catch {
+    // GNU tar on Windows (Git Bash/MSYS2) interprets C: as remote host.
+    // Retry with --force-local to treat the archive as a local file.
+    execSync(`tar --force-local -xzf "${tarballPath}" --strip-components=1 -C "${target}"`, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  }
 }
 
 /** Read the version from an installed plugin's plugin.json. */
