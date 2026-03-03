@@ -7,8 +7,8 @@ Plugin universal de desarrollo para Claude Code por DivergerThinking.
 | Categoría | Cantidad | Descripción |
 |-----------|----------|-------------|
 | Agentes | 6 | code-reviewer, test-writer, security-checker, doc-writer, refactor-assistant, migration-helper |
-| Skills | 6+ | diverger-check, diverger-sync, diverger-init, diverger-status, diverger-sync (MCP) y más |
-| Hooks | 4 | Protecciones pre-commit, pre-push, post-checkout, file-save |
+| Skills | 7 | 4 diverger (init, status, sync, check) + 3 guías (architecture, git-workflow, security) |
+| Hooks | 4 | PreToolUse (secret-scanner, destructive-cmd-blocker) + PostToolUse (long-lines, trailing-newline) |
 | MCP Server | 1 | 8 tools: detect_stack, generate_config, check_config, sync_config, list_profiles, get_profile, cleanup_project, eject_project |
 
 ## Instalación
@@ -54,6 +54,9 @@ npm ci && npm run build:plugin
 | `/diverger-status` | Verifica estado del stack y configuración |
 | `/diverger-sync` | Sincroniza configuración con cambios del stack |
 | `/diverger-check` | Valida la configuración existente |
+| `/architecture-style-guide` | Guía de estilo de arquitectura |
+| `/git-workflow-guide` | Guía de flujo de trabajo Git |
+| `/security-guide` | Guía de seguridad |
 
 ## Agentes disponibles
 

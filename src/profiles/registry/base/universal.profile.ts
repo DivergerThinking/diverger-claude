@@ -337,7 +337,7 @@ For every function/module, write tests covering:
         skills: [],
       },
       {
-        name: 'security-reviewer',
+        name: 'security-checker',
         type: 'define',
         model: 'sonnet',
         description: 'Reviews code for security vulnerabilities (OWASP Top 10 2025)',

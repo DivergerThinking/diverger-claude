@@ -49,7 +49,7 @@ Ejemplo para `code-reviewer`:
 - Representan buenas prácticas sugeridas
 - `diverger sync` respeta los cambios del equipo
 
-## Profiles disponibles (61 total)
+## Profiles disponibles (59 total)
 
 ### Base (1)
 - `base/universal` - Clean code, seguridad genérica, agentes universales
@@ -65,7 +65,7 @@ Ejemplo para `code-reviewer`:
 - `languages/swift` - Protocol-oriented, optionals, concurrency
 - `languages/dart` - Null safety, async, Flutter patterns
 
-### Frameworks (23)
+### Frameworks (27)
 - `frameworks/react` - Hooks, componentes, estado
 - `frameworks/nextjs` - App Router, Server Components, caching
 - `frameworks/remix` - Loaders/actions, nested routes, progressive enhancement
@@ -105,7 +105,7 @@ Ejemplo para `code-reviewer`:
 - `testing/xctest` - XCTest/XCUITest, iOS testing
 - `testing/espresso` - Android UI testing, matchers
 
-### Infraestructura (19)
+### Infraestructura (13)
 - `infra/docker` - Multi-stage, seguridad, compose
 - `infra/kubernetes` - Resources, probes, security context
 - `infra/github-actions` - Workflows, caching, secrets

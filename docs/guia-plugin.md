@@ -15,20 +15,23 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - **refactor-assistant**: Sugiere refactorings con patrones del framework
 - **migration-helper**: Asiste en migraciones de versiones y frameworks
 
-### 4 Skills
+### 7 Skills
 
 - `/diverger-init` — Detecta stack y genera configuración .claude/
 - `/diverger-status` — Muestra estado del stack y validación de configuración
 - `/diverger-sync` — Sincroniza configuración con cambios detectados
 - `/diverger-check` — Valida la configuración existente y detecta issues de gobernanza
+- `/architecture-style-guide` — Guía de estilo de arquitectura
+- `/git-workflow-guide` — Guía de flujo de trabajo Git
+- `/security-guide` — Guía de seguridad
 
 ### 4 Hooks de protección
 
-Los hooks se activan automáticamente para proteger la calidad del código:
-- **Pre-commit**: Validaciones antes de cada commit
-- **Pre-push**: Verificaciones antes de push
-- **Post-checkout**: Actualización tras cambio de rama
-- **File-save**: Validaciones al guardar archivos
+Los hooks se activan automáticamente via eventos de Claude Code:
+- **PreToolUse/Write**: Secret scanner — detecta credenciales antes de escribir archivos
+- **PreToolUse/Bash**: Destructive command blocker — bloquea comandos peligrosos (`rm -rf /`, `DROP TABLE`, etc.)
+- **PostToolUse/Write**: Long lines checker — verifica que no se generen líneas excesivamente largas
+- **PostToolUse/Write**: Trailing newline checker — asegura que los archivos terminen con newline
 
 ### Servidor MCP (8 tools)
 
@@ -37,7 +40,7 @@ Acceso programático al motor de diverger-claude:
 - `generate_config` — Genera configuración .claude/ completa
 - `check_config` — Valida configuración existente
 - `sync_config` — Sincroniza configuración (soporta `resolveConflicts`: ours/theirs/report y `dryRun`)
-- `list_profiles` — Lista profiles disponibles (61 profiles)
+- `list_profiles` — Lista profiles disponibles (59 profiles)
 - `get_profile` — Detalle de un profile
 - `cleanup_project` — Elimina componentes duplicados del plugin (soporta `dryRun`)
 - `eject_project` — Eyecta el plugin manteniendo configuración local
@@ -219,7 +222,7 @@ Sincroniza configuración con el stack actual.
 
 ### list_profiles
 
-Lista todos los profiles disponibles (61 profiles en 5 capas).
+Lista todos los profiles disponibles (59 profiles en 5 capas).
 
 **Retorna:** Lista con nombre, capa, descripción de cada profile.
 

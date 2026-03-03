@@ -185,7 +185,7 @@ For detailed examples and reference, invoke: /jest-config-guide
 - async/await with resolves/rejects, jest.useFakeTimers(), proper matcher choice (toBe/toEqual/toMatchObject)`,
       },
       {
-        name: 'security-reviewer',
+        name: 'security-checker',
         type: 'enrich',
         prompt: `## Jest Security Review
 - No real credentials/PII in fixtures or snapshots

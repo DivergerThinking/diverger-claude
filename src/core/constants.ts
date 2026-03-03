@@ -76,7 +76,7 @@ export const SENSITIVE_PATTERNS = [
 // --- Plugin: Universal Component Names ---
 
 export const UNIVERSAL_AGENT_NAMES: ReadonlySet<string> = new Set([
-  'code-reviewer', 'test-writer', 'security-reviewer',
+  'code-reviewer', 'test-writer', 'security-checker',
   'doc-writer', 'refactor-assistant', 'migration-helper',
 ]);
 

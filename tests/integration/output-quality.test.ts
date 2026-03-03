@@ -161,7 +161,7 @@ describe('v0.5.0 Output Quality', () => {
 
     // Should have distinct reviewer agents
     expect(agentNames).toContain('code-reviewer');
-    expect(agentNames).toContain('security-reviewer');
+    expect(agentNames).toContain('security-checker');
 
     // TS+React+Jest should produce specific reviewers
     const hasTs = agentNames.includes('ts-reviewer');

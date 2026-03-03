@@ -237,7 +237,7 @@ For detailed rules, invoke: /ts-conventions-guide`,
 - Only mock I/O boundaries (network, filesystem, database)`,
       },
       {
-        name: 'security-reviewer',
+        name: 'security-checker',
         type: 'enrich',
         prompt: `## TypeScript Security Review
 - No \`any\` that bypasses input validation — \`JSON.parse()\` typed as \`unknown\`

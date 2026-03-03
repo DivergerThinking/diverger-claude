@@ -4,11 +4,11 @@
 
 ### Añadido
 - **CONTRIBUTING.md**: Guía completa de contribución (profiles, analyzers, MCP tools, testing, release)
-- **Documentación actualizada**: README, guía del plugin, guía de uso, guía de instalación, guía de profiles, plugin README — todos reflejan el estado actual (61 profiles, 8 MCP tools, telemetría, update --all)
+- **Documentación actualizada**: README, guía del plugin, guía de uso, guía de instalación, guía de profiles, plugin README — todos reflejan el estado actual (59 profiles, 8 MCP tools, telemetría, update --all)
 
 ### Cambiado
-- README refleja 61 profiles, 10 analyzers, 8 MCP tools, telemetría, `update --all`
-- Guía de profiles lista todos los 61 profiles disponibles por categoría
+- README refleja 59 profiles, 10 analyzers, 8 MCP tools, telemetría, `update --all`
+- Guía de profiles lista todos los 59 profiles disponibles por categoría
 - Guía del plugin documenta 8 MCP tools con parámetros completos de sync_config, cleanup_project, eject_project
 - Guía de uso incluye telemetría y `update --all`
 - Guía de instalación incluye post-install automático y telemetría
@@ -35,7 +35,7 @@
 ## [1.4.0] - 2026-03-03
 
 ### Añadido
-- **10 profiles nuevos** (51 → 61 total):
+- **10 profiles nuevos** (49 → 59 total):
   - **CI/CD**: GitLab CI, Jenkins, CircleCI, Azure Pipelines — con reglas, agents, skills y hooks
   - **Frameworks**: Remix, Astro, Prisma, tRPC — con convenciones, generators y validación
   - **Runtimes**: Bun, Deno — detección por lockfiles y config
@@ -43,7 +43,7 @@
 - **Detección mejorada**: CI analyzer ahora conecta con profileIds reales; Node analyzer detecta Remix, Astro, Prisma y tRPC
 
 ### Cambiado
-- 61 profiles registrados (era 51)
+- 59 profiles registrados (era 49)
 - 10 analyzers (era 9)
 
 ## [1.3.0] - 2026-03-03

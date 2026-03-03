@@ -92,18 +92,18 @@ diverger plugin status   # Verificar estado del plugin
 | `-f, --force` | Sin confirmaciones |
 | `-d, --dry-run` | Solo mostrar, no escribir |
 
-## Tecnologías soportadas (61 profiles)
+## Tecnologías soportadas (59 profiles)
 
 ### Lenguajes (9)
 TypeScript, Python, Java, Go, Rust, C#, Kotlin, Swift, Dart
 
-### Frameworks (23)
+### Frameworks (27)
 React, Next.js, Angular, Vue.js, Svelte, Nuxt, Remix, Astro, Express, NestJS, Flask, FastAPI, Django, Spring Boot, Gin, Echo, Fiber, Actix-web, Axum, Rocket, Prisma, tRPC, React Native, Expo, Flutter, SwiftUI, Jetpack Compose
 
 ### Testing (9)
 Jest, Vitest, Pytest, JUnit, Cypress, Playwright, Detox, XCTest, Espresso
 
-### Infraestructura (19)
+### Infraestructura (13)
 Docker, Kubernetes, GitHub Actions, GitLab CI, Jenkins, CircleCI, Azure Pipelines, AWS, Terraform, Vercel, Fastlane, Bun, Deno
 
 ## Sistema de profiles
