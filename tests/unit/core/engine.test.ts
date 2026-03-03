@@ -622,7 +622,7 @@ describe('DivergerEngine', () => {
 
       // generate should receive the composed config, project root, and detection
       expect(mockGenerate).toHaveBeenCalledTimes(1);
-      expect(mockGenerate).toHaveBeenCalledWith(composed, '/project', detection, undefined);
+      expect(mockGenerate).toHaveBeenCalledWith(composed, '/project', detection, undefined, undefined);
 
       expect(result).toBe(genResult);
     });

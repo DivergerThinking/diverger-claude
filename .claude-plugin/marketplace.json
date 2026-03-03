@@ -1,0 +1,14 @@
+{
+  "name": "divergerthinking-tools",
+  "owner": { "name": "DivergerThinking" },
+  "metadata": {
+    "description": "Developer productivity plugins by DivergerThinking",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "diverger-claude",
+      "source": "./plugin"
+    }
+  ]
+}

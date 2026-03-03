@@ -28,9 +28,9 @@ export function generateAgents(
   });
 }
 
-const DEFAULT_TOOLS = ['Read', 'Grep', 'Glob', 'Bash'];
+export const DEFAULT_TOOLS = ['Read', 'Grep', 'Glob', 'Bash'];
 
-function formatAgentFile(agent: AgentDefinition): string {
+export function formatAgentFile(agent: AgentDefinition): string {
   const parts: string[] = [];
   const tools = agent.tools ?? DEFAULT_TOOLS;
 

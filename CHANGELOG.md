@@ -1,5 +1,77 @@
 # Changelog
 
+## [1.0.0] - 2026-03-03
+
+### Añadido
+- **Comando `diverger cleanup`**: Elimina componentes universales duplicados de `.claude/` cuando el plugin está instalado
+  - Detecta archivos modificados por el equipo y los preserva (compara con versión del plugin)
+  - Limpia hooks universales de `settings.json` automáticamente
+  - Soporta `--dry-run`, `--force`, `--dir`, `--json`
+- **Auto-detección de plugin**: El CLI detecta automáticamente si el plugin diverger-claude está instalado y activa `pluginMode` sin necesidad de `--plugin-mode`
+- **Flag `--no-plugin`**: Fuerza modo completo (generación legacy) incluso cuando el plugin está instalado
+- **Avisos de deprecación**: El CLI muestra recomendación de migrar al plugin cuando se usa sin él
+- **Supresión inteligente**: Los avisos se suprimen con `--quiet`, `--json`, `CI=true`, o `DIVERGER_NO_DEPRECATION=1`
+- **Módulo `plugin-detect.ts`**: Detección de plugin en rutas user-scope, cache (marketplace) y project-scope
+- **Auto-cleanup en `diverger update`**: Tras actualizar, ejecuta cleanup automáticamente si el plugin está instalado
+  - Elimina componentes universales duplicados sin intervención manual
+  - Flag `--no-cleanup` para desactivar el comportamiento
+  - Si falla, muestra warning sin interrumpir el update
+
+### Cambiado
+- **Plugin = vía recomendada**: El CLI sigue funcionando pero recomienda migrar al plugin
+- 865 tests, 69 test files, 0 errores TypeScript
+
+## [0.8.0] - 2026-03-03
+
+### Añadido
+- **Distribución marketplace**: Plugin instalable via `/plugin marketplace add DivergerThinking/diverger-claude`
+- **Manifiesto marketplace**: `.claude-plugin/marketplace.json` con registro de plugins
+- **MCP server self-contained**: Bundle completo sin dependencias externas en `plugin/mcp/server.js`
+- **GitHub Release automático**: Workflow crea release con tarball del plugin en cada tag
+- **Validación CI del plugin**: Job dedicado verifica estructura, manifiestos y paths del plugin
+- **Tests marketplace**: Validación de `marketplace.json`, MCP bundled server, y sync de versiones
+- **Documentación**: `docs/guia-plugin.md` (guía de usuario) y `docs/migracion-cli-a-plugin.md` (migración CLI → plugin)
+- **Plugin README**: Listing completo para marketplace con tabla de agentes, skills, hooks y MCP tools
+
+### Cambiado
+- **Plugin en git**: `plugin/` ya no está en `.gitignore`, se commitea el plugin construido
+- **MCP paths**: `.mcp.json` usa `${CLAUDE_PLUGIN_ROOT}/mcp/server.js` (sin `../`)
+- **build:plugin**: Ahora ejecuta `npm run build` primero para generar el bundle MCP
+- **plugin.json**: Metadata enriquecida con author object, homepage, repository, keywords
+- **tsup.config.ts**: Tercer entry point para bundle MCP self-contained (`noExternal: [/.*/]`)
+
+### Eliminado
+- **`.claude-plugin/plugin.json`**: Manifiesto legacy v0.1.0 con paths `../` rotos, reemplazado por `marketplace.json`
+
+## [0.5.0] - 2026-03-02
+
+### Cambiado (auditoría de calidad v2, score 6.3 → 9+/10)
+- **Hook protocol**: Scripts externos `.claude/hooks/*.sh` con protocolo stdin JSON, `hookSpecificOutput` para PreToolUse, exit code 2 para bloqueo PostToolUse
+- **Hook scripts**: Templates reutilizables (`makeFilePatternCheckScript`, `makePreToolUseBlockerScript`, `makeNodeCheckScript`) reemplazando todos los patrones HOOK_EXIT
+- **Seguridad**: Secret scanner + bloqueador de comandos destructivos movidos a PreToolUse (se ejecutan antes)
+- **Agentes separados**: code-reviewer, security-reviewer, ts-reviewer, react-reviewer, test-reviewer con `model: sonnet` en todos
+- **Skill frontmatter**: `context: fork` + `allowedTools` en 58 skills generadores, `userInvocable` + `disableModelInvocation` en 11 skills de referencia
+- **Rules trimming**: Todas las reglas ≤50 líneas, contenido verboso movido a skills on-demand
+- **statusMessage**: Añadido en todas las entradas de hooks
+- Zero referencias a HOOK_EXIT, $CLAUDE_FILE_PATH, $CLAUDE_TOOL_INPUT
+- 774 tests, 57 test files, 0 errores TypeScript
+
+### Corregido
+- Uso de scoped registry en comando update para evitar E404 en dependencias transitivas
+
+## [0.4.0] - 2026-03-02
+
+### Mejorado (auditoría de calidad de output)
+- **Skills YAML frontmatter**: SKILL.md incluye `name:` y `description:` en frontmatter YAML para auto-invocación
+- **Rules path scoping**: Campo `paths` opcional en `RuleDefinition`, emite frontmatter `paths:` YAML
+- **CLAUDE.md reducido**: Secciones condensadas de ~260 líneas a ~8 líneas por profile, referenciando `.claude/rules/`
+- **ESLint config merging**: Múltiples configs ESLint de diferentes profiles se deep-mergen en un solo archivo
+- **Settings $schema**: `settings.json` incluye key `$schema` para autocompletado en IDE
+- **Agent skill references**: Enrichments de agentes referencian skills de su profile
+- **Cross-platform hooks**: Reemplazado `grep -P` (Perl regex) por `grep -E` (POSIX ERE) en 49 profiles
+- Extraído `yamlEscape()` compartido en `yaml-utils.ts`
+- 716 tests, 54 test files, 0 errores TypeScript
+
 ## [0.3.0] - 2026-03-02
 
 ### Añadido

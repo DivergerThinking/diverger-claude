@@ -1,0 +1,20 @@
+{
+  "name": "diverger-claude",
+  "version": "0.5.0",
+  "description": "Universal development agents, skills, and hooks by DivergerThinking",
+  "author": {
+    "name": "DivergerThinking",
+    "url": "https://github.com/DivergerThinking"
+  },
+  "homepage": "https://github.com/DivergerThinking/diverger-claude",
+  "repository": "https://github.com/DivergerThinking/diverger-claude.git",
+  "license": "UNLICENSED",
+  "keywords": [
+    "claude-code",
+    "developer-tools",
+    "agents",
+    "skills",
+    "hooks",
+    "mcp"
+  ]
+}

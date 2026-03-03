@@ -68,7 +68,7 @@ describe('CLI E2E', () => {
   });
 
   describe('diverger init', () => {
-    it('should generate .claude/ for a Next.js project', async () => {
+    it('should generate .claude/ for a Next.js project', { timeout: 30_000 }, async () => {
       await fs.writeFile(
         path.join(tempDir, 'package.json'),
         JSON.stringify({

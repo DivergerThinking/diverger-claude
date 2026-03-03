@@ -86,7 +86,7 @@ export class DivergerEngine {
     }
 
     ctx.onProgress?.('Generando archivos de configuración...');
-    const result = await this.generation.generate(composed, ctx.projectRoot, detection, ctx.onProgress);
+    const result = await this.generation.generate(composed, ctx.projectRoot, detection, ctx.onProgress, ctx.options.pluginMode);
     return result;
   }
 

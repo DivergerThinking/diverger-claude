@@ -73,6 +73,22 @@ export const SENSITIVE_PATTERNS = [
   '**/*.p12',
 ] as const;
 
+// --- Plugin: Universal Component Names ---
+
+export const UNIVERSAL_AGENT_NAMES: ReadonlySet<string> = new Set([
+  'code-reviewer', 'test-writer', 'security-reviewer',
+  'doc-writer', 'refactor-assistant', 'migration-helper',
+]);
+
+export const UNIVERSAL_SKILL_NAMES: ReadonlySet<string> = new Set([
+  'architecture-style-guide', 'security-guide', 'git-workflow-guide',
+]);
+
+export const UNIVERSAL_HOOK_SCRIPT_FILENAMES: ReadonlySet<string> = new Set([
+  'secret-scanner.sh', 'destructive-cmd-blocker.sh',
+  'check-long-lines.sh', 'check-trailing-newline.sh',
+]);
+
 /** Backup directory for pre-merge backups */
 export const BACKUP_DIR = '.diverger-backup';
 

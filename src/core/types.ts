@@ -475,6 +475,8 @@ export interface CliOptions {
   dryRun: boolean;
   /** Target directory (defaults to cwd) */
   targetDir: string;
+  /** Exclude universal components provided by plugin */
+  pluginMode?: boolean;
 }
 
 // --- Analyzer Types ---

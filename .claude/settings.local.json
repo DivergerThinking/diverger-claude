@@ -35,7 +35,18 @@
       "WebFetch(domain:owasp.org)",
       "WebFetch(domain:cheatsheetseries.owasp.org)",
       "WebFetch(domain:about.gitlab.com)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(diverger:*)",
+      "WebFetch(domain:www.builder.io)",
+      "WebFetch(domain:claude-blog.setec.rs)",
+      "WebFetch(domain:json.schemastore.org)",
+      "WebFetch(domain:www.schemastore.org)",
+      "WebFetch(domain:managed-settings.com)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:www.eesel.ai)",
+      "WebFetch(domain:ts.sdk.modelcontextprotocol.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)"
     ]
   }
 }

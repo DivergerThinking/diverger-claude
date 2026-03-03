@@ -12,6 +12,7 @@ import { generateReactNativeTemplate } from './templates/react-native-template.j
 import { generateExpoTemplate } from './templates/expo-template.js';
 import { generateFlutterTemplate } from './templates/flutter-template.js';
 import { generateSwiftUITemplate } from './templates/swiftui-template.js';
+import { filterUniversalComponents } from './plugin-filter.js';
 import { FileWriter } from './file-writer.js';
 import { DiffEngine } from './diff-engine.js';
 import { existsSync } from 'node:fs';
@@ -35,13 +36,14 @@ export class GenerationEngine {
     projectRoot: string,
     detection: DetectionResult,
     onProgress?: (message: string) => void,
+    pluginMode?: boolean,
   ): Promise<GenerationResult> {
-    const files = await this.generateFiles(config, projectRoot, detection, onProgress);
+    const files = await this.generateFiles(config, projectRoot, detection, onProgress, pluginMode);
 
     return {
       files,
       detection,
-      config,
+      config, // UNFILTERED config for metadata
     };
   }
 
@@ -51,12 +53,14 @@ export class GenerationEngine {
     projectRoot: string,
     detection?: DetectionResult,
     onProgress?: (message: string) => void,
+    pluginMode?: boolean,
   ): Promise<GeneratedFile[]> {
+    const effectiveConfig = pluginMode ? filterUniversalComponents(config) : config;
     const files: GeneratedFile[] = [];
 
     // 1. Security (generate first, merge overlay into settings for downstream generators)
     onProgress?.('Generando reglas de seguridad...');
-    const { mergedConfig, securityFiles } = this.mergeSecurityOverlay(config, projectRoot);
+    const { mergedConfig, securityFiles } = this.mergeSecurityOverlay(effectiveConfig, projectRoot);
     files.push(...securityFiles);
 
     // 2. CLAUDE.md

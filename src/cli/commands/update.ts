@@ -2,6 +2,8 @@ import type { Command } from 'commander';
 import { execSync } from 'child_process';
 import * as log from '../ui/logger.js';
 import { getVersion } from '../version.js';
+import { performCleanup } from './cleanup.js';
+import { detectPluginInstalled } from '../plugin-detect.js';
 
 const PKG_NAME = '@divergerthinking/diverger-claude';
 const REGISTRY = 'https://npm.pkg.github.com';
@@ -49,6 +51,7 @@ export function registerUpdateCommand(program: Command): void {
     .command('update')
     .description('Actualizar diverger-claude a la última versión')
     .option('--check', 'Solo verificar si hay actualización disponible', false)
+    .option('--no-cleanup', 'No ejecutar cleanup automático tras la actualización')
     .action(async (opts) => {
       const currentVersion = getVersion();
 
@@ -92,10 +95,38 @@ export function registerUpdateCommand(program: Command): void {
         execSync(cmd, { stdio: 'inherit' });
         log.blank();
         log.success(`Actualizado a v${latest}`);
-        log.info('Ejecuta `diverger sync` en tus proyectos para aplicar los nuevos profiles.');
       } catch {
         log.error('Error al actualizar. Verifica permisos y conexión.');
         process.exit(1);
       }
+
+      // Auto-cleanup: remove universal duplicates if plugin is present
+      if (opts.cleanup !== false) {
+        const targetDir = process.cwd();
+        const pluginPath = detectPluginInstalled(targetDir);
+        if (pluginPath) {
+          log.blank();
+          log.info('Plugin detectado — ejecutando cleanup automático...');
+          try {
+            const result = await performCleanup({ targetDir, force: false });
+            if (result.cleaned) {
+              log.success(`Cleanup: ${result.removed.length} componente(s) duplicado(s) eliminado(s).`);
+              if (result.settingsClean) {
+                log.success('Hooks universales eliminados de settings.json.');
+              }
+              if (result.skipped.length > 0) {
+                log.dim(`${result.skipped.length} archivo(s) modificado(s) preservado(s).`);
+              }
+            } else {
+              log.dim('No se encontraron componentes universales duplicados.');
+            }
+          } catch {
+            log.warn('No se pudo completar el cleanup automático. Ejecuta `diverger cleanup` manualmente.');
+          }
+        }
+      }
+
+      log.blank();
+      log.info('Ejecuta `diverger sync` en tus proyectos para aplicar los nuevos profiles.');
     });
 }

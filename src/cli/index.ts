@@ -8,6 +8,7 @@ import { registerCheckCommand } from './commands/check.js';
 import { registerEjectCommand } from './commands/eject.js';
 import { registerWelcomeCommand } from './commands/welcome.js';
 import { registerUpdateCommand } from './commands/update.js';
+import { registerCleanupCommand } from './commands/cleanup.js';
 import { getVersion } from './version.js';
 
 export function createCli(): Command {
@@ -36,6 +37,7 @@ export function createCli(): Command {
   registerEjectCommand(program);
   registerWelcomeCommand(program);
   registerUpdateCommand(program);
+  registerCleanupCommand(program);
 
   return program;
 }

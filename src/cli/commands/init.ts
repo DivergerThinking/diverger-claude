@@ -13,6 +13,7 @@ import { DivergerError, extractErrorMessage } from '../../core/errors.js';
 import * as log from '../ui/logger.js';
 import { displayDiffs, displayDiffSummary } from '../ui/diff-display.js';
 import { buildSummary } from '../ui/summary.js';
+import { detectPluginInstalled, shouldSuppressDeprecation } from '../plugin-detect.js';
 
 interface InitResult {
   writeResults: WriteResult[];
@@ -246,13 +247,39 @@ export function registerInitCommand(program: Command): void {
     .description('Detectar stack y generar configuración .claude/')
     .option('-f, --force', 'Sobrescribir archivos existentes sin preguntar', false)
     .option('-d, --dry-run', 'Mostrar qué se generaría sin escribir', false)
+    .option('--plugin-mode', 'Excluir componentes universales (proporcionados por plugin)', false)
+    .option('--no-plugin', 'Forzar modo completo (ignorar plugin instalado)', false)
     .option('--dir <path>', 'Directorio objetivo (por defecto: directorio actual)')
     .action(async (opts) => {
+      const targetDir = opts.dir ?? process.cwd();
+      const outputMode = log.getOutputMode();
+
+      // Phase 4A: Auto-detect plugin — activate pluginMode automatically
+      let pluginMode = opts.pluginMode ?? false;
+      if (!pluginMode && opts.plugin !== false) {
+        const pluginPath = detectPluginInstalled(targetDir);
+        if (pluginPath) {
+          pluginMode = true;
+          if (!shouldSuppressDeprecation(outputMode)) {
+            log.info('Plugin diverger-claude detectado. Generando solo configuración tech-specific.');
+          }
+        }
+      }
+
+      // Phase 4B: Deprecation notice when CLI is used without plugin
+      if (!pluginMode && !shouldSuppressDeprecation(outputMode)) {
+        log.dim('diverger-claude ahora está disponible como plugin de Claude Code.');
+        log.dim('Instala con: /plugin marketplace add DivergerThinking/diverger-claude');
+        log.dim('El CLI seguirá funcionando pero el plugin es la vía recomendada.');
+        log.blank();
+      }
+
       const options: CliOptions = {
-        output: log.getOutputMode(),
+        output: outputMode,
         force: opts.force ?? false,
         dryRun: opts.dryRun ?? false,
-        targetDir: opts.dir ?? process.cwd(),
+        targetDir,
+        pluginMode,
       };
 
       const engine = new DivergerEngine();
