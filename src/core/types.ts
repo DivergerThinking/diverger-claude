@@ -488,3 +488,124 @@ export interface AnalyzerResult {
   analyzedFiles: string[];
 }
 
+// --- Memory Types ---
+
+export interface MemoryStore {
+  /** Schema version for future migrations */
+  schemaVersion: 1;
+  /** Detected error patterns */
+  errorPatterns: ErrorPattern[];
+  /** Log of repairs applied */
+  repairLog: RepairLogEntry[];
+  /** Log of project evolution events */
+  evolutionLog: EvolutionEntry[];
+  /** Anti-patterns learned from errors */
+  antiPatterns: AntiPattern[];
+  /** Best practices discovered */
+  bestPractices: BestPractice[];
+  /** Aggregated stats */
+  stats: MemoryStats;
+}
+
+export type ErrorPatternCategory = 'tool-error' | 'config-issue' | 'code-pattern' | 'hook-failure';
+
+export interface ErrorPattern {
+  /** Unique ID (hash of the signature) */
+  id: string;
+  /** Error category */
+  category: ErrorPatternCategory;
+  /** Tool that triggered the error */
+  tool?: string;
+  /** Regex string for matching */
+  matchPattern: string;
+  /** Human-readable description */
+  description: string;
+  /** Times this pattern has been seen */
+  occurrences: number;
+  /** ISO timestamp of first occurrence */
+  firstSeen: string;
+  /** ISO timestamp of last occurrence */
+  lastSeen: string;
+  /** Known resolution */
+  resolution?: string;
+  /** Whether a .claude/rules/learned/ rule was generated */
+  ruleGenerated: boolean;
+}
+
+export interface RepairLogEntry {
+  /** ISO timestamp */
+  timestamp: string;
+  /** Diagnosis ID that triggered the repair */
+  diagnosisId: string;
+  /** What was repaired */
+  description: string;
+  /** Whether the repair succeeded */
+  success: boolean;
+  /** Confidence of the original diagnosis (0-100) */
+  confidence: number;
+}
+
+export interface EvolutionEntry {
+  /** ISO timestamp */
+  timestamp: string;
+  /** Type of evolution event */
+  type: 'dependency-added' | 'dependency-removed' | 'architecture-change' | 'profile-added' | 'profile-removed';
+  /** Human-readable description */
+  description: string;
+  /** Related data (e.g. dependency name, profile ID) */
+  data?: Record<string, unknown>;
+}
+
+export type AntiPatternSource = 'error-analysis' | 'session-observation' | 'manual';
+
+export interface AntiPattern {
+  /** Unique ID */
+  id: string;
+  /** What to avoid */
+  pattern: string;
+  /** Why it's bad */
+  reason: string;
+  /** What to do instead */
+  alternative: string;
+  /** How this was learned */
+  source: AntiPatternSource;
+  /** Confidence 0-100 */
+  confidence: number;
+  /** ISO timestamp when learned */
+  learnedAt: string;
+}
+
+export interface BestPractice {
+  /** Unique ID */
+  id: string;
+  /** Description of the practice */
+  practice: string;
+  /** Why it's good */
+  reason: string;
+  /** How this was learned */
+  source: AntiPatternSource;
+  /** Confidence 0-100 */
+  confidence: number;
+  /** ISO timestamp when learned */
+  learnedAt: string;
+}
+
+export interface MemoryStats {
+  /** Total sessions tracked */
+  totalSessions: number;
+  /** Total repairs attempted */
+  totalRepairs: number;
+  /** Total repairs that succeeded */
+  successfulRepairs: number;
+  /** Total error patterns detected */
+  totalErrorPatterns: number;
+  /** Total rules auto-generated from patterns */
+  rulesGenerated: number;
+  /** ISO timestamp of first session */
+  firstSession?: string;
+  /** ISO timestamp of last session */
+  lastSession?: string;
+  /** ISO timestamp of last memory consolidation */
+  lastConsolidation?: string;
+}
+

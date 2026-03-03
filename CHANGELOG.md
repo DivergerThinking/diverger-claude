@@ -1,5 +1,104 @@
 # Changelog
 
+## [2.3.0] - 2026-03-03
+
+### Añadido
+- **6 Workflow Skills de alta calidad**:
+  - `/diverger-audit` — Auditoría integral de calidad, seguridad, testing y configuración
+  - `/diverger-test-suite` — Análisis de cobertura y generación de tests adaptados al stack
+  - `/diverger-pr-review` — Review exhaustivo de PR con checklist adaptado al stack
+  - `/diverger-onboard` — Generación de documentación de onboarding para nuevos developers
+  - `/diverger-migrate` — Planificación y ejecución de migraciones tecnológicas
+  - `/diverger-release` — Checklist de release completo (tests, changelog, version, tag, publish)
+- **Agente `audit-reviewer`**: Agente especializado en análisis profundo de calidad, seguridad y conformidad
+- 15 skills totales (era 11), 8 agentes totales (era 7)
+
+## [2.2.0] - 2026-03-03
+
+### Corregido
+- **Pipeline de aprendizaje conectado**: Los errores de sesión ahora se procesan automáticamente al inicio de la siguiente sesión (antes: stub sin funcionalidad)
+- **Claude memory sync activado**: `syncToClaudeMemory()` se llama automáticamente en cada SessionStart (antes: código muerto)
+- **Captura de errores extendida**: `error-tracker.sh` ahora captura errores de Write y Edit además de Bash (antes: solo Bash)
+- **Fallback "unclassified"**: Errores sin match en clasificadores ahora se registran como `tool-error` con confidence 30 (antes: se descartaban)
+- **session-learner.sh simplificado**: Script reducido a cleanup helper (procesamiento movido a SessionStart)
+
+### Añadido
+- **Documentación de memoria**: `docs/guia-memoria.md` — guía completa del sistema de memoria y aprendizaje
+- Tests: 10 tests nuevos (session-hook-learning, error-analyzer unclassified)
+- README actualizado con sección "Sistema de Memoria y Aprendizaje"
+- Guía del plugin actualizada con 13 MCP tools y 15 skills
+
+## [2.1.0] - 2026-03-03
+
+### Añadido
+- **Plugin Health Monitor** (`src/plugin-health/`): Sistema completo de diagnóstico del plugin
+  - 8 health checks: hooks-json, hook-scripts, mcp-server, mcp-config, agents-integrity, skills-integrity, version-consistency, update-available
+  - Auto-reparación para issues fixables (reinstalar plugin, chmod scripts, regenerar config)
+  - Reporte agregado con status: healthy/degraded/unhealthy
+- **MCP `check_plugin_health`**: Nueva tool MCP para diagnóstico del plugin (→ 13 MCP tools total)
+- **Skill `/diverger-health`**: Skill user-invocable para diagnóstico completo del plugin
+- Tests: 21 tests nuevos (monitor + checkers)
+
+## [2.0.0] - 2026-03-03
+
+### Añadido
+- **Evolution Advisor** (`src/evolution/`): Sistema proactivo de evolución de configuración
+  - **Dependency Mapper**: Tabla extensible (~50 packages) que mapea dependencias a technology IDs (npm, Python, Go, Rust)
+  - **Architecture Detector**: Detecta cambios arquitectónicos (Docker, CI/CD, monorepo)
+  - **Evolution Advisor**: Análisis proactivo con consejos priorizados (high/medium/low)
+  - **Memory Consolidator**: Consolidación periódica (cada 7 días) con merge de anti-patterns similares
+- **Agente `evolution-advisor`**: Agente autónomo con acceso a detect_stack, get_memory, sync_config
+- **Skill `/diverger-evolve`**: Skill user-invocable para revisión de evolución del proyecto
+- Tests: 19 tests nuevos (dependency-mapper, advisor, consolidator)
+
+## [1.9.0] - 2026-03-03
+
+### Añadido
+- **Error Learning Loop** (`src/learning/`): Pipeline de aprendizaje de errores
+  - **Error Analyzer**: 11 clasificadores regex extensibles (permission denied, module not found, TS errors, hook failures, etc.)
+  - **Pattern Matcher**: Matching contra patrones conocidos con deduplicación por hash
+  - **Rule Generator**: Genera `.claude/rules/learned/*.md` automáticamente cuando un patrón alcanza 3 ocurrencias
+  - **Session Extractor**: Extrae aprendizajes al final de sesión, procesa errores acumulados
+- **MCP `extract_learnings`**: Nueva tool MCP para procesar errores de sesión
+- **Hook `error-tracker.sh`**: PostToolUse hook que captura errores a `.claude/session-errors.local.json`
+- **Hook `session-learner.sh`**: SessionEnd hook que señaliza errores listos para procesamiento
+- **Skill `/diverger-learn`**: Skill user-invocable para revisar patrones aprendidos
+- Tests: 21 tests nuevos (error-analyzer, pattern-matcher, session-extractor)
+
+## [1.8.0] - 2026-03-03
+
+### Añadido
+- **Self-Repair Engine** (`src/repair/`): Motor de auto-reparación con modelo de confianza
+  - **Diagnostics**: 9 diagnósticos (D1-D9): CLAUDE.md faltante, JSON inválido, reglas mandatory borradas/modificadas, hooks rotos, paths inválidos
+  - **Strategies**: Estrategias de reparación por tipo de issue (restaurar archivos, corregir JSON, regenerar desde meta)
+  - **Engine**: Motor principal con decisión basada en confianza (≥90 silencioso, ≥70 notifica, ≥50 sugiere, <50 reporta)
+  - **Health Check**: Orquestador de health check integrado en SessionStart
+- **MCP `repair_config`**: Nueva tool MCP para diagnóstico y reparación (modos: auto, report-only)
+- **Skill `/diverger-repair`**: Skill user-invocable para diagnóstico y reparación interactiva
+- **Integración SessionStart**: Health check automático tras detección de cambios en `session-hook.ts`
+- Tests: 23 tests nuevos (diagnostics, engine, strategies, health-check)
+
+## [1.7.0] - 2026-03-03
+
+### Añadido
+- **Memory Intelligence Layer** (`src/memory/`): Sistema de memoria conductual persistente
+  - **Store**: `.diverger-memory.json` con schema migration, load/save atómico, defaults para archivo inexistente
+  - **Project Memory**: Operaciones de alto nivel (add/query error patterns, anti-patterns, best practices, repair log, evolution log)
+  - **Global Memory**: Aprendizajes cross-project en `~/.diverger/memory.json` con promote/import
+  - **Pruner**: Pruning por TTL (90 días) y límites máximos (200 patterns, 500 repairs, 100 anti-patterns, 50 best practices)
+  - **Claude Memory Sync**: Sincronización de top learnings a Claude Code auto-memory (MEMORY.md) con secciones delimitadas `<!-- diverger:start/end -->`
+  - **MemoryEngine**: Facade que integra load, save, prune, sync
+- **MCP `get_memory`**: Lee secciones del memory store (errors, repairs, antiPatterns, bestPractices, stats, all)
+- **MCP `record_learning`**: Escribe aprendizajes al store (anti-pattern, best-practice, error-pattern)
+- **Integración SessionStart**: Carga memoria, incrementa sesiones, inyecta anti-patterns en contexto
+- **Tipos nuevos en `core/types.ts`**: MemoryStore, ErrorPattern, RepairLogEntry, EvolutionEntry, AntiPattern, BestPractice, MemoryStats
+- **Constantes en `core/constants.ts`**: MEMORY_FILE, MAX_*, thresholds, TTLs, helper `memoryFilePath()`
+- Tests: 48 tests nuevos (store, project-memory, pruner, claude-memory-sync)
+
+### Cambiado
+- 13 MCP tools (era 8)
+- 1061 tests, 91 test files, 0 errores TypeScript
+
 ## [1.6.0] - 2026-03-03
 
 ### Añadido

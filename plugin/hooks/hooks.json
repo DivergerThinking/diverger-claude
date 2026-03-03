@@ -30,7 +30,37 @@
         "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/check-trailing-newline.sh",
         "timeout": 5,
         "statusMessage": "Checking trailing newline..."
+      },
+      {
+        "type": "command",
+        "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/error-tracker.sh",
+        "timeout": 5,
+        "statusMessage": "Tracking errors..."
+      }
+    ],
+    "Edit": [
+      {
+        "type": "command",
+        "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/error-tracker.sh",
+        "timeout": 5,
+        "statusMessage": "Tracking errors..."
+      }
+    ],
+    "Bash": [
+      {
+        "type": "command",
+        "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/error-tracker.sh",
+        "timeout": 5,
+        "statusMessage": "Tracking errors for learning..."
       }
     ]
-  }
+  },
+  "SessionEnd": [
+    {
+      "type": "command",
+      "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-learner.sh",
+      "timeout": 10,
+      "statusMessage": "Processing session learnings..."
+    }
+  ]
 }

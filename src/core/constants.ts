@@ -89,6 +89,44 @@ export const UNIVERSAL_HOOK_SCRIPT_FILENAMES: ReadonlySet<string> = new Set([
   'check-long-lines.sh', 'check-trailing-newline.sh',
 ]);
 
+/** Memory file (project-level behavioral memory) */
+export const MEMORY_FILE = '.diverger-memory.json';
+
+/** Maximum error patterns stored per project */
+export const MAX_ERROR_PATTERNS = 200;
+
+/** Maximum repair log entries stored per project */
+export const MAX_REPAIR_LOG = 500;
+
+/** Maximum anti-patterns stored per project */
+export const MAX_ANTI_PATTERNS = 100;
+
+/** Maximum best practices stored per project */
+export const MAX_BEST_PRACTICES = 50;
+
+/** Maximum evolution log entries stored per project */
+export const MAX_EVOLUTION_LOG = 200;
+
+/** Error pattern occurrences needed to auto-generate a rule */
+export const ERROR_PATTERN_RULE_THRESHOLD = 3;
+
+/** Days before pruning old error patterns */
+export const ERROR_PATTERN_TTL_DAYS = 90;
+
+/** Days between memory consolidations */
+export const MEMORY_CONSOLIDATION_INTERVAL_DAYS = 7;
+
+/** Global memory directory under user home */
+export const GLOBAL_MEMORY_DIR = '.diverger';
+
+/** Global memory filename */
+export const GLOBAL_MEMORY_FILE = 'memory.json';
+
+/** Build memory file path from project root */
+export function memoryFilePath(projectRoot: string): string {
+  return path.join(projectRoot, MEMORY_FILE);
+}
+
 /** Backup directory for pre-merge backups */
 export const BACKUP_DIR = '.diverger-backup';
 

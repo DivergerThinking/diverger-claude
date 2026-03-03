@@ -6,7 +6,7 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 
 ## Qué incluye
 
-### 6 Agentes universales
+### 7 Agentes universales
 
 - **code-reviewer**: Revisa código aplicando estándares del stack detectado
 - **test-writer**: Genera tests según el framework de testing del proyecto
@@ -14,28 +14,50 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - **doc-writer**: Genera documentación técnica
 - **refactor-assistant**: Sugiere refactorings con patrones del framework
 - **migration-helper**: Asiste en migraciones de versiones y frameworks
+- **evolution-advisor**: Analiza cambios del proyecto y recomienda actualizaciones de configuración
 
-### 7 Skills
+### 15 Skills
 
+#### Configuración y gestión
 - `/diverger-init` — Detecta stack y genera configuración .claude/
 - `/diverger-status` — Muestra estado del stack y validación de configuración
 - `/diverger-sync` — Sincroniza configuración con cambios detectados
 - `/diverger-check` — Valida la configuración existente y detecta issues de gobernanza
+
+#### Inteligencia y aprendizaje
+- `/diverger-learn` — Revisa patrones aprendidos, anti-patterns y best practices
+- `/diverger-repair` — Diagnostica y repara configuración .claude/
+- `/diverger-health` — Verifica salud completa del plugin
+- `/diverger-evolve` — Analiza evolución del proyecto y recomienda actualizaciones
+
+#### Workflows de alta calidad
+- `/diverger-audit` — Auditoría integral de calidad, seguridad y conformidad
+- `/diverger-test-suite` — Analiza cobertura y genera tests faltantes
+- `/diverger-pr-review` — Review exhaustivo de PR con checklist adaptado al stack
+- `/diverger-onboard` — Genera documentación de onboarding para nuevos developers
+- `/diverger-migrate` — Planifica y ejecuta migraciones tecnológicas
+- `/diverger-release` — Checklist de release completo (tests, changelog, version, tag, publish)
+
+#### Referencia
 - `/architecture-style-guide` — Guía de estilo de arquitectura
 - `/git-workflow-guide` — Guía de flujo de trabajo Git
 - `/security-guide` — Guía de seguridad
 
-### 4 Hooks de protección
+### 6 Hooks de protección
 
 Los hooks se activan automáticamente via eventos de Claude Code:
 - **PreToolUse/Write**: Secret scanner — detecta credenciales antes de escribir archivos
 - **PreToolUse/Bash**: Destructive command blocker — bloquea comandos peligrosos (`rm -rf /`, `DROP TABLE`, etc.)
 - **PostToolUse/Write**: Long lines checker — verifica que no se generen líneas excesivamente largas
 - **PostToolUse/Write**: Trailing newline checker — asegura que los archivos terminen con newline
+- **PostToolUse/Write, Edit, Bash**: Error tracker — captura errores para el sistema de aprendizaje
+- **SessionEnd**: Session learner — señaliza errores pendientes para procesamiento
 
-### Servidor MCP (8 tools)
+### Servidor MCP (13 tools)
 
 Acceso programático al motor de diverger-claude:
+
+#### Configuración
 - `detect_stack` — Detecta tecnologías del proyecto
 - `generate_config` — Genera configuración .claude/ completa
 - `check_config` — Valida configuración existente
@@ -44,6 +66,13 @@ Acceso programático al motor de diverger-claude:
 - `get_profile` — Detalle de un profile
 - `cleanup_project` — Elimina componentes duplicados del plugin (soporta `dryRun`)
 - `eject_project` — Eyecta el plugin manteniendo configuración local
+
+#### Inteligencia
+- `get_memory` — Consulta la memoria del proyecto (secciones: errors, repairs, antiPatterns, bestPractices, stats, all)
+- `record_learning` — Registra aprendizajes manuales (anti-pattern, best-practice, error-pattern)
+- `extract_learnings` — Procesa errores de sesión y extrae patrones bajo demanda
+- `repair_config` — Diagnóstico y reparación de .claude/ (modos: auto, report-only)
+- `check_plugin_health` — Diagnóstico de salud del plugin (8 checks + auto-fix)
 
 ## Instalación
 
@@ -254,3 +283,53 @@ Eyecta el plugin manteniendo toda la configuración generada como archivos local
 - `projectDir` (string): Directorio raíz del proyecto
 
 **Retorna:** Estado de eyección, archivos conservados.
+
+### get_memory
+
+Consulta la memoria conductual del proyecto.
+
+**Parámetros:**
+- `rootDir` (string): Directorio raíz del proyecto
+- `section` (string): Sección a consultar: `errors`, `repairs`, `antiPatterns`, `bestPractices`, `stats`, `all`
+
+**Retorna:** Datos de la sección solicitada del memory store.
+
+### record_learning
+
+Registra un aprendizaje manual en la memoria.
+
+**Parámetros:**
+- `rootDir` (string): Directorio raíz del proyecto
+- `type` (string): Tipo de aprendizaje: `anti-pattern`, `best-practice`, `error-pattern`
+- `data` (object): Datos del aprendizaje (varían según el tipo)
+
+**Retorna:** Confirmación del registro.
+
+### extract_learnings
+
+Procesa errores de sesión y extrae patrones bajo demanda.
+
+**Parámetros:**
+- `rootDir` (string): Directorio raíz del proyecto
+
+**Retorna:** Resultado con errores procesados, patrones actualizados y reglas generadas.
+
+### repair_config
+
+Diagnóstico y reparación de configuración .claude/.
+
+**Parámetros:**
+- `rootDir` (string): Directorio raíz del proyecto
+- `mode` (string, opcional): `auto` (default) para reparar, `report-only` para solo diagnosticar
+
+**Retorna:** Lista de diagnósticos con severidad, confianza y acciones tomadas/sugeridas.
+
+### check_plugin_health
+
+Diagnóstico de salud del plugin.
+
+**Parámetros:**
+- `pluginDir` (string, opcional): Directorio del plugin
+- `cliVersion` (string, opcional): Versión actual del CLI
+
+**Retorna:** Reporte de salud con status global (healthy/degraded/unhealthy) y resultados individuales de 8 checks.
