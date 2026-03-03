@@ -55,7 +55,7 @@ export class CIAnalyzer extends BaseAnalyzer {
             description: 'GitLab CI config found',
             weight: 95,
           }],
-          profileIds: [],
+          profileIds: ['infra/gitlab-ci'],
         });
       } else if (filePath === 'Jenkinsfile') {
         analyzedFiles.push(filePath);
@@ -70,7 +70,7 @@ export class CIAnalyzer extends BaseAnalyzer {
             description: 'Jenkinsfile found',
             weight: 95,
           }],
-          profileIds: [],
+          profileIds: ['infra/jenkins'],
         });
       } else if (filePath === '.circleci/config.yml') {
         analyzedFiles.push(filePath);
@@ -85,7 +85,7 @@ export class CIAnalyzer extends BaseAnalyzer {
             description: 'CircleCI config found',
             weight: 95,
           }],
-          profileIds: [],
+          profileIds: ['infra/circleci'],
         });
       } else if (filePath === 'azure-pipelines.yml') {
         analyzedFiles.push(filePath);
@@ -100,7 +100,7 @@ export class CIAnalyzer extends BaseAnalyzer {
             description: 'Azure Pipelines config found',
             weight: 95,
           }],
-          profileIds: [],
+          profileIds: ['infra/azure-pipelines'],
         });
       }
     }

@@ -8,6 +8,7 @@ import { DotnetAnalyzer } from './dotnet.js';
 import { DockerAnalyzer } from './docker.js';
 import { CIAnalyzer } from './ci.js';
 import { MobileAnalyzer } from './mobile.js';
+import { RuntimeAnalyzer } from './runtime.js';
 
 /** Get all registered analyzers */
 export function getAllAnalyzers(): BaseAnalyzer[] {
@@ -21,6 +22,7 @@ export function getAllAnalyzers(): BaseAnalyzer[] {
     new DockerAnalyzer(),
     new CIAnalyzer(),
     new MobileAnalyzer(),
+    new RuntimeAnalyzer(),
   ];
 }
 
@@ -34,3 +36,4 @@ export { DotnetAnalyzer } from './dotnet.js';
 export { DockerAnalyzer } from './docker.js';
 export { CIAnalyzer } from './ci.js';
 export { MobileAnalyzer } from './mobile.js';
+export { RuntimeAnalyzer } from './runtime.js';

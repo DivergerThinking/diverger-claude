@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0] - 2026-03-03
+
+### Añadido
+- **10 profiles nuevos** (51 → 61 total):
+  - **CI/CD**: GitLab CI, Jenkins, CircleCI, Azure Pipelines — con reglas, agents, skills y hooks
+  - **Frameworks**: Remix, Astro, Prisma, tRPC — con convenciones, generators y validación
+  - **Runtimes**: Bun, Deno — detección por lockfiles y config
+- **RuntimeAnalyzer**: Nuevo analyzer para detectar Bun (`bun.lockb`, `bunfig.toml`) y Deno (`deno.json`, `deno.jsonc`)
+- **Detección mejorada**: CI analyzer ahora conecta con profileIds reales; Node analyzer detecta Remix, Astro, Prisma y tRPC
+
+### Cambiado
+- 61 profiles registrados (era 51)
+- 10 analyzers (era 9)
+
 ## [1.3.0] - 2026-03-03
 
 ### Añadido

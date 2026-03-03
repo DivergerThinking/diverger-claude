@@ -37,6 +37,10 @@ import { expoProfile } from './registry/frameworks/expo.profile.js';
 import { flutterProfile } from './registry/frameworks/flutter.profile.js';
 import { swiftuiProfile } from './registry/frameworks/swiftui.profile.js';
 import { jetpackComposeProfile } from './registry/frameworks/jetpack-compose.profile.js';
+import { remixProfile } from './registry/frameworks/remix.profile.js';
+import { astroProfile } from './registry/frameworks/astro.profile.js';
+import { prismaProfile } from './registry/frameworks/prisma.profile.js';
+import { trpcProfile } from './registry/frameworks/trpc.profile.js';
 // Testing profiles
 import { jestProfile } from './registry/testing/jest.profile.js';
 import { vitestProfile } from './registry/testing/vitest.profile.js';
@@ -55,6 +59,12 @@ import { awsProfile } from './registry/infra/aws.profile.js';
 import { terraformProfile } from './registry/infra/terraform.profile.js';
 import { vercelProfile } from './registry/infra/vercel.profile.js';
 import { fastlaneProfile } from './registry/infra/fastlane.profile.js';
+import { bunProfile } from './registry/infra/bun.profile.js';
+import { denoProfile } from './registry/infra/deno.profile.js';
+import { gitlabCIProfile } from './registry/infra/gitlab-ci.profile.js';
+import { jenkinsProfile } from './registry/infra/jenkins.profile.js';
+import { circleciProfile } from './registry/infra/circleci.profile.js';
+import { azurePipelinesProfile } from './registry/infra/azure-pipelines.profile.js';
 
 /** All registered profiles */
 const ALL_PROFILES: Profile[] = [
@@ -94,6 +104,10 @@ const ALL_PROFILES: Profile[] = [
   flutterProfile,
   swiftuiProfile,
   jetpackComposeProfile,
+  remixProfile,
+  astroProfile,
+  prismaProfile,
+  trpcProfile,
   // Testing (layer 30)
   jestProfile,
   vitestProfile,
@@ -112,6 +126,12 @@ const ALL_PROFILES: Profile[] = [
   terraformProfile,
   vercelProfile,
   fastlaneProfile,
+  bunProfile,
+  denoProfile,
+  gitlabCIProfile,
+  jenkinsProfile,
+  circleciProfile,
+  azurePipelinesProfile,
 ];
 
 /** Get all registered profiles */
