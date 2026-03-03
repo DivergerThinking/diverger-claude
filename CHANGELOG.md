@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0] - 2026-03-03
+
+### Añadido
+- **CI hardening**: Job `coverage` con thresholds (80/75/80/80), job `cross-platform` (Windows + macOS), `npm audit --audit-level=moderate` en CI y release
+- **Skill `diverger-check`**: Nueva skill en plugin para validar configuración `.claude/` via MCP
+- **Coverage thresholds**: vitest.config.ts con umbrales mínimos enforced en CI
+- **Release pipeline mejorado**: Typecheck y E2E tests añadidos al workflow de release
+
+### Cambiado
+- 929 tests, 75 test files, 0 errores TypeScript
+- Cobertura: 86% statements, 88% branches, 81% functions, 86% lines
+
 ## [1.2.0] - 2026-03-03
 
 ### Añadido
