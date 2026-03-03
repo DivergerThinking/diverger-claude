@@ -47,10 +47,15 @@ Acceso programático al motor de diverger-claude:
 Si ya tienes el CLI de diverger-claude instalado:
 
 ```bash
+# Requiere: GitHub CLI autenticado (repo privado)
+gh auth login    # si no lo has hecho antes
+
 diverger plugin install
 ```
 
 Esto descarga automáticamente la última versión del plugin desde GitHub Releases y lo instala en `~/.claude/plugins/diverger-claude/`.
+
+> **Nota:** El comando usa `gh auth token` para autenticarse con la API de GitHub. Alternativamente, configura la variable de entorno `GITHUB_TOKEN`.
 
 Para instalar una versión específica:
 

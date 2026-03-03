@@ -171,9 +171,52 @@ El comando `init` hará lo siguiente:
 
 ---
 
-## Plugin de Claude Code
+## Plugin de Claude Code (recomendado)
 
-diverger-claude también funciona como **plugin de Claude Code**. Al tenerlo instalado como dependencia del proyecto, los siguientes comandos estarán disponibles directamente dentro de una sesión de Claude Code:
+diverger-claude funciona como **plugin de Claude Code**, proporcionando agentes, skills, hooks y un servidor MCP universales directamente dentro de Claude Code.
+
+### Requisito: GitHub CLI autenticado
+
+El plugin se distribuye como release en un repo privado de GitHub. Para que `diverger plugin install` pueda descargarlo, necesitas tener el GitHub CLI (`gh`) autenticado:
+
+```bash
+# Verificar si ya estás autenticado
+gh auth status
+
+# Si no, iniciar sesión
+gh auth login
+```
+
+Alternativamente, puedes configurar la variable de entorno `GITHUB_TOKEN` con un PAT que tenga permiso `read:packages`.
+
+### Instalar el plugin
+
+```bash
+diverger plugin install
+```
+
+Esto descarga la última versión del plugin desde GitHub Releases y lo instala en `~/.claude/plugins/diverger-claude/`.
+
+### Post-instalación
+
+Tras instalar el plugin, regenera la configuración de tu proyecto:
+
+```bash
+diverger init --force    # Regenera config en modo plugin (solo tech-specific)
+diverger cleanup         # Elimina componentes duplicados de .claude/
+```
+
+### Gestión del plugin
+
+```bash
+diverger plugin status      # Ver estado, versión, sincronización con CLI
+diverger plugin install     # Actualizar a la última versión
+diverger plugin uninstall   # Desinstalar el plugin
+```
+
+### Skills disponibles en Claude Code
+
+Con el plugin instalado, estos comandos están disponibles dentro de una sesión de Claude Code:
 
 | Comando | Descripción |
 |---------|-------------|
@@ -181,6 +224,8 @@ diverger-claude también funciona como **plugin de Claude Code**. Al tenerlo ins
 | `/diverger-sync` | Sincroniza con actualizaciones de profiles (three-way merge) |
 | `/diverger-check` | Valida que la configuración existente es coherente con el stack |
 | `/diverger-status` | Muestra el stack detectado y los profiles aplicados |
+
+> Ver [guía del plugin](guia-plugin.md) para documentación completa o [migración CLI a plugin](migracion-cli-a-plugin.md) si ya tenías proyectos configurados.
 
 ---
 
@@ -215,16 +260,14 @@ npm update @divergerthinking/diverger-claude
 ### Después de actualizar
 
 ```bash
+# Si tienes el plugin: actualízalo también
+diverger plugin install
+
 # Sincroniza la configuración .claude/ de tus proyectos con los nuevos profiles
 diverger sync
 ```
 
-El comando `sync` aplica un **three-way merge** para actualizar tu configuración respetando los cambios que tu equipo haya hecho manualmente. Es decir:
-- **BASE**: la configuración original que generó diverger-claude
-- **THEIRS**: los cambios que tu equipo haya hecho sobre esa base
-- **OURS**: la nueva versión de los profiles
-
-De esta forma, las personalizaciones de tu equipo se preservan al actualizar.
+El comando `sync` aplica un **three-way merge** para actualizar tu configuración respetando los cambios que tu equipo haya hecho manualmente. El `update` ejecuta `cleanup` automáticamente si el plugin está instalado.
 
 ---
 

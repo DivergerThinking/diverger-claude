@@ -6,6 +6,7 @@ Guía para migrar de la instalación CLI (`npm install -g @divergerthinking/dive
 
 - CLI diverger-claude instalado (`diverger --version` funciona)
 - Node.js 20+
+- GitHub CLI autenticado (`gh auth login`) — necesario para descargar el plugin del repo privado
 
 ## Migración rápida (3 comandos)
 

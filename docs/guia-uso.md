@@ -59,7 +59,37 @@ Verifica:
 - Reglas obligatorias no modificadas
 - Integridad de hashes
 
-### 6. Versión y actualización
+### 6. Gestión del plugin
+
+```bash
+# Instalar el plugin (requiere gh auth login)
+diverger plugin install
+
+# Verificar estado del plugin
+diverger plugin status
+
+# Actualizar el plugin
+diverger plugin install
+
+# Desinstalar
+diverger plugin uninstall
+```
+
+Con el plugin instalado, `diverger init` auto-detecta el plugin y genera solo la configuración tech-specific (rules, CLAUDE.md, settings.json). Los componentes universales (agentes, skills, hooks) los provee el plugin.
+
+### 7. Cleanup
+
+```bash
+diverger cleanup
+```
+
+Elimina componentes universales duplicados de `.claude/` que ahora provee el plugin. Solo actúa cuando el plugin está instalado.
+
+Opciones: `--dry-run` (ver sin borrar), `--force` (incluir archivos modificados), `--json`.
+
+> **Nota:** `diverger update` ejecuta cleanup automáticamente tras actualizar si el plugin está instalado.
+
+### 8. Versión y actualización
 
 ```bash
 # Ver versión instalada
@@ -68,11 +98,12 @@ diverger --version
 # Verificar si hay actualización disponible
 diverger update --check
 
-# Actualizar a la última versión
+# Actualizar CLI + plugin
 diverger update
+diverger plugin install
 ```
 
-### 7. Eject
+### 9. Eject
 
 ```bash
 diverger eject

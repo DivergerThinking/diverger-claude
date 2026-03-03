@@ -1,6 +1,9 @@
 # Changelog
 
-## [1.1.2] - 2026-03-03
+## [1.2.0] - 2026-03-03
+
+### Añadido
+- **Documentación completa de plugin**: README, guía de instalación, guía de uso y plugin README actualizados con flujo de instalación del plugin, comandos de gestión, y requisito de `gh auth login`
 
 ### Corregido
 - **Compatibilidad tar cross-platform**: `extractPlugin` intenta tar con forward slashes (bsdtar/Windows), con fallback a `--force-local` (GNU tar/Git Bash) — funciona tanto desde PowerShell como desde Git Bash

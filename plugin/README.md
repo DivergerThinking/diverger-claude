@@ -13,6 +13,22 @@ Plugin universal de desarrollo para Claude Code por DivergerThinking.
 
 ## Instalación
 
+### Via CLI (recomendado)
+
+```bash
+# Requiere: gh auth login (GitHub CLI autenticado)
+diverger plugin install
+```
+
+Descarga automáticamente la última versión desde GitHub Releases. Para una versión específica: `diverger plugin install --tag v1.1.2`
+
+Tras instalar:
+
+```bash
+diverger init --force    # Regenera config en modo plugin
+diverger cleanup         # Elimina duplicados de .claude/
+```
+
 ### Via marketplace
 
 ```bash
@@ -61,10 +77,19 @@ El servidor MCP expone 6 herramientas para acceso programático:
 - `list_profiles` — Lista profiles disponibles
 - `get_profile` — Obtiene detalles de un profile
 
+## Gestión
+
+```bash
+diverger plugin status      # Ver estado y versión
+diverger plugin install     # Instalar o actualizar
+diverger plugin uninstall   # Desinstalar
+```
+
 ## Requisitos
 
 - Claude Code CLI
 - Node.js 20+
+- GitHub CLI autenticado (`gh auth login`) para `diverger plugin install`
 
 ## Licencia
 

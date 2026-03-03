@@ -1,6 +1,6 @@
 # diverger-claude
 
-Herramienta interna para configuración automática de Claude Code adaptada al stack tecnológico del proyecto.
+Herramienta interna (CLI + Plugin) para configuración automática de Claude Code adaptada al stack tecnológico del proyecto.
 
 ## Qué hace
 
@@ -17,44 +17,49 @@ diverger-claude detecta automáticamente las tecnologías de tu proyecto y gener
 > **Nota:** Este es un paquete privado en GitHub Packages. Necesitas autenticarte primero.
 > Consulta la [guía de instalación](docs/guia-instalacion.md) para configurar el acceso.
 
-### Global (recomendado para uso personal)
+### 1. Instalar el CLI
 
 ```bash
 npm install -g @divergerthinking/diverger-claude
 ```
 
-Tras instalar, `diverger` queda disponible como comando global en cualquier terminal:
+Tras instalar, `diverger` queda disponible como comando global en cualquier terminal.
+
+### 2. Instalar el plugin (recomendado)
+
+El plugin extiende Claude Code con agentes, skills, hooks y MCP server universales. Es la vía recomendada.
 
 ```bash
-cd cualquier-proyecto
-diverger init
+# Requiere: gh auth login (GitHub CLI autenticado)
+diverger plugin install
 ```
 
-### Como dependencia de desarrollo (para equipos)
+Tras instalar el plugin, regenera la configuración de tus proyectos:
 
 ```bash
+cd tu-proyecto
+diverger init --force    # Regenera en modo plugin (solo tech-specific)
+diverger cleanup         # Elimina duplicados de .claude/
+```
+
+> Ver [guía del plugin](docs/guia-plugin.md) para más detalles o [migración CLI a plugin](docs/migracion-cli-a-plugin.md) si ya tenías el CLI configurado.
+
+### Alternativas de instalación del CLI
+
+```bash
+# Como dependencia de desarrollo (para equipos)
 npm install @divergerthinking/diverger-claude --save-dev
-```
 
-### Ejecución directa con npx (sin instalar)
-
-```bash
+# Ejecución directa con npx (sin instalar)
 npx @divergerthinking/diverger-claude init
 ```
 
 ## Uso rápido
 
-### Detectar y generar configuración
-
 ```bash
-# Ver qué se generaría (dry-run)
-npx diverger-claude diff
-
-# Generar configuración
-npx diverger-claude init
-
-# Forzar regeneración
-npx diverger-claude init --force
+cd mi-proyecto
+diverger init            # Detectar stack y generar .claude/
+diverger plugin status   # Verificar estado del plugin
 ```
 
 ### Comandos disponibles
@@ -67,10 +72,13 @@ npx diverger-claude init --force
 | `diverger status` | Mostrar stack detectado y estado |
 | `diverger sync` | Actualizar con three-way merge |
 | `diverger check` | Validar configuración existente |
-| `diverger eject` | Desconectar manteniendo configs |
-| `diverger welcome` | Mostrar banner de bienvenida |
-| `diverger update` | Actualizar a la última versión |
+| `diverger cleanup` | Eliminar componentes duplicados (con plugin) |
+| `diverger plugin install` | Descargar e instalar el plugin |
+| `diverger plugin status` | Estado de instalación del plugin |
+| `diverger plugin uninstall` | Desinstalar el plugin |
+| `diverger update` | Actualizar CLI a la última versión |
 | `diverger update --check` | Verificar si hay actualización disponible |
+| `diverger eject` | Desconectar manteniendo configs |
 | `diverger --version` | Mostrar versión instalada |
 
 ### Opciones globales
@@ -123,25 +131,28 @@ Al actualizar (`diverger sync`), se aplica un merge inteligente:
 - Si solo el equipo cambió → se respetan sus cambios
 - Si ambos cambiaron → merge inteligente o resolución manual
 
+## CLI vs Plugin
+
+| Aspecto | CLI solo | CLI + Plugin |
+|---------|----------|--------------|
+| Agentes universales | En `.claude/agents/` | Plugin los provee |
+| Skills universales | En `.claude/skills/` | Plugin los provee |
+| Hooks universales | En `.claude/hooks/` | Plugin los provee |
+| MCP server | No disponible | Auto-registrado |
+| Rules tech-specific | En `.claude/rules/` | En `.claude/rules/` (igual) |
+| Actualización CLI | `diverger update` | `diverger update` (igual) |
+| Actualización plugin | N/A | `diverger plugin install` |
+
 ## Desarrollo
 
 ```bash
-# Instalar dependencias
-npm install
-
-# Ejecutar en modo desarrollo
-npm run dev
-
-# Ejecutar tests
-npm test
-
-# Type check
-npm run typecheck
-
-# Build
-npm run build
+npm install          # Instalar dependencias
+npm run dev          # Modo desarrollo
+npm test             # Ejecutar tests
+npm run typecheck    # Type check
+npm run build        # Build
 ```
 
 ## Licencia
 
-Uso interno.
+Uso interno - DivergerThinking.
