@@ -9,66 +9,19 @@ export const cypressProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'Cypress Testing Conventions',
-        order: 3010,
-        content: `## Cypress Testing Conventions
+        heading: 'Cypress Conventions',
+        order: 30,
+        content: `## Cypress Conventions
 
-### Test Structure & Organization
-- Place E2E tests in \`cypress/e2e/\` organized by feature or user flow — one spec file per feature area
-- Place component tests in \`cypress/component/\` colocated with or mirroring source directory structure
-- Use \`describe\` blocks to group related tests by feature — max 2 levels of nesting
-- Use descriptive \`it()\` names that state the user intent: \`it('should display error when submitting empty form')\`
-- Use \`beforeEach\` for per-test setup (authentication, data seeding) — avoid \`before\` unless truly one-time
-- Use \`afterEach\` only when tests create persistent external state that must be cleaned up
-- Keep tests independent — never rely on state from previous tests; \`testIsolation\` is enabled by default since Cypress 12
+E2E and component testing. Automatic waiting, time-travel debugging.
 
-### Selectors (Resilience Priority)
-- Always use \`data-cy\` attributes for test-specific selectors: \`cy.get('[data-cy="submit-btn"]')\`
-- Use \`cy.contains()\` for text-based selection as a complement when element text is stable and meaningful
-- Use \`cy.findByRole()\`, \`cy.findByLabelText()\` if using \`@testing-library/cypress\` plugin
-- Never use CSS classes, element IDs tied to styling, tag names, or structural selectors (nth-child, descendant chains) — they break on refactors
-- Define selector constants or helper functions for reuse across tests and custom commands
+**Detailed rules:** see \`.claude/rules/cypress/\` directory.
 
-### Network Requests & cy.intercept()
-- Use \`cy.intercept()\` to stub HTTP responses for deterministic test data: \`cy.intercept('GET', '/api/users', { fixture: 'users.json' }).as('getUsers')\`
-- Alias every intercepted route with \`.as()\` and wait on it with \`cy.wait('@getUsers')\` — never use \`cy.wait(ms)\` with arbitrary timeouts
-- Use \`req.reply()\` for dynamic response stubbing, \`req.continue()\` to modify real responses, \`req.destroy()\` to simulate network errors
-- Verify request payloads: \`cy.wait('@createUser').its('request.body').should('deep.include', { name: 'Alice' })\`
-- Test error states by intercepting with status codes: \`cy.intercept('POST', '/api/login', { statusCode: 401, body: { error: 'Unauthorized' } })\`
-
-### Retry-ability & Assertions
-- Rely on Cypress built-in retry-ability — queries (\`cy.get\`, \`cy.find\`, \`cy.contains\`) automatically retry until timeout
-- Use \`.should()\` assertions that auto-retry: \`cy.get('[data-cy="status"]').should('have.text', 'Active')\`
-- Chain assertions with \`.and()\` for multiple checks on the same subject: \`.should('be.visible').and('contain', 'Success')\`
-- Never use explicit \`cy.wait(ms)\` for timing — use \`cy.intercept()\` aliases or \`.should()\` with expected conditions
-- Use \`cy.get(..., { timeout: 10000 })\` to increase timeout for slow operations instead of arbitrary waits
-
-### Authentication & cy.session()
-- Use \`cy.session()\` to cache and restore cookies, localStorage, and sessionStorage across tests
-- Define login commands that wrap \`cy.session()\` for reusable authentication: \`cy.session(userId, () => { cy.loginViaApi(userId) })\`
-- Use the \`validate\` callback in \`cy.session()\` to verify the cached session is still valid before reuse
-- Seed test data through API calls in \`beforeEach\` using \`cy.request()\` — never seed through UI interactions
-
-### Component Testing
-- Use \`cy.mount()\` to render components in isolation within \`cypress/component/\` specs
-- Provide required props, context providers, and router wrappers via mount options
-- Customize \`cy.mount()\` in \`cypress/support/component.ts\` to include global providers automatically
-- Use \`cy.intercept()\` within component tests to mock API calls the component makes
-- Test interactive states: default, hover, focus, disabled, error, loading
-
-### Custom Commands
-- Define reusable commands in \`cypress/support/commands.ts\` — import them in \`cypress/support/e2e.ts\`
-- Add TypeScript declarations in \`cypress/support/index.d.ts\` or \`cypress.d.ts\` for type safety
-- Prefix commands with domain context: \`cy.loginAs()\`, \`cy.createProject()\`, \`cy.seedDatabase()\`
-- Keep each command focused on one reusable action — do not make every helper a custom command
-- Return Cypress chainable for composability — let calling code add its own assertions
-
-### Configuration
-- Set \`baseUrl\` in \`cypress.config.ts\` to avoid hardcoded URLs in \`cy.visit()\`
-- Configure \`retries\` for CI resilience: \`retries: { runMode: 2, openMode: 0 }\`
-- Use \`defaultCommandTimeout\` and \`requestTimeout\` instead of per-command overrides when possible
-- Store static test data in \`cypress/fixtures/\` as JSON files — reference with \`cy.fixture()\` or \`{ fixture: 'file.json' }\`
-- Use \`cypress.env.json\` or environment variables for environment-specific values — never hardcode URLs or credentials`,
+**Key rules:**
+- Use \`data-cy\` attributes for selectors — never CSS classes or tag names
+- Commands chain naturally — avoid unnecessary \`cy.wait()\`, let Cypress auto-retry
+- Custom commands for repeated patterns, \`cy.intercept()\` for network stubs
+- Keep tests independent — reset state in \`beforeEach\`, no test interdependence`,
       },
     ],
     settings: {
@@ -92,6 +45,7 @@ export const cypressProfile: Profile = {
     rules: [
       {
         path: 'testing/cypress-conventions.md',
+        paths: ['cypress/**/*', '**/*.cy.ts', '**/*.cy.tsx'],
         governance: 'mandatory',
         description: 'Cypress testing conventions covering selectors, intercepts, custom commands, test isolation, and retry-ability',
         content: `# Cypress Testing Conventions
@@ -197,6 +151,7 @@ export const cypressProfile: Profile = {
       },
       {
         path: 'testing/cypress-configuration.md',
+        paths: ['cypress/**/*', '**/*.cy.ts', '**/*.cy.tsx'],
         governance: 'recommended',
         description: 'Cypress configuration best practices for cypress.config.ts and environment setup',
         content: `# Cypress Configuration Best Practices
@@ -281,6 +236,7 @@ cypress.env.json          # Environment-specific variables (gitignored)
         name: 'code-reviewer',
         type: 'enrich',
         prompt: `## Cypress-Specific Review Checklist
+Available skills: cypress-e2e-generator
 - Verify \`data-cy\` attributes are used for selectors — flag any use of CSS classes, IDs, tag names, or structural selectors for test targeting
 - Check that every \`cy.intercept()\` call uses \`.as()\` alias and corresponding \`cy.wait('@alias')\`
 - Verify no \`cy.wait()\` with numeric millisecond values exists — all waits must use intercept aliases or assertion-based conditions
@@ -299,6 +255,7 @@ cypress.env.json          # Environment-specific variables (gitignored)
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Cypress-Specific Test Writing Guidelines
+Available skills: cypress-e2e-generator
 - Use \`data-cy\` attributes for element selection — add them to source components when missing
 - Stub network requests with \`cy.intercept()\` aliased with \`.as()\` and waited on with \`cy.wait('@alias')\`
 - Use \`cy.session()\` for authentication caching — wrap login flow in a custom command using \`cy.session()\`
@@ -330,6 +287,7 @@ cypress.env.json          # Environment-specific variables (gitignored)
         name: 'refactor-assistant',
         type: 'enrich',
         prompt: `## Cypress Test Refactoring Guidance
+Available skills: cypress-e2e-generator
 - Extract repeated selector strings into shared constant objects for DRY test code
 - Replace inline login flows with \`cy.session()\`-backed custom commands for faster test execution
 - Convert repeated \`cy.intercept()\` stubs used across multiple specs into shared helper functions

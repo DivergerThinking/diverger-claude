@@ -10,93 +10,19 @@ export const espressoProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'Espresso Testing Conventions',
-        order: 3080,
-        content: `## Espresso Testing Conventions
+        heading: 'Espresso Conventions',
+        order: 30,
+        content: `## Espresso Conventions
 
-### Core Pattern: Find -> Perform -> Check
-- Every Espresso interaction follows the three-step pattern: \`onView(ViewMatcher).perform(ViewAction).check(ViewAssertion)\`
-- Use \`onView()\` for standard view interactions — it locates a single view in the current view hierarchy
-- Use \`onData()\` for AdapterView-backed content (ListView, Spinner, GridView) — it loads adapter items even when not rendered
-- Chain multiple actions in a single \`perform()\` call when they target the same view: \`perform(clearText(), typeText("hello"), closeSoftKeyboard())\`
+Android UI testing. ViewMatchers -> ViewActions -> ViewAssertions pattern.
 
-### ViewMatchers — Finding Views
-- Use \`withId(R.id.view_id)\` as the primary matcher — resource IDs are the most stable identifiers
-- Use \`withText("exact text")\` for text-based matching — combine with \`withId()\` using \`allOf()\` to avoid ambiguity
-- Use \`withContentDescription("desc")\` for accessibility-based matching — preferred for icon buttons without text
-- Use \`withHint("hint text")\` for matching input fields by their hint/placeholder text
-- Use \`allOf(matcher1, matcher2)\` to combine matchers for precise view targeting when a single matcher matches multiple views
-- Use \`not(matcher)\` to negate a matcher for exclusion filtering
-- Use \`isDisplayed()\` only as a filter to disambiguate views, not as a standalone assertion target — prefer \`matches(isDisplayed())\` in \`check()\`
-- Use \`isEnabled()\`, \`isChecked()\`, \`isSelected()\` to match views by interactive state
-- Use \`withParent()\`, \`withChild()\`, \`isDescendantOfA()\`, \`hasSibling()\` for hierarchical matching as a last resort
-- Use \`instanceOf(EditText::class.java)\` for type-based matching — combine with other matchers to avoid ambiguity
+**Detailed rules:** see \`.claude/rules/espresso/\` directory.
 
-### ViewActions — Performing Interactions
-- \`click()\` — standard tap on a view; auto-scrolls if inside a ScrollView via \`scrollTo()\` constraint
-- \`typeText("text")\` — types text character-by-character simulating soft keyboard input; opens the keyboard
-- \`replaceText("text")\` — directly sets text without keyboard simulation; faster but skips keyboard callbacks
-- \`clearText()\` — clears existing text from an EditText; use before \`typeText()\` for clean input state
-- \`closeSoftKeyboard()\` — dismisses the soft keyboard; call after \`typeText()\` to prevent it from obscuring views
-- \`scrollTo()\` — scrolls a view into the visible area within a ScrollView; required before interacting with off-screen views
-- \`longClick()\` — performs a long-press gesture on a view
-- \`doubleClick()\` — performs a double-tap gesture
-- \`swipeLeft()\`, \`swipeRight()\`, \`swipeUp()\`, \`swipeDown()\` — directional swipe gestures
-- \`pressBack()\` — call via \`Espresso.pressBack()\` for system back navigation (not tied to a view)
-- \`pressImeActionButton()\` — triggers the IME action button (Done, Next, Search) on the keyboard
-
-### ViewAssertions — Checking State
-- \`matches(withText("expected"))\` — assert a view displays specific text
-- \`matches(isDisplayed())\` — assert a view is visible on screen
-- \`matches(not(isDisplayed()))\` — assert a view is present but not visible (e.g., INVISIBLE or GONE)
-- \`doesNotExist()\` — assert a view is not present in the view hierarchy at all
-- \`matches(isEnabled())\` / \`matches(not(isEnabled()))\` — assert enabled/disabled state
-- \`matches(isChecked())\` / \`matches(not(isChecked()))\` — assert checkbox/toggle state
-- \`matches(withText(containsString("partial")))\` — partial text matching using Hamcrest string matchers
-- \`matches(hasErrorText("error"))\` — assert input validation error text on an EditText
-
-### Synchronization & IdlingResource
-- Espresso automatically synchronizes with the UI thread, message queue, and AsyncTask — never use \`Thread.sleep()\` or manual waits
-- Register an \`IdlingResource\` for background operations Espresso cannot detect: network calls, database queries, custom executors
-- Use \`CountingIdlingResource\` for tracking async operations: call \`increment()\` before starting work and \`decrement()\` when complete
-- Use \`IdlingThreadPoolExecutor\` when your app uses a custom ThreadPoolExecutor for background work
-- Register idling resources in \`@Before\` and unregister in \`@After\` to prevent test pollution across test methods
-- Use \`IdlingRegistry.getInstance().register(resource)\` — this is the only supported registration method
-- Call \`onTransitionToIdle()\` outside \`isIdleNow()\` — never call the callback inside the idle check method
-- Keep idling resource state simple — do not store View references or complex objects in the resource
-
-### Espresso-Intents — Hermetic Intent Testing
-- Use \`espresso-intents\` for validating and stubbing intents — isolates your app from external app dependencies
-- Use \`IntentsRule\` (or \`IntentsTestRule\` for activity-scoped) to automatically initialize and release intent recording
-- Use \`intended(toPackage("com.android.phone"))\` to verify an intent was sent — similar to Mockito \`verify()\`
-- Use \`intending(toPackage("com.android.contacts")).respondWith(result)\` to stub intent results — similar to Mockito \`when()\`
-- Stub \`startActivityForResult()\` calls for camera, contacts, file picker, and other external activities
-- Always stub external intents in tests — never launch real external apps during instrumentation tests
-
-### Espresso-Contrib — Extended Components
-- Use \`RecyclerViewActions.actionOnItemAtPosition(pos, click())\` for RecyclerView item interactions
-- Use \`RecyclerViewActions.scrollToPosition(pos)\` to scroll a RecyclerView to a specific position
-- Use \`DrawerActions.open()\` / \`DrawerActions.close()\` for NavigationDrawer interaction
-- Use \`PickerActions.setDate(year, month, day)\` / \`PickerActions.setTime(hour, minute)\` for DatePicker/TimePicker
-- Use \`AccessibilityChecks.enable()\` in \`@Before\` to run automatic accessibility validation with every Espresso check
-
-### Test Structure & Configuration
-- Place instrumentation tests in \`app/src/androidTest/java/\` — this is the standard Android instrumented test directory
-- Use \`@RunWith(AndroidJUnit4::class)\` on every test class for AndroidX test runner compatibility
-- Use \`ActivityScenarioRule\` (from \`androidx.test.ext.junit.rules\`) to launch and manage the activity lifecycle
-- Use \`@get:Rule val activityRule = ActivityScenarioRule(MainActivity::class.java)\` for automatic activity launch
-- Use \`activityRule.scenario.onActivity { }\` to access the activity instance directly when needed (e.g., injecting dependencies)
-- Use Test Orchestrator (\`testInstrumentationRunnerArguments["clearPackageData"] = "true"\`) for full test isolation per method
-- Disable system animations on test devices (window animation scale, transition animation scale, animator duration scale)
-- Use Hilt with \`@HiltAndroidTest\` and \`HiltAndroidRule\` for dependency injection in instrumentation tests
-
-### CI & Execution
-- Run instrumentation tests via \`./gradlew connectedAndroidTest\` for device/emulator-connected testing
-- Run on multiple API levels in CI for coverage across Android versions — test on at least min SDK and target SDK
-- Use Android Test Orchestrator in CI for per-test process isolation — prevents shared state and crash propagation
-- Configure test sharding with \`-e numShards N -e shardIndex I\` for parallel execution across emulators
-- Use Firebase Test Lab or Gradle Managed Devices for scalable CI testing without maintaining physical devices
-- Capture test artifacts (screenshots, logcat) on failure for debugging CI-only failures`,
+**Key rules:**
+- \`onView(withId(...))\` -> \`.perform(click())\` -> \`.check(matches(isDisplayed()))\`
+- Use \`IdlingResource\` for async operations — never \`Thread.sleep()\`
+- Test IDs via \`android:contentDescription\` or resource IDs
+- Keep tests focused on user-visible behavior, not internal state`,
       },
     ],
     settings: {
@@ -113,6 +39,7 @@ export const espressoProfile: Profile = {
     rules: [
       {
         path: 'testing/espresso-conventions.md',
+        paths: ['**/*Test.java', '**/*Test.kt', 'src/androidTest/**/*'],
         governance: 'mandatory',
         description:
           'Espresso testing conventions — view matchers, actions, assertions, synchronization, and test structure',
@@ -310,6 +237,7 @@ override fun isIdleNow(): Boolean {
       },
       {
         path: 'testing/espresso-intents-and-contrib.md',
+        paths: ['**/*Test.java', '**/*Test.kt', 'src/androidTest/**/*'],
         governance: 'recommended',
         description:
           'Espresso-Intents for hermetic testing and espresso-contrib for RecyclerView, Drawer, and Picker interactions',
@@ -417,6 +345,7 @@ This automatically validates accessibility on every Espresso assertion — fails
         name: 'code-reviewer',
         type: 'enrich',
         prompt: `## Espresso Test Review Checklist
+Available skills: espresso-test-generator
 - Verify tests follow the find -> perform -> check pattern: \`onView(matcher).perform(action).check(assertion)\`
 - Check that \`withId(R.id.x)\` is the primary matcher — flag use of hierarchical matchers (\`withParent\`, \`isDescendantOfA\`) when simpler alternatives exist
 - Verify no \`Thread.sleep()\` or \`SystemClock.sleep()\` — Espresso handles synchronization; flag these as mandatory fixes
@@ -434,6 +363,7 @@ This automatically validates accessibility on every Espresso assertion — fails
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Espresso Test Writing Guidelines
+Available skills: espresso-test-generator
 - Follow the find -> perform -> check pattern for every interaction: \`onView(withId(R.id.x)).perform(click()).check(matches(isDisplayed()))\`
 - Use \`withId(R.id.x)\` as the primary matcher; combine with \`allOf()\` only when the ID alone is ambiguous
 - Use \`clearText()\` before \`typeText()\` for clean input state; always call \`closeSoftKeyboard()\` after \`typeText()\`
@@ -464,6 +394,7 @@ This automatically validates accessibility on every Espresso assertion — fails
         name: 'refactor-assistant',
         type: 'enrich',
         prompt: `## Espresso Test Refactoring Guidance
+Available skills: espresso-test-generator
 - Extract repeated view interactions into Robot pattern or Screen Object classes — one class per screen encapsulating matchers and common actions
 - Replace hardcoded \`R.id.x\` references with constants in a central test IDs helper when the same ID is used across multiple test files
 - Consolidate repeated authentication flows into a shared \`login(email, password)\` helper method used in \`@Before\`

@@ -14,19 +14,15 @@ export const nuxtProfile: Profile = {
         order: 20,
         content: `## Nuxt Conventions
 
-- Use the \`app/\` directory (Nuxt 4 default) for pages, components, composables, layouts, middleware, and plugins
-- Leverage Nuxt auto-imports — never manually import Vue APIs, composables from \`composables/\`, or utilities from \`utils/\`
-- Use \`useFetch\` for simple API calls with SSR support and automatic caching; use \`useAsyncData\` for custom async logic
-- Use \`$fetch\` only inside event handlers, \`onMounted\`, or Nitro server routes — never as a replacement for \`useFetch\` in setup
-- Define server API routes in \`server/api/\` using \`defineEventHandler\`
-- Use \`definePageMeta\` for layout, middleware, transition, and keepalive per page
-- Use \`useHead\` and \`useSeoMeta\` for dynamic head/SEO metadata per page
-- Use \`useState\` for SSR-safe shared reactive state — never use module-scope \`ref()\` for cross-component state
-- Use \`useRuntimeConfig()\` for environment values; prefix env vars with \`NUXT_\` for automatic mapping
-- Use \`NuxtLink\` for all internal navigation — never use raw \`<a>\` tags for SPA routes
-- Use Nuxt modules for extending functionality; prefer official modules (\`@nuxt/image\`, \`@nuxt/content\`, \`@nuxt/fonts\`)
-- Use Nuxt Layers for sharing configuration, components, and composables across projects
-- Use the \`shared/\` directory (Nuxt 4) for types and utilities shared between \`app/\` and \`server/\``,
+Nuxt 3 with auto-imports, file-based routing, and \`useFetch\`/\`useAsyncData\` for data loading.
+
+**Detailed rules:** see \`.claude/rules/nuxt/\` directory.
+
+**Key rules:**
+- File-based routing in \`pages/\`, layouts in \`layouts/\`, server routes in \`server/api/\`
+- \`useFetch\` for component data, \`$fetch\` for event handlers — avoid mixing
+- Composables auto-imported from \`composables/\` — prefix with \`use\`
+- Server-side: use \`defineEventHandler\`, validate with \`zod\` or \`h3\` validators`,
       },
     ],
     settings: {
@@ -45,6 +41,7 @@ export const nuxtProfile: Profile = {
     rules: [
       {
         path: 'nuxt/architecture.md',
+        paths: ['**/*.vue', 'pages/**/*', 'server/**/*', 'composables/**/*'],
         governance: 'mandatory',
         description: 'Nuxt directory structure, routing, data fetching, server routes, and state management',
         content: `# Nuxt Architecture
@@ -324,6 +321,7 @@ Disable the default layout for a specific page with \`layout: false\`.
       },
       {
         path: 'nuxt/rendering-and-deployment.md',
+        paths: ['**/*.vue', 'pages/**/*', 'server/**/*', 'composables/**/*'],
         governance: 'recommended' as const,
         description: 'Nuxt rendering modes, route rules, Nitro deployment, modules, SEO, error handling, and layers',
         content: `# Nuxt Rendering, Deployment & Advanced Patterns
@@ -576,6 +574,7 @@ const { public: { apiBase } } = useRuntimeConfig()
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['nuxt-page-generator', 'nuxt-api-route-generator'],
         prompt: `## Nuxt-Specific Review
 
 ### Routing & Navigation
@@ -623,6 +622,7 @@ const { public: { apiBase } } = useRuntimeConfig()
       {
         name: 'test-writer',
         type: 'enrich',
+        skills: ['nuxt-page-generator', 'nuxt-api-route-generator'],
         prompt: `## Nuxt Testing
 
 ### Setup

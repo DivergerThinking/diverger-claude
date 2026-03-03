@@ -180,6 +180,8 @@ export interface RuleDefinition {
   governance: GovernanceLevel;
   /** Description for tracking */
   description: string;
+  /** Glob patterns to scope when this rule loads (YAML frontmatter paths:) */
+  paths?: string[];
 }
 
 // --- Agent Types ---

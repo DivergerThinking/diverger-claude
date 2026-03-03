@@ -13,44 +13,15 @@ export const swiftProfile: Profile = {
         order: 10,
         content: `## Swift Conventions
 
-### API Design Guidelines (swift.org)
-- Clarity at the point of use is the most important goal — every declaration should read naturally at the call site
-- Prefer clarity over brevity — do not abbreviate names; use full words that describe intent
-- Use grammatical English phrases for method names: \`x.insert(y, at: z)\` reads as "x, insert y at z"
-- Name methods and functions for their side effects: verb phrases for mutating (\`sort()\`, \`append(_:)\`), noun phrases for non-mutating (\`sorted()\`, \`appending(_:)\`)
-- Boolean properties read as assertions: \`isEmpty\`, \`isConnected\`, \`hasContent\`, \`canWrite\`
-- Protocols describing a capability use \`-able\`, \`-ible\`, or \`-ing\` suffix: \`Equatable\`, \`Encodable\`, \`ProgressReporting\`
-- Protocols describing what something is use a noun: \`Collection\`, \`Sequence\`, \`IteratorProtocol\`
+Swift API Design Guidelines. Value types preferred, protocol-oriented programming.
 
-### Type System
-- Prefer value types (\`struct\`, \`enum\`) over reference types (\`class\`) unless identity or reference semantics are required
-- Use \`let\` by default — only use \`var\` when mutation is genuinely needed
-- Leverage the type system: avoid \`Any\` and \`AnyObject\` — use generics or protocols with associated types
-- Use enums with associated values for state modeling and algebraic data types
-- Use property wrappers (\`@propertyWrapper\`) for reusable cross-cutting property behaviors
-- Use opaque types (\`some Protocol\`) to hide implementation details while preserving type identity
+**Detailed rules:** see \`.claude/rules/swift/\` directory.
 
-### Optionals & Safety
-- Never force-unwrap (\`!\`) unless failure is a programmer error with a clear invariant
-- Use \`guard let\` for early exits that clarify the happy path
-- Use \`if let\` / \`if case let\` for conditional binding within a scope
-- Use \`??\` (nil coalescing) for default values
-- Chain optionals with \`?.\` and transform with \`map\` / \`flatMap\`
-- Prefer \`compactMap\` over \`filter + map\` when unwrapping optionals from sequences
-
-### Concurrency (Swift 5.5+)
-- Use \`async/await\` for all asynchronous operations — avoid completion handlers in new code
-- Use \`actor\` to protect mutable shared state — prefer actor isolation over manual locking
-- Mark types as \`Sendable\` when they cross concurrency boundaries
-- Use \`TaskGroup\` for structured parallel work; \`async let\` for concurrent bindings
-- Mark UI-related code with \`@MainActor\`
-- Enable strict concurrency checking (\`SWIFT_STRICT_CONCURRENCY=complete\`) in build settings
-
-### Tooling
-- Run SwiftLint on every save — enforce consistent style across the team
-- Run \`swift build\` and \`swift test\` before committing
-- Use \`swift package\` commands for SPM dependency management
-- Use Xcode Instruments for performance profiling and memory leak detection`,
+**Key rules:**
+- Use \`struct\` by default, \`class\` only when reference semantics are needed
+- Guard-let for early exits, if-let for optional binding, avoid force unwrapping
+- Protocol extensions for default implementations, generics for type-safe abstractions
+- Structured concurrency with \`async\`/\`await\`, actors for shared mutable state`,
       },
     ],
     settings: {
@@ -75,6 +46,7 @@ export const swiftProfile: Profile = {
     rules: [
       {
         path: 'swift/naming-and-style.md',
+        paths: ['**/*.swift'],
         governance: 'mandatory',
         description:
           'Swift naming conventions from API Design Guidelines and Google Swift Style Guide',
@@ -212,6 +184,7 @@ public func fetchUser(id: String) async throws -> User {
       },
       {
         path: 'swift/value-types-and-optionals.md',
+        paths: ['**/*.swift'],
         governance: 'mandatory',
         description:
           'Swift value types, optionals safety, and pattern matching best practices',
@@ -412,6 +385,7 @@ func classify(statusCode: Int, method: String) -> String {
       },
       {
         path: 'swift/concurrency.md',
+        paths: ['**/*.swift'],
         governance: 'mandatory',
         description:
           'Swift structured concurrency: async/await, actors, Sendable, TaskGroup',
@@ -661,6 +635,7 @@ Address all warnings before they become errors in future Swift versions.
       },
       {
         path: 'swift/error-handling-and-protocols.md',
+        paths: ['**/*.swift'],
         governance: 'recommended',
         description:
           'Swift error handling patterns, protocol-oriented design, and generics',
@@ -881,6 +856,7 @@ func retrieve<T: Codable>(forKey key: String) -> T? { ... }
       },
       {
         path: 'swift/project-structure.md',
+        paths: ['**/*.swift'],
         governance: 'recommended',
         description:
           'Swift project structure, SPM conventions, and performance practices',
@@ -1169,6 +1145,7 @@ struct PaymentServiceTests {
       {
         name: 'refactor-assistant',
         type: 'enrich',
+        skills: ['swift-spm-helper'],
         prompt: `## Swift-Specific Refactoring
 
 ### Modernization
@@ -1429,7 +1406,7 @@ func fetchUser(id: String) async throws -> User {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.swift$" && grep -nP "@unchecked Sendable" "$CLAUDE_FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$CLAUDE_FILE_PATH" | grep -qiE "SAFETY:|safety:" || echo "HOOK_EXIT:0:Warning: @unchecked Sendable at line $line missing // SAFETY: comment"; done || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.swift$" && grep -nE "@unchecked Sendable" "$CLAUDE_FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$CLAUDE_FILE_PATH" | grep -qiE "SAFETY:|safety:" || echo "HOOK_EXIT:0:Warning: @unchecked Sendable at line $line missing // SAFETY: comment"; done || true',
             timeout: 10,
           },
         ],

@@ -13,56 +13,15 @@ export const rocketProfile: Profile = {
         order: 20,
         content: `## Rocket Conventions
 
-### Route Declarations
-- Use attribute macros for route declarations: \`#[get]\`, \`#[post]\`, \`#[put]\`, \`#[patch]\`, \`#[delete]\`, \`#[head]\`, \`#[options]\`
-- Handler parameters are automatically extracted from the request via guards
-- Path parameters with \`<param>\` map to function arguments implementing \`FromParam\`
-- Query parameters with \`<param>\` in the query string use \`FromForm\`
-- Catch-all segments with \`<path..>\` implement \`FromSegments\`
-- Use route ranking to resolve ambiguous routes: \`#[get("/path", rank = 2)]\`
+Type-driven web framework. Request guards for validation, fairings for middleware.
 
-### Request Data
-- Use \`Json<T>\` from \`rocket::serde::json\` for JSON request/response bodies — derive \`Serialize\`/\`Deserialize\`
-- Use \`Form<T>\` with \`#[derive(FromForm)]\` for URL-encoded and multipart form data
-- Use \`Strict<Form<T>>\` to reject unexpected form fields
-- Use \`TempFile\` in FromForm structs for multipart file uploads
-- Implement \`FromData\` for custom body parsing only when built-in guards do not suffice
-- Validate data in \`FromForm\`/\`FromData\` implementations or via \`#[field(validate)]\`, not in handlers
+**Detailed rules:** see \`.claude/rules/rocket/\` directory.
 
-### State Management
-- Register shared state with \`rocket::build().manage(my_state)\`
-- Access state via \`&State<T>\` guard in handler signatures
-- State must be \`Send + Sync\` — use \`Arc<Mutex<T>>\` or \`Arc<RwLock<T>>\` for interior mutability
-- Use \`rocket_db_pools\` for async database connection pools — configure in \`Rocket.toml\`
-
-### Responses
-- Return types must implement \`Responder\`: \`String\`, \`Json<T>\`, \`Status\`, \`(Status, Json<T>)\`, \`NamedFile\`, etc.
-- Use \`#[derive(Responder)]\` for custom response types with status, headers, and body
-- Use \`EventStream\` for Server-Sent Events; use \`rocket_ws\` crate for WebSockets
-- Use \`stream!\` macro or \`TextStream\`/\`ByteStream\`/\`ReaderStream\` for streaming responses
-
-### Fairings (Middleware)
-- Use fairings for globally applicable cross-cutting concerns (CORS, logging, metrics, compression)
-- Lifecycle callbacks: \`on_ignite\`, \`on_liftoff\`, \`on_request\`, \`on_response\`, \`on_shutdown\`
-- Use \`AdHoc\` fairing for simple one-off fairings without a full struct
-- Do NOT use fairings for auth/authz on individual routes — use request guards instead
-- Shield fairing is enabled by default — provides security headers (X-Content-Type-Options, X-Frame-Options, Permissions-Policy)
-
-### Sentinels
-- Sentinels abort launch if required invariants are not met (e.g. \`&State<T>\` without \`.manage(T)\`)
-- All built-in guards (\`State\`, \`Connection\`) implement \`Sentinel\` — runtime errors caught at startup
-
-### Configuration
-- Configure via \`Rocket.toml\` (profiles: \`debug\`, \`release\`, \`default\`, \`global\`) or \`ROCKET_\` environment variables
-- Built on \`Figment\` — extend with custom providers for advanced config management
-- Access custom config values via \`AdHoc::config::<MyConfig>()\` or \`Rocket::figment()\`
-
-### Application Entry Point & Organization
-- Use \`#[launch]\` on a function returning \`Rocket<Build>\` for the entry point (preferred)
-- Use \`#[rocket::main]\` when you need custom async setup before launch
-- Mount route groups with \`rocket.mount("/api/v1", routes![...])\` — organize by resource or version
-- Register catchers with \`rocket.register("/", catchers![not_found, internal_error])\`
-- Keep handlers thin — delegate business logic to service modules`,
+**Key rules:**
+- Request guards (\`FromRequest\`) for auth and validation — type system enforces correctness
+- Fairings for cross-cutting concerns (logging, CORS, timing)
+- Responders for consistent response types, catchers for error pages
+- Use managed state (\`State<T>\`) for shared resources, never global mutable state`,
       },
     ],
     settings: {
@@ -81,6 +40,7 @@ export const rocketProfile: Profile = {
     rules: [
       {
         path: 'rocket/architecture.md',
+        paths: ['**/*.rs'],
         governance: 'mandatory',
         description: 'Rocket architecture, route patterns, state, and error handling',
         content: `# Rocket Architecture
@@ -325,6 +285,7 @@ rocket::build()
       },
       {
         path: 'rocket/request-guards.md',
+        paths: ['**/*.rs'],
         governance: 'mandatory',
         description: 'Rocket request guards, data guards, and validation patterns',
         content: `# Rocket Request Guards & Data Validation
@@ -529,6 +490,7 @@ fn rocket() -> _ {
       },
       {
         path: 'rocket/deployment.md',
+        paths: ['**/*.rs'],
         governance: 'recommended',
         description: 'Rocket production deployment, streaming, and performance patterns',
         content: `# Rocket Deployment & Performance
@@ -642,6 +604,8 @@ fn shutdown(shutdown: Shutdown, _admin: AdminGuard) -> &'static str {
         type: 'enrich',
         prompt: `## Rocket Review
 
+**Available skills:** rocket-handler-generator, rocket-guard-generator
+
 ### Route & Handler Quality
 - Check that routes use attribute macros (\`#[get]\`, \`#[post]\`, etc.) with proper path definitions and \`data\` attribute for body
 - Verify handlers are thin — business logic lives in service modules, not in route handlers
@@ -677,6 +641,8 @@ fn shutdown(shutdown: Shutdown, _admin: AdminGuard) -> &'static str {
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Rocket Testing
+
+**Available skills:** rocket-handler-generator, rocket-guard-generator
 
 ### Integration Test Setup
 - Use \`rocket::local::blocking::Client\` for synchronous tests (simpler, preferred when concurrency is not needed)
@@ -728,6 +694,8 @@ fn test_get_user() {
         name: 'security-checker',
         type: 'enrich',
         prompt: `## Rocket Security Review
+
+**Available skills:** rocket-handler-generator, rocket-guard-generator
 
 ### Authentication & Authorization
 - Verify all protected routes use request guards (\`FromRequest\`) for auth — not manual header parsing
@@ -937,7 +905,7 @@ async fn delete_user(admin: AdminGuard, id: i64) -> Status { /* ... */ }
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nP "#\\[catch\\(" "$CLAUDE_FILE_PATH" | grep -q "." && ! grep -qP "register\\(" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:0:Warning: #[catch] found but no register() call — catchers must be registered with rocket.register()" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "#\\[catch\\(" "$CLAUDE_FILE_PATH" | grep -q "." && ! grep -qE "register\\(" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:0:Warning: #[catch] found but no register() call — catchers must be registered with rocket.register()" || true',
             timeout: 10,
           },
         ],
@@ -949,7 +917,7 @@ async fn delete_user(admin: AdminGuard, id: i64) -> Status { /* ... */ }
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "Rocket\\.toml$" && grep -qP "secret_key" "$CLAUDE_FILE_PATH" && grep -vqP "^\\s*#" "$CLAUDE_FILE_PATH" | grep -qP "secret_key\\s*=\\s*\"[^\"]{10,}\"" && echo "HOOK_EXIT:0:Warning: secret_key found in Rocket.toml — prefer ROCKET_SECRET_KEY environment variable for production" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "Rocket\\.toml$" && grep -qE "secret_key" "$CLAUDE_FILE_PATH" && grep -vqE "^\\s*#" "$CLAUDE_FILE_PATH" | grep -qE "secret_key\\s*=\\s*\"[^\"]{10,}\"" && echo "HOOK_EXIT:0:Warning: secret_key found in Rocket.toml — prefer ROCKET_SECRET_KEY environment variable for production" || true',
             timeout: 10,
           },
         ],

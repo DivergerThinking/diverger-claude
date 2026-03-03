@@ -10,91 +10,19 @@ export const xctestProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'XCTest & Swift Testing Conventions',
-        order: 3070,
-        content: `## XCTest & Swift Testing Conventions
+        heading: 'XCTest Conventions',
+        order: 30,
+        content: `## XCTest Conventions
 
-### Framework Choice: XCTest vs Swift Testing
-- **Swift Testing** (Xcode 16+, Swift 6+) is the modern framework for new tests — prefer it for new unit and integration tests
-- **XCTest** remains required for UI tests (XCUITest) and performance measurement tests — Swift Testing does not replace these
-- Both frameworks coexist in the same test target — no big-bang migration needed
-- Migrate XCTest unit tests to Swift Testing incrementally when updating or extending them
+Apple's native test framework. Unit tests, UI tests, performance tests.
 
-### Swift Testing: Test Functions and Suites
-- Use \`@Test\` attribute to mark test functions — no \`test\` prefix needed, any function name works
-- Use \`@Suite\` attribute on types to create test suites — suites can be structs, classes, enums, or actors
-- Use \`#expect(expression)\` macro for assertions — captures and displays both sides of the expression on failure
-- Use \`#require(expression)\` macro for preconditions — halts the test immediately if the condition is false (like XCTUnwrap)
-- Use \`try #require(optionalValue)\` to safely unwrap optionals — fails the test if nil instead of crashing
-- Use \`@Test("Descriptive display name")\` for human-readable test names in the test navigator
-- Use \`@Test(.tags(.critical))\` to tag tests for filtering — define custom tags with \`extension Tag { @Tag static var critical: Self }\`
-- Use \`@Test(arguments: collection)\` for parameterized tests — each argument becomes an independent parallel test case
-- Swift Testing runs all tests in parallel by default — design for isolation, no shared mutable state
-- Use \`@Suite(.serialized)\` only when tests genuinely depend on execution order (rare)
-- Use \`confirmation()\` to verify that callbacks or closures are invoked the expected number of times
-- Use \`withKnownIssue { ... }\` to document known failures without failing the test run
+**Detailed rules:** see \`.claude/rules/xctest/\` directory.
 
-### XCTest: Unit Testing Fundamentals
-- Subclass \`XCTestCase\` for all XCTest-based test classes
-- Prefix test methods with \`test\` — XCTest discovers methods by this prefix convention
-- Name tests descriptively: \`test_methodName_condition_expectedResult()\` or \`testMethodName_WhenCondition_ShouldExpectedResult()\`
-- Use \`setUp()\` / \`tearDown()\` (instance) for per-test fixture setup and cleanup
-- Use \`setUpWithError()\` / \`tearDownWithError()\` for throwing setup (preferred over non-throwing variants)
-- Use \`override class func setUp()\` for one-time setup shared across all tests in a class
-- Mark test methods \`async\` to test async/await code directly (Swift 5.5+) — no XCTestExpectation needed
-- Use \`XCTestExpectation\` with \`wait(for:timeout:)\` only for callback-based or delegate-driven async code
-- Set reasonable timeouts — 5s default, up to 30s for network or CI-bound operations
-- Use \`fulfillment(of: [expectations], timeout:)\` when waiting for multiple expectations
-
-### XCTest: Assertion Reference
-- \`XCTAssertEqual(a, b)\` / \`XCTAssertNotEqual(a, b)\` — equality checks with detailed diff on failure
-- \`XCTAssertTrue(expr)\` / \`XCTAssertFalse(expr)\` — boolean assertions
-- \`XCTAssertNil(expr)\` / \`XCTAssertNotNil(expr)\` — optional checks
-- \`XCTAssertThrowsError(try expr)\` — verify that code throws a specific error
-- \`XCTAssertNoThrow(try expr)\` — verify that code does not throw
-- \`XCTAssertGreaterThan\` / \`XCTAssertLessThan\` / \`XCTAssertGreaterThanOrEqual\` / \`XCTAssertLessThanOrEqual\` — numeric comparisons
-- \`XCTAssertIdentical(a, b)\` — reference identity check for class instances
-- \`XCTUnwrap(optional)\` — unwrap or fail the test (returns the unwrapped value)
-- Always include a descriptive message parameter: \`XCTAssertEqual(result, expected, "Cart total should include tax")\`
-
-### XCUITest: UI Testing
-- Use \`XCUIApplication()\` to launch and interact with the app under test
-- Set \`app.launchArguments\` and \`app.launchEnvironment\` in \`setUp()\` for test configuration
-- Use accessibility identifiers as the primary element locator — set \`.accessibilityIdentifier\` in production code
-- Use consistent identifier naming: \`screenName.elementDescription\` (e.g., \`"login.emailField"\`, \`"login.submitButton"\`)
-- Query elements with type-specific queries: \`app.buttons["Submit"]\`, \`app.textFields["Email"]\`, \`app.staticTexts["Welcome"]\`
-- Use \`app.descendants(matching: .any)["identifier"]\` when element type may change — more resilient to refactors
-- Use \`.waitForExistence(timeout:)\` for elements that appear asynchronously — returns Bool, assert on it
-- NEVER use arbitrary \`sleep()\` or \`Thread.sleep()\` in UI tests — always use \`waitForExistence\` or XCTNSPredicateExpectation
-- Use \`XCTNSPredicateExpectation\` for complex waits: element property changes, collection count changes
-- Use \`addUIInterruptionMonitor(withDescription:handler:)\` to handle system alerts (permissions, notifications)
-- Test on multiple device sizes: use test plans or CI matrix to cover iPhone SE, iPhone 15 Pro, iPad
-- Use \`XCUIDevice.shared.orientation\` to test landscape and portrait layouts
-- Use \`app.performAccessibilityAudit()\` (Xcode 15+) to automatically check for accessibility issues
-
-### Performance Testing
-- Use \`measure { ... }\` in XCTest to capture baseline performance metrics
-- Use \`measure(metrics: [XCTClockMetric(), XCTMemoryMetric(), XCTCPUMetric()])\` for comprehensive profiling
-- Use \`measureWithMetrics(_:automaticallyStartMeasuring:)\` for fine-grained control over measurement regions
-- Set baselines in the test navigator — Xcode flags regressions against stored baselines
-- Run performance tests in Release configuration for meaningful measurements
-- Isolate performance tests in a separate test plan to avoid slowing down unit test runs
-
-### Test Plans
-- Create \`.xctestplan\` files to organize test configurations (Xcode 11+)
-- Use separate plans for: unit tests, integration tests, UI tests, performance tests
-- Configure environment variables and launch arguments per plan
-- Enable code coverage selectively per plan — avoid coverage overhead in performance plans
-- Use shared test plans across multiple schemes for consistency
-- Configure test repetition in plans: run until failure, retry on failure (Xcode 13+)
-
-### Test Organization & CI
-- Place unit tests in the main test target, UI tests in a dedicated UI test target
-- Use \`xcodebuild test -scheme MyApp -testPlan UnitTests -destination 'platform=iOS Simulator,name=iPhone 15'\` for CLI execution
-- Use \`-resultBundlePath\` to capture test results, coverage, and logs for CI analysis
-- Use \`-parallel-testing-enabled YES\` for parallel test execution across simulators
-- Use \`xcresulttool\` to extract test results from \`.xcresult\` bundles in CI pipelines
-- Keep tests fast: unit tests < 0.1s each, UI tests < 30s each — monitor and flag regressions`,
+**Key rules:**
+- \`XCTAssert*\` family for assertions, \`XCTExpectFailure\` for known issues
+- UI tests: accessibility identifiers for element queries, not coordinates
+- \`setUp()\`/\`tearDown()\` for test lifecycle, \`addTeardownBlock\` for async cleanup
+- \`measure {}\` blocks for performance regression testing`,
       },
     ],
     settings: {
@@ -112,6 +40,7 @@ export const xctestProfile: Profile = {
     rules: [
       {
         path: 'testing/xctest-conventions.md',
+        paths: ['**/*Tests.swift', '**/*Test.swift', '**/Tests/**/*.swift'],
         governance: 'mandatory',
         description:
           'XCTest and Swift Testing conventions — assertions, async testing, UI testing, accessibility identifiers, and test lifecycle',
@@ -307,6 +236,7 @@ func testAsyncOperation() {
       },
       {
         path: 'testing/xctest-configuration.md',
+        paths: ['**/*Tests.swift', '**/*Test.swift', '**/Tests/**/*.swift'],
         governance: 'recommended',
         description:
           'XCTest configuration best practices for test plans, CI integration with xcodebuild, and test target organization',
@@ -487,6 +417,7 @@ Define these in a shared framework or source file included in both the app targe
         name: 'code-reviewer',
         type: 'enrich',
         prompt: `## XCTest & Swift Testing Review Checklist
+Available skills: xctest-suite-generator
 - Verify new unit tests use Swift Testing (\`@Test\`, \`#expect\`) when the project targets Xcode 16+ — flag new \`XCTestCase\` subclasses for non-UI tests
 - Check that \`#expect\` is used instead of \`XCTAssert*\` in Swift Testing test functions — mixing frameworks in the same function is not allowed
 - Verify parameterized tests use \`@Test(arguments:)\` instead of loops or duplicated test functions
@@ -507,6 +438,7 @@ Define these in a shared framework or source file included in both the app targe
         name: 'test-writer',
         type: 'enrich',
         prompt: `## XCTest & Swift Testing — Test Writing Guidelines
+Available skills: xctest-suite-generator
 - For new unit tests: use Swift Testing with \`@Test\`, \`#expect\`, \`#require\` — cleaner syntax, better failure messages
 - For UI tests: use XCTest with \`XCUIApplication\`, accessibility identifiers, and Page Object pattern
 - Use \`@Test("Descriptive name")\` for human-readable names in the test navigator
@@ -542,6 +474,7 @@ Define these in a shared framework or source file included in both the app targe
         name: 'refactor-assistant',
         type: 'enrich',
         prompt: `## XCTest & Swift Testing Refactoring Guidance
+Available skills: xctest-suite-generator
 - Migrate XCTest unit tests to Swift Testing: replace \`XCTestCase\` subclass with \`@Suite\` struct, \`func testX()\` with \`@Test func x()\`, \`XCTAssertEqual\` with \`#expect\`
 - Replace duplicated test methods with parameterized \`@Test(arguments:)\` tests — reduces code and runs each case in parallel
 - Replace \`XCTUnwrap\` with \`try #require(optionalValue)\` when migrating to Swift Testing

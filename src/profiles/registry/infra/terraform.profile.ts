@@ -10,109 +10,18 @@ export const terraformProfile: Profile = {
     claudeMd: [
       {
         heading: 'Terraform Conventions',
-        order: 4010,
+        order: 40,
         content: `## Terraform Conventions
 
-### HCL Configuration Language
-- Use HashiCorp Configuration Language (HCL) — declarative syntax with blocks, arguments, and expressions
-- Blocks define configuration objects: \`resource\`, \`variable\`, \`output\`, \`data\`, \`locals\`, \`module\`, \`provider\`, \`terraform\`
-- Use \`terraform fmt\` to enforce canonical formatting on all \`.tf\` files — run before every commit
-- Use \`terraform validate\` to check syntax and internal consistency without accessing remote state or providers
-- Strings use double quotes only — HCL does not support single quotes
-- Use heredoc syntax (\`<<-EOT ... EOT\`) for multi-line strings, indented with \`<<-\` to strip leading whitespace
-- Template interpolation uses \`\${expression}\` inside strings — do not interpolate when the entire value is a single reference (\`var.name\` not \`"\${var.name}"\`)
-- Use comments: \`#\` for single-line (preferred), \`//\` for single-line (alternative), \`/* */\` for multi-line blocks
-- Terraform is whitespace-insensitive between blocks but \`terraform fmt\` enforces 2-space indentation
+Declarative infrastructure as code. Modules, state management, plan-before-apply.
 
-### File Structure and Organization
-- \`main.tf\`: Primary resource definitions — the core infrastructure declarations
-- \`variables.tf\`: All input variable declarations with \`type\`, \`description\`, \`default\`, and \`validation\` blocks
-- \`outputs.tf\`: All output value definitions with \`description\` and \`sensitive\` attributes
-- \`providers.tf\`: Provider configuration blocks with version constraints
-- \`versions.tf\`: \`terraform { required_version }\` and \`required_providers\` block (alternative to providers.tf)
-- \`locals.tf\`: Local value computations for derived values and name construction
-- \`data.tf\`: Data source definitions for referencing existing infrastructure
-- \`backend.tf\`: Backend configuration for remote state storage
-- Split large \`main.tf\` files by resource domain: \`networking.tf\`, \`compute.tf\`, \`database.tf\`, \`iam.tf\`
-- Keep \`terraform.tfvars\` and \`*.auto.tfvars\` out of version control when they contain secrets
-- Commit \`.terraform.lock.hcl\` — it pins provider versions for reproducible builds
+**Detailed rules:** see \`.claude/rules/terraform/\` directory.
 
-### Naming Conventions (HashiCorp Style Guide)
-- Use \`snake_case\` for all Terraform identifiers: resources, variables, outputs, locals, modules, data sources
-- Resource names should describe purpose, not type: \`aws_instance.web_server\` not \`aws_instance.instance1\`
-- Use descriptive prefixes when multiple resources of the same type exist: \`primary\`, \`secondary\`, \`internal\`, \`external\`
-- Variable names should be noun-based: \`instance_type\`, \`vpc_cidr\`, \`environment\`, \`project_name\`
-- Boolean variables should use \`enable_\` or \`is_\` prefix: \`enable_monitoring\`, \`is_production\`
-- Output names should describe the exported value: \`vpc_id\`, \`database_endpoint\`, \`load_balancer_dns_name\`
-- Module source paths use relative paths for local modules: \`source = "./modules/networking"\`
-- Tag keys use consistent casing across the project (prefer PascalCase for AWS tags: \`Environment\`, \`Project\`, \`ManagedBy\`)
-
-### Variables and Type System
-- Always declare \`type\` for every variable — never rely on implicit \`any\` typing
-- Always provide \`description\` for every variable — it serves as documentation in \`terraform plan\` and module registry
-- Use specific types: \`string\`, \`number\`, \`bool\`, \`list(string)\`, \`map(string)\`, \`set(string)\`
-- Use \`object({})\` for structured complex inputs with named attributes
-- Use \`optional()\` modifier for object attributes that have sensible defaults (Terraform 1.3+)
-- Add \`validation\` blocks to catch invalid inputs early — before plan or apply
-- Mark sensitive variables with \`sensitive = true\` to prevent values from appearing in plan output or logs
-- Use \`default = null\` for truly optional variables instead of empty strings or magic values
-- Group related variables using object types rather than many individual flat variables
-
-### Modules
-- Create modules for reusable infrastructure patterns — keep modules focused on a single concern
-- Follow the standard module structure: \`main.tf\`, \`variables.tf\`, \`outputs.tf\`, \`README.md\`
-- Define clear input variables with \`type\`, \`description\`, and \`validation\` blocks
-- Output all useful values for composition with other modules (\`id\`, \`arn\`, \`endpoint\`, \`name\`)
-- Version modules using Git tags: \`source = "git::https://...?ref=v1.2.0"\`
-- Use published Terraform Registry modules for standard patterns; custom modules for organization-specific logic
-- Never hardcode provider configurations inside modules — let the caller configure providers
-- Use \`terraform-<PROVIDER>-<NAME>\` naming convention for published modules
-- Pin module source versions: \`version = "~> 3.0"\` for registry modules, Git ref tags for private modules
-- Keep module nesting to 2 levels maximum — deeply nested modules are hard to debug
-
-### State Management
-- Store state remotely with locking — S3 + DynamoDB, GCS, Azure Blob, or Terraform Cloud
-- Never commit \`.tfstate\` or \`.tfstate.backup\` files to version control — they may contain secrets
-- Use separate state files per environment (dev, staging, production) — never share state across environments
-- Enable state encryption at rest via the backend configuration
-- Use \`terraform state\` commands carefully — always create a backup before state manipulation
-- Use \`terraform import\` to bring existing infrastructure under management instead of recreating it
-- Use \`terraform state mv\` for refactoring resource addresses without destroying/recreating
-- Enable state locking to prevent concurrent modifications (DynamoDB for S3, native for Terraform Cloud)
-- Configure \`backend\` block in a dedicated \`backend.tf\` file for clarity
-
-### Providers
-- Pin provider versions using \`required_providers\` with version constraints: \`version = "~> 5.0"\`
-- Use \`>=\` constraints only for the Terraform core version, \`~>\` for providers (allows patch updates)
-- Configure provider aliases for multi-region or multi-account deployments
-- Never hardcode credentials in provider blocks — use environment variables, IAM roles, or credential files
-- Commit \`.terraform.lock.hcl\` to lock the exact provider versions across team members
-
-### Expressions and Functions
-- Use \`for_each\` over \`count\` for creating multiple resources — it produces stable resource addresses
-- Use \`for\` expressions for transforming collections: \`[for item in var.list : item.name]\`
-- Use \`try()\` for safely accessing nested attributes that may not exist
-- Use \`coalesce()\` and \`coalescelist()\` for fallback values instead of conditional expressions
-- Use \`lookup()\` with a default value for optional map keys
-- Use \`templatefile()\` for complex string templates instead of inline interpolation
-- Use \`dynamic\` blocks sparingly — they reduce readability when overused
-- Prefer \`one()\` function for data sources that return exactly one result
-
-### Resource Lifecycle
-- Use \`lifecycle { prevent_destroy = true }\` for critical resources (databases, encryption keys)
-- Use \`lifecycle { create_before_destroy = true }\` for zero-downtime replacements
-- Use \`lifecycle { ignore_changes = [tags] }\` only when external systems manage specific attributes
-- Use \`moved\` blocks (Terraform 1.1+) for refactoring resource addresses without destroying resources
-- Use \`depends_on\` only when Terraform cannot infer the dependency — prefer implicit dependencies via references
-
-### CI/CD Integration
-- Run \`terraform fmt -check\` in CI to enforce formatting
-- Run \`terraform validate\` in CI to catch configuration errors
-- Run \`terraform plan\` and post the output as a PR comment for review
-- Require human approval before \`terraform apply\` on production environments
-- Use \`-out=plan.tfplan\` to save plans and apply the exact reviewed plan
-- Integrate \`tflint\`, \`tfsec\`, or \`checkov\` for static analysis in the CI pipeline
-- Use Terraform Cloud or Atlantis for collaborative plan/apply workflows`,
+**Key rules:**
+- Always \`terraform plan\` before \`apply\` — review changes before infrastructure mutations
+- Use modules for reusable components, remote state with locking (S3 + DynamoDB)
+- Variables with types and descriptions, outputs for cross-module references
+- Naming: \`snake_case\` for resources, descriptive names that include environment`,
       },
     ],
     settings: {
@@ -153,6 +62,7 @@ export const terraformProfile: Profile = {
       {
         path: 'infra/terraform-conventions.md',
         governance: 'mandatory',
+        paths: ['**/*.tf', '**/*.tfvars', 'modules/**/*'],
         description: 'Terraform HCL conventions, module design, state management, and resource lifecycle',
         content: `# Terraform Conventions
 
@@ -449,6 +359,7 @@ moved {
       {
         path: 'infra/terraform-security.md',
         governance: 'mandatory',
+        paths: ['**/*.tf', '**/*.tfvars', 'modules/**/*'],
         description: 'Terraform security hardening, secret management, and infrastructure safety patterns',
         content: `# Terraform Security
 
@@ -696,6 +607,7 @@ resource "aws_s3_bucket_public_access_block" "data" {
       {
         path: 'infra/terraform-tagging-strategy.md',
         governance: 'recommended',
+        paths: ['**/*.tf', '**/*.tfvars', 'modules/**/*'],
         description: 'Resource tagging strategy for cost allocation, ownership tracking, and operational management',
         content: `# Terraform Tagging Strategy
 
@@ -788,6 +700,8 @@ resource "aws_s3_bucket" "data" {
         type: 'enrich',
         prompt: `## Terraform-Specific Review
 
+**Available skill:** \`terraform-scaffold\` — use when generating new Terraform project structures.
+
 ### HCL Code Quality
 - Verify all resources use descriptive snake_case names that reveal purpose
 - Check that \`terraform fmt\` formatting is applied consistently
@@ -822,6 +736,8 @@ resource "aws_s3_bucket" "data" {
         name: 'security-checker',
         type: 'enrich',
         prompt: `## Terraform Security Review
+
+**Available skill:** \`terraform-scaffold\` — use when generating secure Terraform configurations from scratch.
 
 ### Secret Exposure
 - CRITICAL: Check for hardcoded secrets, passwords, API keys, or tokens in any .tf or .tfvars file
@@ -861,6 +777,8 @@ resource "aws_s3_bucket" "data" {
         type: 'enrich',
         prompt: `## Terraform Documentation Standards
 
+**Available skill:** \`terraform-scaffold\` — use when scaffolding documented Terraform modules.
+
 ### Module Documentation
 - Every module MUST have a README.md with: purpose, usage example, input variables table, outputs table
 - Document prerequisites: required providers, minimum Terraform version, required IAM permissions
@@ -888,6 +806,8 @@ resource "aws_s3_bucket" "data" {
         name: 'migration-helper',
         type: 'enrich',
         prompt: `## Terraform Migration Assistance
+
+**Available skill:** \`terraform-scaffold\` — use when generating new project structures during migration.
 
 ### Version Upgrades
 - Read the official Terraform upgrade guide for the target version

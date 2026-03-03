@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateRules } from '../../../src/generation/generators/rules.js';
-import type { ComposedConfig } from '../../../src/core/types.js';
+import { formatRuleFile } from '../../../src/generation/generators/rules.js';
+import type { ComposedConfig, RuleDefinition } from '../../../src/core/types.js';
 
 function makeConfig(overrides: Partial<ComposedConfig> = {}): ComposedConfig {
   return {
@@ -71,5 +72,71 @@ describe('generateRules', () => {
     expect(result[0]!.path).toContain('.claude');
     expect(result[0]!.path).toContain('rules');
     expect(result[0]!.path).toContain('my-rule.md');
+  });
+
+  it('should prepend paths frontmatter when rule has paths defined', () => {
+    const config = makeConfig({
+      rules: [
+        {
+          path: 'typescript/conventions.md',
+          content: '# Conventions',
+          governance: 'mandatory',
+          description: 'test',
+          paths: ['**/*.ts', '**/*.tsx'],
+        },
+      ],
+    });
+    const result = generateRules(config, '/project');
+
+    expect(result[0]!.content).toContain('---\npaths:\n  - **/*.ts\n  - **/*.tsx\n---');
+    expect(result[0]!.content).toContain('# Conventions');
+  });
+
+  it('should not add frontmatter when rule has no paths', () => {
+    const config = makeConfig({
+      rules: [
+        { path: 'base.md', content: '# Base Rule', governance: 'mandatory', description: 'test' },
+      ],
+    });
+    const result = generateRules(config, '/project');
+
+    expect(result[0]!.content).toBe('# Base Rule');
+    expect(result[0]!.content).not.toContain('---');
+  });
+
+  it('should not add frontmatter when paths is an empty array', () => {
+    const config = makeConfig({
+      rules: [
+        { path: 'base.md', content: '# Rule', governance: 'mandatory', description: 'test', paths: [] },
+      ],
+    });
+    const result = generateRules(config, '/project');
+
+    expect(result[0]!.content).toBe('# Rule');
+    expect(result[0]!.content).not.toContain('---');
+  });
+});
+
+describe('formatRuleFile', () => {
+  it('should return content unchanged when no paths', () => {
+    const rule: RuleDefinition = {
+      path: 'test.md',
+      content: '# Test',
+      governance: 'mandatory',
+      description: 'test',
+    };
+    expect(formatRuleFile(rule)).toBe('# Test');
+  });
+
+  it('should build correct YAML frontmatter with multiple paths', () => {
+    const rule: RuleDefinition = {
+      path: 'ts/rule.md',
+      content: '# Content',
+      governance: 'mandatory',
+      description: 'test',
+      paths: ['**/*.ts', '**/*.tsx', '**/*.mts'],
+    };
+    const result = formatRuleFile(rule);
+    expect(result).toBe('---\npaths:\n  - **/*.ts\n  - **/*.tsx\n  - **/*.mts\n---\n\n# Content');
   });
 });

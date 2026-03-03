@@ -9,93 +9,19 @@ export const playwrightProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'Playwright Testing Conventions',
-        order: 3010,
-        content: `## Playwright Testing Conventions
+        heading: 'Playwright Conventions',
+        order: 30,
+        content: `## Playwright Conventions
 
-### Test Structure & Organization
-- Place tests in \`tests/\` or \`e2e/\` directory as configured by \`testDir\` in \`playwright.config.ts\`
-- Name test files descriptively: \`login.spec.ts\`, \`checkout-flow.spec.ts\` — use \`.spec.ts\` extension by convention
-- Use \`test.describe\` to group related tests by feature, page, or user flow — max 2 levels of nesting
-- Use clear, behavior-focused test names: \`test('should display error when submitting empty form')\`
-- Use \`test.step()\` inside tests to break complex flows into labeled steps for trace viewer readability
-- Use \`test.beforeEach\` / \`test.afterEach\` for per-test setup and teardown within a describe block
-- Use \`test.beforeAll\` / \`test.afterAll\` for expensive one-time setup per worker (e.g., database seeding)
+Cross-browser E2E testing. Auto-waiting, web-first assertions, trace viewer.
 
-### Locator Strategy (Priority Order)
-1. \`page.getByRole('button', { name: 'Submit' })\` — ARIA role-based, most resilient (preferred)
-2. \`page.getByLabel('Email')\` — form label association
-3. \`page.getByPlaceholder('Enter email')\` — placeholder text
-4. \`page.getByText('Welcome')\` — visible text content
-5. \`page.getByAltText('Company logo')\` — image alt text
-6. \`page.getByTitle('Close dialog')\` — title attribute
-7. \`page.getByTestId('submit-btn')\` — \`data-testid\` attribute (explicit contract)
-8. \`page.locator('css=...')\` — CSS selector (last resort)
-- NEVER use XPath selectors — they are brittle and hard to maintain
-- NEVER use structural selectors (nth-child, descendant combinators) for test selectors
-- Chain locators with \`.filter()\` and \`.locator()\` to narrow scope: \`page.getByRole('listitem').filter({ hasText: 'Product' })\`
-- Configure custom test ID attribute via \`testIdAttribute\` in playwright config if needed
+**Detailed rules:** see \`.claude/rules/playwright/\` directory.
 
-### Auto-Waiting & Actions
-- Playwright automatically waits for elements to be actionable before performing actions — NEVER add manual waits
-- NEVER use \`page.waitForTimeout()\` — this is a hard anti-pattern; use assertions or event-based waits instead
-- Use \`page.waitForURL()\` for navigation waits, \`page.waitForResponse()\` for network-dependent flows
-- Use \`page.waitForLoadState('networkidle')\` only when strictly necessary — prefer specific assertions
-- All action methods (\`click\`, \`fill\`, \`check\`, \`selectOption\`) auto-wait for the element to be visible and enabled
-
-### Web-First Assertions (Auto-Retrying)
-- Use \`expect(locator).toBeVisible()\` — auto-retries until element is visible or timeout
-- Use \`expect(locator).toHaveText('...')\` — auto-retries until text matches (supports string or regex)
-- Use \`expect(locator).toHaveValue('...')\` — for input values
-- Use \`expect(locator).toHaveAttribute(name, value)\` — for element attributes
-- Use \`expect(locator).toBeEnabled()\` / \`toBeDisabled()\` / \`toBeChecked()\` — for interactive state
-- Use \`expect(locator).toHaveCount(n)\` — for list/collection length
-- Use \`expect(locator).toHaveClass(/active/)\` — for CSS class assertions (supports regex)
-- Use \`expect(locator).toContainText('...')\` — partial text match with auto-retry
-- Use \`expect(page).toHaveURL(/\\/dashboard/)\` — page URL assertion (supports regex)
-- Use \`expect(page).toHaveTitle('...')\` — page title assertion
-- Use \`expect(response).toBeOK()\` — HTTP response status in 200-299 range
-- Use \`expect.poll()\` for custom retry logic on non-locator values (e.g., API polling)
-- Use \`expect.toPass()\` to retry a block of code until it passes
-- Use \`expect.soft()\` for non-fatal assertions that continue test execution after failure
-- NEVER use generic \`expect(await locator.isVisible()).toBe(true)\` — use web-first \`expect(locator).toBeVisible()\` instead
-
-### Fixtures & Test Isolation
-- Each test runs in an isolated \`BrowserContext\` — tests share nothing by default
-- Use \`test.extend<MyFixtures>()\` to define custom fixtures for shared setup and typed context
-- Use \`{ scope: 'worker' }\` for worker-scoped fixtures (expensive resources: servers, databases)
-- Use \`storageState\` fixture for reusing authentication state across tests
-- Create a global setup file (\`globalSetup\`) to authenticate once and save storage state to disk
-- Use fixture dependencies: fixtures that depend on other fixtures compose automatically
-- Avoid \`test.beforeAll\` for setup that can be expressed as fixtures — fixtures provide automatic teardown
-
-### Network Mocking & Interception
-- Use \`page.route(urlPattern, handler)\` to intercept and mock HTTP requests for a single page
-- Use \`context.route(urlPattern, handler)\` to mock across all pages in a browser context
-- Use \`route.fulfill({ json: data })\` to provide mock response data
-- Use \`route.continue()\` to let the request proceed with optional modifications
-- Use \`route.abort()\` to simulate network failures
-- Register mocks BEFORE \`page.goto()\` to ensure early requests are intercepted
-- Use HAR files for recording and replaying complex multi-request scenarios: \`page.routeFromHAR('path/to/file.har')\`
-- Use \`request\` fixture (APIRequestContext) for direct API calls that share cookies with the browser context
-
-### Parallel Execution & Configuration
-- Configure \`fullyParallel: true\` for maximum test parallelism — each test file runs in parallel
-- Design all tests to be independent — no shared state between tests
-- Use \`test.describe.configure({ mode: 'serial' })\` ONLY when tests genuinely depend on order (rare)
-- Use \`test.describe.configure({ mode: 'parallel' })\` to parallelize tests within a describe block
-- Configure multiple projects in \`playwright.config.ts\` for cross-browser testing (Chromium, Firefox, WebKit)
-- Use \`retries\` in config: typically 0 locally, 2 on CI for resilience against flaky infrastructure
-- Set \`trace: 'on-first-retry'\` in CI to capture traces only for failing tests
-
-### Debugging & Reporting
-- Use \`--trace on\` to capture trace for all tests — open with \`npx playwright show-trace trace.zip\`
-- Use \`npx playwright show-report\` to view the HTML report after test runs
-- Use \`npx playwright codegen <url>\` to auto-generate test code by recording browser interactions
-- Use Playwright Inspector (\`--debug\` flag) for step-by-step test debugging with live browser
-- Use \`page.screenshot()\` for debugging, \`expect(page).toHaveScreenshot()\` for visual regression
-- Use test annotations: \`test.skip()\`, \`test.fixme()\`, \`test.slow()\`, \`test.fail()\` for test lifecycle control
-- Use \`--grep\` or tags (\`@smoke\`, \`@regression\`) for filtering test execution`,
+**Key rules:**
+- Use locators: \`getByRole\`, \`getByLabel\`, \`getByTestId\` — never CSS selectors
+- Web-first assertions (\`expect(locator).toBeVisible()\`) with auto-retry
+- Page Object Model for complex flows, fixtures for shared setup
+- Parallel execution by default — tests must be independent`,
       },
     ],
     settings: {
@@ -118,6 +44,7 @@ export const playwrightProfile: Profile = {
     rules: [
       {
         path: 'testing/playwright-conventions.md',
+        paths: ['**/*.spec.ts', 'tests/**/*', 'e2e/**/*'],
         governance: 'mandatory',
         description:
           'Playwright testing conventions — mandatory rules for locators, assertions, fixtures, and parallel execution',
@@ -269,6 +196,7 @@ const test = base.extend<{}, { dbConnection: DBConnection }>({
       },
       {
         path: 'testing/playwright-configuration.md',
+        paths: ['**/*.spec.ts', 'tests/**/*', 'e2e/**/*'],
         governance: 'recommended',
         description:
           'Playwright configuration best practices for playwright.config.ts including projects, reporters, and CI settings',
@@ -394,6 +322,7 @@ setup('authenticate as user', async ({ page }) => {
         name: 'code-reviewer',
         type: 'enrich',
         prompt: `## Playwright-Specific Review Checklist
+Available skills: playwright-test-generator
 - Verify locator strategy follows priority: getByRole > getByLabel > getByPlaceholder > getByText > getByTestId > CSS — flag any XPath or structural selectors
 - Check that NO \`page.waitForTimeout()\` calls exist — this is always wrong in Playwright
 - Verify all assertions use web-first \`expect(locator)\` methods, not manual state extraction like \`expect(await el.isVisible()).toBe(true)\`
@@ -413,6 +342,7 @@ setup('authenticate as user', async ({ page }) => {
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Playwright-Specific Test Writing Guidelines
+Available skills: playwright-test-generator
 - Use role-based locators as the default: \`page.getByRole('button', { name: '...' })\`, \`page.getByLabel('...')\`
 - Use web-first assertions exclusively: \`expect(locator).toBeVisible()\`, \`toHaveText()\`, \`toHaveValue()\`, \`toHaveURL()\`
 - NEVER use \`page.waitForTimeout()\` — use \`page.waitForURL()\`, \`page.waitForResponse()\`, or web-first assertions
@@ -447,6 +377,7 @@ setup('authenticate as user', async ({ page }) => {
         name: 'refactor-assistant',
         type: 'enrich',
         prompt: `## Playwright Test Refactoring Guidance
+Available skills: playwright-test-generator
 - Extract repeated locator patterns into Page Object Model classes with typed action methods
 - Replace inline locator strings with named locator properties on page objects for reusability
 - Convert \`beforeEach\` / \`beforeAll\` setup patterns into custom fixtures using \`test.extend<T>()\` for automatic teardown

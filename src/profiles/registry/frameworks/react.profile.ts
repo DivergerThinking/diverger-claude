@@ -13,60 +13,15 @@ export const reactProfile: Profile = {
         order: 20,
         content: `## React Conventions
 
-### Component Design
-- Use functional components exclusively — no class components
-- Keep components under 120 lines; extract sub-components when growing beyond that
-- One component per file — the filename must match the component name in PascalCase
-- Separate presentational components (UI) from container components (data/logic)
-- Use composition via \`children\` and render props instead of deep prop drilling
-- Use \`React.forwardRef\` when wrapping native DOM elements that consumers need to ref
+Server Components by default (React 19+). Minimal \`useEffect\` — derive state, use event handlers.
 
-### Hooks Discipline
-- Follow the Rules of Hooks: only call hooks at the top level, only inside React functions or custom hooks
-- Never call hooks inside conditions, loops, nested functions, try/catch, or after early returns
-- Always include all reactive values in useEffect/useMemo/useCallback dependency arrays
-- Use the exhaustive-deps ESLint rule — never suppress it without a documented justification
-- Prefer \`useState\` for simple local state, \`useReducer\` for complex state transitions or related values
-- Use \`useRef\` for values that must persist across renders without triggering re-renders (timers, DOM nodes, previous values)
+**Detailed rules:** see \`.claude/rules/react/\` directory.
 
-### Avoiding Unnecessary Effects
-- Derive values during rendering instead of syncing them with useEffect — if a value can be computed from props or state, compute it inline
-- Use \`useMemo\` for expensive derived computations, not useEffect + setState
-- Handle user interactions in event handlers, not in useEffect reacting to state changes
-- Use \`key\` prop to reset component state on identity change instead of useEffect + setState
-- Reserve useEffect exclusively for synchronization with external systems (subscriptions, DOM APIs, network)
-- Always return a cleanup function from effects that set up subscriptions, timers, or event listeners
-
-### State Architecture
-- Colocate state as close as possible to where it is consumed
-- Lift state up only when multiple siblings genuinely share the same data
-- Use context for cross-cutting concerns (theme, locale, auth) — not as a general state manager
-- For complex global client state, use a dedicated library (Zustand, Jotai, Redux Toolkit)
-- Prefer controlled components for forms; use uncontrolled only for simple, non-validated inputs
-- Batch related state updates in event handlers to avoid cascading re-renders
-
-### Server Components (React 19+)
-- Default to Server Components — add \`'use client'\` only when interactivity is required
-- Keep \`'use client'\` boundaries as low in the component tree as possible
-- Server Components can directly access databases and server-only APIs without exposing secrets
-- Pass rendered JSX from Server Components as children/props to Client Components — never import Server Components inside Client Components
-- Use \`async/await\` in Server Components for data fetching; use Suspense for streaming
-
-### Performance
-- Do not wrap every component in \`React.memo\` by default — profile with React DevTools first
-- Use \`useMemo\` for computationally expensive derivations with stable dependency arrays
-- Use \`useCallback\` only when passing callbacks to memoized children or as Effect dependencies
-- Use \`useTransition\` to mark non-urgent state updates that can be interrupted
-- Use \`useDeferredValue\` to defer rendering of expensive sub-trees during user input
-- Use dynamic \`import()\` or \`React.lazy\` for code-splitting heavy components
-
-### Accessibility
-- Use semantic HTML elements (\`<button>\`, \`<nav>\`, \`<main>\`, \`<section>\`, \`<form>\`)
-- Provide \`aria-label\` or \`aria-labelledby\` for interactive elements without visible text
-- Ensure all interactive elements are keyboard accessible (focus, Enter, Escape)
-- Manage focus correctly in modals, drawers, and dynamically revealed content
-- Use \`role\` attributes only when no semantic HTML element fits the purpose
-- Include alt text on all images; use \`alt=""\` for purely decorative images`,
+**Key rules:**
+- One component per file (<120 lines), composition over prop drilling
+- Rules of Hooks are non-negotiable — no conditional hooks, complete dependency arrays
+- Avoid useEffect for: derived state, user events, data transforms — use event handlers or useMemo
+- Test with Testing Library: query by role/label, test behavior not implementation`,
       },
     ],
     settings: {
@@ -82,6 +37,7 @@ export const reactProfile: Profile = {
     rules: [
       {
         path: 'react/hooks-and-effects.md',
+        paths: ['**/*.tsx', '**/*.jsx'],
         governance: 'mandatory',
         description: 'Rules of Hooks, effect discipline, and avoiding unnecessary effects',
         content: `# React Hooks & Effects
@@ -223,6 +179,7 @@ useEffect(() => {
       },
       {
         path: 'react/component-architecture.md',
+        paths: ['**/*.tsx', '**/*.jsx'],
         governance: 'mandatory',
         description: 'React component design, composition, and state architecture patterns',
         content: `# React Component Architecture
@@ -351,6 +308,7 @@ function useMount(fn: () => void) {
       },
       {
         path: 'react/performance.md',
+        paths: ['**/*.tsx', '**/*.jsx'],
         governance: 'recommended',
         description: 'React performance optimization patterns and anti-patterns',
         content: `# React Performance
@@ -456,6 +414,7 @@ function SearchPage() {
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['react-component-generator', 'react-hook-generator'],
         prompt: `## React-Specific Review
 
 ### Hooks Compliance
@@ -547,6 +506,7 @@ describe('UserProfile', () => {
       {
         name: 'refactor-assistant',
         type: 'enrich',
+        skills: ['react-component-generator'],
         prompt: `## React Refactoring Patterns
 
 ### Component Extraction
@@ -666,7 +626,7 @@ When generating a custom hook, follow these rules:
     externalTools: [
       {
         type: 'eslint',
-        filePath: '.eslintrc.react.json',
+        filePath: '.eslintrc.json',
         config: {
           extends: ['plugin:react/recommended', 'plugin:react-hooks/recommended', 'plugin:jsx-a11y/recommended'],
           plugins: ['react', 'react-hooks', 'jsx-a11y'],

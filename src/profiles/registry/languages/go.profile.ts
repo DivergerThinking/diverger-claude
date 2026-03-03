@@ -13,18 +13,16 @@ export const goProfile: Profile = {
         order: 10,
         content: `## Go Conventions
 
-- Follow Effective Go, Go Code Review Comments, and the Google Go Style Guide
-- Use \`gofmt\` / \`goimports\` for formatting — never deviate from standard formatting
-- Handle every returned error — never discard errors with \`_\`
-- Return \`error\` instead of panicking — reserve \`panic\` for truly unrecoverable programmer bugs
-- Accept interfaces, return concrete structs — keep interfaces small (1-3 methods)
-- Define interfaces at the consumer, not the implementer
-- Use \`context.Context\` as the first parameter for cancellation, deadlines, and request-scoped values
-- Prefer composition via struct embedding over deep type hierarchies
-- Use goroutines and channels for concurrent operations; protect shared state with \`sync.Mutex\`
-- Use \`log/slog\` (Go 1.21+) for structured logging with key-value pairs
-- Use generics judiciously — prefer concrete types or interfaces when they suffice
-- Run \`go vet\`, \`staticcheck\`, and \`golangci-lint\` before every commit`,
+Effective Go, gofmt-enforced style. Explicit error handling — never discard errors with \`_\`.
+
+**Detailed rules:** see \`.claude/rules/go/\` directory.
+
+**Key rules:**
+- Accept interfaces, return structs — small interfaces at consumer side
+- \`context.Context\` as first parameter, propagate cancellation
+- Error wrapping with \`fmt.Errorf("...: %w", err)\`, check with \`errors.Is\`/\`errors.As\`
+- Goroutines must have clear ownership, use \`errgroup\` for fan-out
+- Run \`go vet\`, \`staticcheck\`, \`golangci-lint\` before committing`,
       },
     ],
     settings: {
@@ -47,6 +45,7 @@ export const goProfile: Profile = {
     rules: [
       {
         path: 'go/conventions.md',
+        paths: ['**/*.go'],
         governance: 'mandatory',
         description: 'Go coding conventions from Effective Go, Code Review Comments, and Google Style Guide',
         content: `# Go Conventions
@@ -281,6 +280,7 @@ func (s *service) FetchAll(ids []string) []*User {
       },
       {
         path: 'go/structure.md',
+        paths: ['**/*.go'],
         governance: 'recommended',
         description: 'Go project structure, testing idioms, and module management',
         content: `# Go Project Structure & Testing
@@ -417,6 +417,7 @@ func TestParseAge(t *testing.T) {
       },
       {
         path: 'go/performance-and-safety.md',
+        paths: ['**/*.go'],
         governance: 'recommended',
         description: 'Go performance patterns, memory safety, and security guidelines',
         content: `# Go Performance & Safety
@@ -540,6 +541,7 @@ srv := &http.Server{
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['go-module-manager', 'go-debug-profile'],
         prompt: `## Go-Specific Review
 
 ### Error Handling
@@ -580,6 +582,7 @@ srv := &http.Server{
       {
         name: 'test-writer',
         type: 'enrich',
+        skills: ['go-module-manager', 'go-debug-profile'],
         prompt: `## Go Testing
 
 ### Structure

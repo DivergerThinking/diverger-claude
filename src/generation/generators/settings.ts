@@ -9,6 +9,7 @@ export function generateSettings(
   projectRoot: string,
 ): GeneratedFile {
   const settings: Record<string, unknown> = {
+    $schema: 'https://json.schemastore.org/claude-code-settings.json',
     permissions: {
       allow: [...new Set(config.settings.permissions?.allow ?? [])].sort(),
       deny: [...new Set(config.settings.permissions?.deny ?? [])].sort(),

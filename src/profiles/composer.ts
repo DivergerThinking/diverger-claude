@@ -4,6 +4,7 @@ import type {
   ComposedConfig,
   DetectedTechnology,
   DetectionResult,
+  ExternalToolConfig,
   Profile,
   VersionConstraint,
 } from '../core/types.js';
@@ -43,6 +44,9 @@ export class ProfileComposer {
 
     // Compose agents from contributions
     config.agents = this.composeAgents(applicable);
+
+    // Merge external tool configs (e.g. multiple ESLint configs → single file)
+    config.externalTools = this.mergeExternalToolConfigs(config.externalTools);
 
     // Validate no conflicts
     this.validate(config);
@@ -216,6 +220,62 @@ export class ProfileComposer {
       model: data.model,
       description: data.description,
     }));
+  }
+
+  /** Merge external tool configs that target the same tool type (e.g. multiple ESLint configs) */
+  private mergeExternalToolConfigs(tools: ExternalToolConfig[]): ExternalToolConfig[] {
+    const eslintConfigs = tools.filter((t) => t.type === 'eslint');
+    const nonEslint = tools.filter((t) => t.type !== 'eslint');
+
+    if (eslintConfigs.length <= 1) return tools;
+
+    // Deep-merge all ESLint configs into one targeting .eslintrc.json
+    const merged: ExternalToolConfig = {
+      type: 'eslint',
+      filePath: '.eslintrc.json',
+      mergeStrategy: 'create-only',
+      config: {},
+    };
+
+    const allExtends: string[] = [];
+    const allPlugins: string[] = [];
+    let mergedRules: Record<string, unknown> = {};
+    let mergedSettings: Record<string, unknown> = {};
+
+    for (const eslint of eslintConfigs) {
+      const cfg = eslint.config;
+      if (Array.isArray(cfg.extends)) {
+        allExtends.push(...(cfg.extends as string[]));
+      }
+      if (Array.isArray(cfg.plugins)) {
+        allPlugins.push(...(cfg.plugins as string[]));
+      }
+      if (cfg.rules && typeof cfg.rules === 'object') {
+        mergedRules = { ...mergedRules, ...(cfg.rules as Record<string, unknown>) };
+      }
+      if (cfg.settings && typeof cfg.settings === 'object') {
+        mergedSettings = deepmerge(mergedSettings, cfg.settings as Record<string, unknown>) as Record<string, unknown>;
+      }
+      // Carry forward any other keys from each config
+      for (const [key, value] of Object.entries(cfg)) {
+        if (!['extends', 'plugins', 'rules', 'settings'].includes(key) && !(key in merged.config)) {
+          merged.config[key] = value;
+        }
+      }
+    }
+
+    merged.config.extends = [...new Set(allExtends)];
+    if (allPlugins.length > 0) {
+      merged.config.plugins = [...new Set(allPlugins)];
+    }
+    if (Object.keys(mergedRules).length > 0) {
+      merged.config.rules = mergedRules;
+    }
+    if (Object.keys(mergedSettings).length > 0) {
+      merged.config.settings = mergedSettings;
+    }
+
+    return [...nonEslint, merged];
   }
 
   /** Validate the composed config for conflicts */

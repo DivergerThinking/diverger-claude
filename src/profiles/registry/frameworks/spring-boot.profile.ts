@@ -13,37 +13,15 @@ export const springBootProfile: Profile = {
         order: 20,
         content: `## Spring Boot Conventions
 
-### Application Structure
-- Place \`@SpringBootApplication\` class in a root package above all other classes — it defines the base component scan package
-- Organize by feature/domain (e.g., \`com.example.order\`, \`com.example.customer\`), not by technical layer
-- Each domain package contains its own Controller, Service, Repository, DTOs, and entities
-- Keep the main application class thin — no \`@Bean\` definitions except cross-cutting infrastructure
-- Consider Spring Modulith for enforcing module boundaries in larger monoliths
+Convention over configuration. Layered architecture with dependency injection.
 
-### Layered Architecture
-- **Controller** (\`@RestController\`): HTTP concerns only — request mapping, input validation, response shaping
-- **Service** (\`@Service\`): all business logic and orchestration — the only layer that holds \`@Transactional\`
-- **Repository** (\`@Repository\`): data access via Spring Data interfaces — no business logic
-- **DTO**: dedicated request/response objects — never expose JPA entities directly in API responses
-- **Entity** (\`@Entity\`): JPA-managed domain model mapped to database tables
+**Detailed rules:** see \`.claude/rules/spring-boot/\` directory.
 
-### Dependency Injection
-- Use constructor injection exclusively — makes dependencies explicit, immutable, and testable
-- Use \`@RequiredArgsConstructor\` (Lombok) or explicit constructors — avoid \`@Autowired\` on fields
-- Use \`@Qualifier\` when multiple beans implement the same interface
-- Use \`@Profile\` for environment-specific beans (e.g., embedded vs external cache)
-
-### Configuration
-- Use \`application.yml\` with Spring profiles (\`dev\`, \`staging\`, \`prod\`) for environment-specific settings
-- Use \`@ConfigurationProperties\` with \`@Validated\` for type-safe configuration — avoid scattered \`@Value\`
-- Externalize all secrets via environment variables or a vault — never hardcode in source
-- Enable RFC 9457 ProblemDetail error responses: \`spring.mvc.problemdetails.enabled=true\`
-
-### Production Readiness
-- Enable Spring Boot Actuator for health checks (\`/actuator/health\`), metrics, and readiness probes
-- Use \`@RestControllerAdvice\` with \`@ExceptionHandler\` for centralized, consistent error handling
-- Configure database migrations with Flyway or Liquibase — never rely on Hibernate \`ddl-auto\` in production
-- Package as executable JAR or OCI image using Spring Boot Maven/Gradle plugins`,
+**Key rules:**
+- Layered architecture: Controller → Service → Repository, one responsibility per layer
+- Constructor injection (no field injection), interfaces for testability
+- Bean Validation (\`@Valid\`, \`@NotNull\`) on all DTOs, global \`@ControllerAdvice\` for errors
+- Profiles for environment config, externalized properties via \`application.yml\``,
       },
     ],
     settings: {
@@ -59,6 +37,7 @@ export const springBootProfile: Profile = {
     rules: [
       {
         path: 'spring-boot/architecture.md',
+        paths: ['**/*.java', 'src/main/**/*', 'src/test/**/*'],
         governance: 'mandatory',
         description: 'Spring Boot layered architecture, DI, JPA, and configuration patterns',
         content: `# Spring Boot Architecture
@@ -307,6 +286,7 @@ public class PaymentService {
       },
       {
         path: 'spring-boot/error-handling.md',
+        paths: ['**/*.java', 'src/main/**/*', 'src/test/**/*'],
         governance: 'mandatory',
         description: 'Spring Boot centralized error handling with RFC 9457 ProblemDetail',
         content: `# Spring Boot Error Handling
@@ -415,6 +395,7 @@ public class BusinessRuleViolationException extends RuntimeException {
       },
       {
         path: 'spring-boot/security.md',
+        paths: ['**/*.java', 'src/main/**/*', 'src/test/**/*'],
         governance: 'mandatory',
         description: 'Spring Security configuration with SecurityFilterChain pattern',
         content: `# Spring Security Configuration
@@ -559,6 +540,7 @@ public CorsConfigurationSource corsConfigSource() {
       },
       {
         path: 'spring-boot/testing.md',
+        paths: ['**/*.java', 'src/main/**/*', 'src/test/**/*'],
         governance: 'recommended',
         description: 'Spring Boot testing patterns with test slices and TestContainers',
         content: `# Spring Boot Testing Patterns
@@ -722,6 +704,7 @@ class OrderControllerSecurityTest {
       },
       {
         path: 'spring-boot/actuator-and-observability.md',
+        paths: ['**/*.java', 'src/main/**/*', 'src/test/**/*'],
         governance: 'recommended',
         description: 'Spring Boot Actuator, health checks, metrics, and observability setup',
         content: `# Spring Boot Actuator & Observability
@@ -876,7 +859,9 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 - Verify @ConfigurationProperties with @Validated for structured config — flag scattered @Value usage
 - Check for @RestControllerAdvice with ProblemDetail (RFC 9457) error responses
 - Verify no stack traces or internal details are exposed in API error responses
-- Check application.yml uses Spring profiles for env-specific settings — flag hardcoded production values`,
+- Check application.yml uses Spring profiles for env-specific settings — flag hardcoded production values
+
+**Available skills:** Use \`spring-boot-starter\` for feature module scaffolding, \`spring-boot-security-setup\` for security configuration.`,
       },
       {
         name: 'test-writer',
@@ -900,7 +885,9 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 - Use TestContainers with @ServiceConnection for real database integration tests
 - Use @WithMockUser or custom SecurityContext for testing authorized flows
 - Test complete HTTP request/response cycles — not just service method calls
-- Verify Flyway/Liquibase migrations run successfully against a real database instance`,
+- Verify Flyway/Liquibase migrations run successfully against a real database instance
+
+**Available skills:** Use \`spring-boot-starter\` for feature module + test scaffolding, \`spring-boot-security-setup\` for security test patterns.`,
       },
       {
         name: 'security-checker',
@@ -914,7 +901,9 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 - Check for SQL injection in custom @Query annotations: verify named parameters (:param), not string concatenation
 - Verify HTTPS enforcement: check for requiresChannel().anyRequest().requiresSecure() or server.ssl configuration
 - Check sensitive data exposure: verify @JsonIgnore on entity fields that should not appear in responses (password, internalId)
-- Verify logging does not include passwords, tokens, or PII — check log statements in authentication flows`,
+- Verify logging does not include passwords, tokens, or PII — check log statements in authentication flows
+
+**Available skills:** Use \`spring-boot-starter\` for secure scaffolding, \`spring-boot-security-setup\` for security configuration patterns.`,
       },
       {
         name: 'refactor-assistant',
@@ -927,7 +916,9 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 - Replace RestTemplate with WebClient or RestClient (Spring Boot 3.2+) for HTTP calls
 - Convert imperative repository queries to Spring Data derived query methods or @Query with JPQL
 - Replace Swagger 2 / SpringFox with SpringDoc OpenAPI 3 (@Operation, @Schema annotations)
-- Introduce @ServiceConnection with TestContainers to replace manual DataSource configuration in tests`,
+- Introduce @ServiceConnection with TestContainers to replace manual DataSource configuration in tests
+
+**Available skills:** Use \`spring-boot-starter\` for module scaffolding, \`spring-boot-security-setup\` for security migration patterns.`,
       },
     ],
     skills: [

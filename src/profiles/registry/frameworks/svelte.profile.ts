@@ -9,37 +9,19 @@ export const svelteProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'Svelte / SvelteKit Conventions',
+        heading: 'Svelte Conventions',
         order: 20,
-        content: `## Svelte / SvelteKit Conventions
+        content: `## Svelte Conventions
 
-### Svelte 5 Runes (mandatory reactivity model)
-- Use \`$state\` for all mutable reactive variables — replaces \`let\` reactivity from Svelte 4
-- Use \`$state.raw\` for values that do not need deep reactivity (large arrays, objects replaced wholesale)
-- Use \`$derived\` for synchronous computed values — replaces \`$:\` reactive declarations
-- Use \`$derived.by\` when the derivation requires a multi-statement function body
-- Use \`$effect\` only for side effects (DOM manipulation, logging, external sync) — never for deriving state
-- Use \`$props\` to declare component inputs with TypeScript types — replaces \`export let\`
-- Use \`$bindable\` for props that support \`bind:\` from the parent
-- Use \`$inspect\` during development for reactive debugging — remove before production
+Svelte 5 runes (\`$state\`, \`$derived\`, \`$effect\`). Minimal boilerplate, compiler-driven reactivity.
 
-### Component Model
-- Keep components small and focused on a single responsibility
-- Use \`{#snippet name(params)}\` blocks for reusable template fragments — replaces slots
-- Use \`{@render snippet()}\` to invoke snippets, including snippets received as props
-- Use callback props for child-to-parent communication — \`on:\` event handlers are deprecated in Svelte 5
-- Scoped CSS is default — use \`:global()\` sparingly and only for overriding third-party styles
-- Use \`class:\` directive for conditional CSS classes — prefer over ternary in \`class\` attribute
+**Detailed rules:** see \`.claude/rules/svelte/\` directory.
 
-### SvelteKit Patterns
-- Use file-based routing in \`src/routes/\` with \`+page.svelte\`, \`+layout.svelte\`, \`+server.ts\`
-- Use \`+page.server.ts\` for server-side load functions and form actions (mutations)
-- Use \`+page.ts\` only for universal load functions that must run on both server and client
-- Use \`$lib\` alias for imports from \`src/lib/\` — never use relative paths outside the lib
-- Use \`$lib/server\` for server-only utilities — SvelteKit enforces server boundary
-- Use progressive enhancement with \`use:enhance\` on all forms
-- Use \`error()\` and \`redirect()\` helpers from \`@sveltejs/kit\` in load functions
-- Colocate \`+error.svelte\` at each route segment that needs custom error UI`,
+**Key rules:**
+- Use runes: \`$state()\` for reactive state, \`$derived()\` for computed, \`$effect()\` sparingly
+- Components are \`.svelte\` files — one component per file, props via \`$props()\`
+- SvelteKit for routing and SSR — \`+page.svelte\`, \`+layout.svelte\`, \`+server.ts\`
+- Minimal \`$effect\` usage — derive state instead of syncing it`,
       },
     ],
     settings: {
@@ -59,6 +41,7 @@ export const svelteProfile: Profile = {
     rules: [
       {
         path: 'svelte/architecture.md',
+        paths: ['**/*.svelte', '**/*.svelte.ts'],
         governance: 'mandatory',
         description: 'SvelteKit architecture, routing, data loading, and form actions',
         content: `# Svelte / SvelteKit Architecture
@@ -219,6 +202,7 @@ export const handleError: HandleServerError = async ({ error, event }) => {
       },
       {
         path: 'svelte/reactivity-and-components.md',
+        paths: ['**/*.svelte', '**/*.svelte.ts'],
         governance: 'mandatory',
         description: 'Svelte 5 runes, component patterns, snippets, and state management',
         content: `# Svelte 5 Reactivity & Component Patterns
@@ -405,6 +389,7 @@ Svelte 5 replaces \`on:\` event directives with standard callback props:
       },
       {
         path: 'svelte/performance-and-ssr.md',
+        paths: ['**/*.svelte', '**/*.svelte.ts'],
         governance: 'recommended' as const,
         description: 'SvelteKit SSR, streaming, caching, transitions, and bundle optimization',
         content: `# SvelteKit Performance & SSR
@@ -522,6 +507,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
       },
       {
         path: 'svelte/naming-and-files.md',
+        paths: ['**/*.svelte', '**/*.svelte.ts'],
         governance: 'recommended' as const,
         description: 'Svelte naming conventions and file organization',
         content: `# Svelte Naming & File Conventions
@@ -590,6 +576,7 @@ src/routes/
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['svelte-component-generator', 'svelte-route-generator'],
         prompt: `## Svelte / SvelteKit Review Checklist
 
 ### Runes & Reactivity
@@ -622,6 +609,7 @@ src/routes/
       {
         name: 'test-writer',
         type: 'enrich',
+        skills: ['svelte-component-generator', 'svelte-route-generator'],
         prompt: `## Svelte / SvelteKit Testing
 
 ### Component Testing

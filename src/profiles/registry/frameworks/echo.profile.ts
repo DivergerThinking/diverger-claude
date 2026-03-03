@@ -13,41 +13,15 @@ export const echoProfile: Profile = {
         order: 20,
         content: `## Echo Conventions
 
-### Instance & Lifecycle
-- Use \`echo.New()\` to create the Echo instance — configure middleware explicitly for production
-- Register routes with \`e.GET()\`, \`e.POST()\`, \`e.PUT()\`, \`e.PATCH()\`, \`e.DELETE()\` on the Echo instance
-- Configure \`e.HTTPErrorHandler\` for centralized error formatting before registering routes
-- Set up graceful shutdown with \`e.Shutdown(ctx)\` in a signal-handling goroutine
-- Always set explicit server timeouts via \`e.Server.ReadTimeout\`, \`e.Server.WriteTimeout\`, \`e.Server.IdleTimeout\`
+High-performance Go web framework. Middleware-centric, context-based request handling.
 
-### Handlers & Context
-- Handlers receive \`echo.Context\` and return \`error\` — never call \`os.Exit\` or \`panic\` in handlers
-- Use \`c.Bind()\` for automatic request body binding based on Content-Type header
-- Use \`c.Validate()\` after binding — requires a validator registered via \`e.Validator\`
-- Use \`c.JSON()\`, \`c.String()\`, \`c.Blob()\`, \`c.Stream()\` for responses
-- Use \`c.Param()\` for path params, \`c.QueryParam()\` for query strings, \`c.FormValue()\` for form data
-- For single-source binding use \`c.Bind()\` subsets: bind path, query, or body independently
-- Use \`c.Get()\` / \`c.Set()\` for passing request-scoped data through the middleware chain
-- Access the stdlib \`context.Context\` via \`c.Request().Context()\` for service/repository calls
+**Detailed rules:** see \`.claude/rules/echo/\` directory.
 
-### Routing & Groups
-- Group routes with \`e.Group()\` for shared path prefixes and middleware
-- Apply auth middleware at the group level: \`api := e.Group("/api", authMiddleware)\`
-- Name routes for URL generation: \`e.GET("/users/:id", handler).Name = "get-user"\`
-- Use \`e.Any()\` and \`e.Match()\` sparingly — prefer explicit method registration
-
-### Middleware
-- Use \`e.Use()\` for global middleware, \`g.Use()\` for group-level, or inline for per-route
-- Order: Recover → RequestID → Logger → CORS → Secure → RateLimiter → Auth → Handlers
-- Configure middleware via \`WithConfig\` variants: \`middleware.CORSWithConfig(middleware.CORSConfig{...})\`
-- Use \`middleware.RequestID()\` to inject X-Request-ID for distributed tracing
-- Use \`middleware.ContextTimeoutWithConfig()\` (v4.12+) for handler-level timeouts — handlers must check \`ctx.Done()\`
-
-### Error Handling
-- Return \`echo.NewHTTPError(status, message)\` from handlers — Echo routes it to \`HTTPErrorHandler\`
-- Wrap internal errors: \`echo.NewHTTPError(http.StatusInternalServerError).SetInternal(err)\`
-- Customize \`e.HTTPErrorHandler\` for consistent JSON error envelopes across all endpoints
-- Never expose internal error details or stack traces to clients — log them server-side`,
+**Key rules:**
+- Group routes with \`e.Group()\`, apply middleware per group for auth/logging
+- Use Echo's \`Context\` for request/response — bind and validate input structs
+- Centralized error handler via \`echo.HTTPErrorHandler\`, return consistent JSON errors
+- Middleware ordering matters: logger → recover → auth → rate-limit → handler`,
       },
     ],
     settings: {
@@ -65,6 +39,7 @@ export const echoProfile: Profile = {
     rules: [
       {
         path: 'echo/routing-middleware.md',
+        paths: ['**/*.go'],
         governance: 'mandatory',
         description: 'Echo routing, middleware composition, and request pipeline',
         content: `# Echo Routing & Middleware
@@ -270,6 +245,7 @@ func (h *UserHandler) GetByID(c echo.Context) error {
       },
       {
         path: 'echo/project-structure.md',
+        paths: ['**/*.go'],
         governance: 'recommended',
         description: 'Echo project structure, layered architecture, and dependency injection',
         content: `# Echo Project Structure
@@ -414,6 +390,7 @@ func main() {
       },
       {
         path: 'echo/testing-patterns.md',
+        paths: ['**/*.go'],
         governance: 'recommended',
         description: 'Echo handler testing, middleware testing, and integration test patterns',
         content: `# Echo Testing Patterns
@@ -604,7 +581,9 @@ func TestAPI_Integration(t *testing.T) {
 ### Validation
 - Verify echo.Validator is registered (go-playground/validator/v10)
 - Check that c.Validate() is called after c.Bind() for all input structs
-- Verify validation errors are translated to user-friendly messages`,
+- Verify validation errors are translated to user-friendly messages
+
+**Available skills:** Use \`echo-handler-generator\` to scaffold new handlers, \`echo-middleware-generator\` for middleware.`,
       },
       {
         name: 'test-writer',
@@ -640,7 +619,9 @@ func TestAPI_Integration(t *testing.T) {
 ### Integration Tests
 - Use httptest.NewServer(e) for full-stack HTTP tests
 - Verify middleware ordering produces expected headers (X-Request-Id, CORS, security headers)
-- Test the full error pipeline: handler error → HTTPErrorHandler → response envelope`,
+- Test the full error pipeline: handler error → HTTPErrorHandler → response envelope
+
+**Available skills:** Use \`echo-handler-generator\` to scaffold handlers with tests, \`echo-middleware-generator\` for middleware with tests.`,
       },
     ],
     skills: [

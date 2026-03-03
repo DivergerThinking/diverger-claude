@@ -9,110 +9,19 @@ export const kubernetesProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'Kubernetes Resource Conventions',
-        order: 4000,
-        content: `## Kubernetes Resource Conventions
+        heading: 'Kubernetes Conventions',
+        order: 40,
+        content: `## Kubernetes Conventions
 
-### Pod Design
-- Prefer Deployments over bare Pods for stateless workloads — bare Pods are not rescheduled on node failure
-- Use StatefulSets for workloads requiring stable network identity or persistent storage
-- Use DaemonSets for node-level agents (log collectors, monitoring, CNI plugins)
-- Use Jobs and CronJobs for batch and scheduled work — never run batch logic inside long-running Pods
-- Set \`restartPolicy: Always\` for Deployments, \`OnFailure\` for Jobs
-- Define \`terminationGracePeriodSeconds\` to allow in-flight requests to complete during shutdown
+Declarative resource management. Security contexts, resource limits, health checks.
 
-### Resource Requests and Limits
-- Always specify \`resources.requests\` and \`resources.limits\` for CPU and memory on every container
-- Set memory requests close to actual usage; set limits slightly above to allow burst without OOM-killing neighbors
-- Set CPU requests based on observed usage; consider omitting CPU limits (use only requests) to avoid throttling
-- Use \`LimitRange\` at the namespace level to enforce default requests and limits for containers without them
-- Use \`ResourceQuota\` per namespace to cap total resource consumption and prevent noisy-neighbor issues
-- Use Vertical Pod Autoscaler (VPA) in recommendation mode to right-size resource values
-- Use Horizontal Pod Autoscaler (HPA) with CPU, memory, or custom metrics for automatic scaling
+**Detailed rules:** see \`.claude/rules/kubernetes/\` directory.
 
-### Health Checks
-- Configure \`livenessProbe\` on every container to detect deadlocks and restart unhealthy processes
-- Configure \`readinessProbe\` to control traffic routing — unready Pods are removed from Service endpoints
-- Use \`startupProbe\` for slow-starting applications — liveness and readiness probes are disabled until startup succeeds
-- Implement dedicated health endpoints (\`/healthz\`, \`/readyz\`) that verify critical dependencies (DB, cache)
-- Prefer HTTP probes for web services, TCP probes for non-HTTP services, exec probes only as last resort
-- Tune \`initialDelaySeconds\`, \`periodSeconds\`, \`timeoutSeconds\`, and \`failureThreshold\` based on actual application behavior
-- Keep liveness probes lightweight — they should NOT check external dependencies (database, cache)
-- Readiness probes should be more comprehensive and verify that backing services are reachable
-
-### Labels, Annotations, and Organization
-- Apply recommended labels consistently: \`app.kubernetes.io/name\`, \`app.kubernetes.io/version\`, \`app.kubernetes.io/component\`, \`app.kubernetes.io/part-of\`, \`app.kubernetes.io/managed-by\`
-- Use annotations for non-identifying metadata (build info, monitoring config, Ingress annotations)
-- Use namespaces to isolate workloads by environment (dev, staging, production) or team
-- Store manifests in version control alongside application code — infrastructure as code
-- Use Kustomize overlays or Helm values for environment-specific configuration
-- Define PodDisruptionBudgets (PDB) for critical services to guarantee minimum availability during voluntary disruptions`,
-      },
-      {
-        heading: 'Kubernetes Security',
-        order: 4001,
-        content: `## Kubernetes Security
-
-### Pod Security Standards (PSS)
-- Enforce Pod Security Admission (PSA) at the namespace level — PSA replaces the deprecated PodSecurityPolicy
-- Use the \`restricted\` profile for production namespaces: non-root, read-only filesystem, dropped capabilities
-- Use the \`baseline\` profile for development namespaces as a minimum safety net
-- Label namespaces with \`pod-security.kubernetes.io/enforce: restricted\` (or baseline) and \`audit\`/\`warn\` at a stricter level
-
-### Security Contexts
-- Set \`runAsNonRoot: true\` at the pod level — never run containers as root in production
-- Set \`readOnlyRootFilesystem: true\` and use emptyDir volumes for writable paths
-- Set \`allowPrivilegeEscalation: false\` on every container
-- Drop all capabilities (\`drop: ["ALL"]\`) and add back only what is strictly needed
-- Set \`seccompProfile.type: RuntimeDefault\` to restrict syscalls to a safe subset
-- Never use \`privileged: true\` unless absolutely required (and document why)
-
-### RBAC (Role-Based Access Control)
-- Follow least-privilege: grant only the permissions each service account actually needs
-- Prefer namespace-scoped Roles and RoleBindings over cluster-wide ClusterRoles
-- Never add users or service accounts to the \`system:masters\` group — it bypasses all RBAC checks
-- Avoid wildcard permissions (\`*\`) in Roles — enumerate specific verbs and resources
-- Disable automatic service account token mounting (\`automountServiceAccountToken: false\`) when not needed
-- Audit RBAC bindings regularly and remove stale permissions
-
-### Secrets Management
-- Never store secrets in plain text in manifests or ConfigMaps — use Kubernetes Secrets at minimum
-- Enable encryption at rest for Secrets in etcd (\`EncryptionConfiguration\`)
-- Prefer external secret managers (HashiCorp Vault, AWS Secrets Manager, GCP Secret Manager) via CSI driver or operator
-- Mount secrets as volumes rather than environment variables to reduce exposure in process listings
-- Rotate secrets regularly and use short-lived credentials where possible
-
-### Network Policies
-- Apply a default-deny ingress and egress NetworkPolicy in every namespace
-- Explicitly allow only required pod-to-pod and pod-to-external traffic
-- Use labels to scope network policies — avoid IP-based rules that break when pods reschedule
-- Verify your CNI plugin supports NetworkPolicy enforcement (Calico, Cilium, Weave Net)`,
-      },
-      {
-        heading: 'Helm Conventions',
-        order: 4002,
-        content: `## Helm Conventions
-
-### Chart Structure
-- Create new charts with \`helm create\` to follow the standard directory layout
-- Chart names must be lowercase with words separated by dashes — no uppercase or underscores
-- Use semantic versioning (SemVer 2) for \`version\` (chart version) and \`appVersion\` (application version)
-- Keep Chart.yaml metadata complete: name, version, appVersion, description, maintainers
-
-### Values and Templates
-- Use camelCase for variable names in values.yaml — no hyphens in keys
-- Document every property in values.yaml with a comment describing its purpose
-- Prefer flat value structures over deeply nested ones for easier \`--set\` overrides
-- Scope template names to the chart (\`{{ template "mychart.fullname" . }}\`) to avoid name collisions in sub-charts
-- Use two-space indentation in templates — never tabs
-- Include a NOTES.txt to display post-install instructions
-
-### Helm Best Practices
-- Use \`helm template\` to preview rendered manifests before applying
-- Use \`helm diff\` plugin to review changes before \`helm upgrade\`
-- Pin chart dependency versions in Chart.yaml — avoid floating ranges
-- Use \`helm lint\` and \`helm test\` in CI pipelines to catch issues early
-- Store chart values per environment in separate files (values-dev.yaml, values-staging.yaml, values-prod.yaml)`,
+**Key rules:**
+- Resource requests AND limits on every container — prevent noisy neighbor issues
+- Liveness + readiness probes for all deployments, startup probes for slow apps
+- SecurityContext: \`runAsNonRoot\`, \`readOnlyRootFilesystem\`, drop all capabilities
+- Use namespaces, labels, and annotations consistently for organization`,
       },
     ],
     settings: {
@@ -133,6 +42,7 @@ export const kubernetesProfile: Profile = {
       {
         path: 'infra/kubernetes-resource-standards.md',
         governance: 'mandatory',
+        paths: ['**/*.yaml', '**/*.yml', 'k8s/**/*', 'manifests/**/*'],
         description: 'Kubernetes resource definition standards and pod design conventions',
         content: `# Kubernetes Resource Standards
 
@@ -268,6 +178,7 @@ metadata:
       {
         path: 'infra/kubernetes-security.md',
         governance: 'mandatory',
+        paths: ['**/*.yaml', '**/*.yml', 'k8s/**/*', 'manifests/**/*'],
         description: 'Kubernetes security standards: PSS, RBAC, secrets, network policies',
         content: `# Kubernetes Security Standards
 
@@ -388,6 +299,9 @@ Then add specific policies for allowed traffic:
         name: 'code-reviewer',
         type: 'enrich',
         prompt: `## Kubernetes Manifest Review
+
+**Available skill:** \`k8s-manifest-audit\` — use for comprehensive manifest compliance audits.
+
 - Verify every container defines \`resources.requests\` and \`resources.limits\` for memory and CPU
 - Check liveness and readiness probes are configured on all long-running containers
 - Verify startup probes are used for slow-starting applications
@@ -405,6 +319,9 @@ Then add specific policies for allowed traffic:
         name: 'security-checker',
         type: 'enrich',
         prompt: `## Kubernetes Security Review
+
+**Available skill:** \`k8s-manifest-audit\` — use for security-focused manifest audits.
+
 - Verify Pod Security Standards: namespaces enforce \`restricted\` or \`baseline\` PSA profile
 - Check all pods run as non-root with \`runAsNonRoot: true\` and a numeric \`runAsUser\`
 - Verify \`allowPrivilegeEscalation: false\` and no \`privileged: true\` containers
@@ -423,6 +340,9 @@ Then add specific policies for allowed traffic:
         name: 'doc-writer',
         type: 'enrich',
         prompt: `## Kubernetes Documentation
+
+**Available skill:** \`k8s-manifest-audit\` — use to generate audit reports for documentation.
+
 - Document all Kubernetes resources with inline comments explaining non-obvious configuration choices
 - Include architecture diagrams showing service communication patterns and network policies
 - Document resource sizing rationale: why specific CPU/memory requests and limits were chosen
@@ -436,6 +356,9 @@ Then add specific policies for allowed traffic:
         name: 'migration-helper',
         type: 'enrich',
         prompt: `## Kubernetes Migration Assistance
+
+**Available skill:** \`k8s-manifest-audit\` — use to audit manifests before and after migration.
+
 - When migrating Kubernetes versions, review the changelog for deprecated and removed APIs
 - Use \`kubectl convert\` or \`kubectl api-resources\` to identify resources using deprecated API versions
 - Check for removed PodSecurityPolicy when migrating to 1.25+ — migrate to Pod Security Admission

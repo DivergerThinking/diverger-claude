@@ -13,21 +13,15 @@ export const angularProfile: Profile = {
         order: 20,
         content: `## Angular Conventions
 
-- Use standalone components by default — NgModules only for legacy migration
-- Use Angular signals (\`signal()\`, \`computed()\`, \`linkedSignal()\`, \`resource()\`) as the primary reactive primitive
-- Use RxJS only where signals do not fit: HTTP streams, WebSocket events, complex async coordination
-- Use \`inject()\` function for dependency injection — prefer it over constructor injection
-- Use the new control flow syntax: \`@if\`, \`@for\`, \`@switch\`, \`@defer\` — never structural directives (\`*ngIf\`, \`*ngFor\`)
-- Use \`ChangeDetectionStrategy.OnPush\` on every component — opt out only with documented justification
-- Use the Angular CLI (\`ng generate\`) for scaffolding components, services, guards, pipes
-- Follow the Smart/Presentational component split: containers orchestrate, presentational renders
-- Use \`input()\` / \`input.required()\` signal inputs and \`output()\` signal outputs — avoid legacy \`@Input()\` / \`@Output()\`
-- Use \`model()\` for two-way binding with signal semantics
-- Use \`@defer\` blocks for lazy-loading heavy template sections and below-the-fold content
-- Use Angular's built-in pipes for template data transformation — never call methods in templates
-- Use reactive forms (\`FormGroup\`, \`FormControl\`) — template-driven forms only for trivial one-off cases
-- Use route guards as functional guards (not class-based) for navigation control
-- Use \`provideRouter()\`, \`provideHttpClient()\`, \`provideAnimations()\` standalone providers in \`app.config.ts\``,
+Angular CLI structure. Standalone components preferred, RxJS for reactive patterns.
+
+**Detailed rules:** see \`.claude/rules/angular/\` directory.
+
+**Key rules:**
+- Standalone components by default, lazy-loaded routes with \`loadComponent\`
+- Smart (container) vs presentational (dumb) component separation
+- Services for business logic, injected via constructor — single responsibility
+- Unsubscribe from observables: use \`async\` pipe, \`takeUntilDestroyed\`, or \`DestroyRef\``,
       },
     ],
     settings: {
@@ -46,6 +40,7 @@ export const angularProfile: Profile = {
     rules: [
       {
         path: 'angular/architecture.md',
+        paths: ['**/*.ts', '**/*.html', '**/*.component.ts'],
         governance: 'mandatory',
         description: 'Angular component architecture, signals, DI, and routing patterns',
         content: `# Angular Architecture
@@ -330,6 +325,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       },
       {
         path: 'angular/naming.md',
+        paths: ['**/*.ts', '**/*.html', '**/*.component.ts'],
         governance: 'recommended',
         description: 'Angular naming, file organization, and project structure conventions',
         content: `# Angular Naming & Project Structure
@@ -409,6 +405,7 @@ src/app/
       },
       {
         path: 'angular/performance.md',
+        paths: ['**/*.ts', '**/*.html', '**/*.component.ts'],
         governance: 'recommended',
         description: 'Angular performance best practices and optimization patterns',
         content: `# Angular Performance
@@ -490,6 +487,7 @@ export class CartSummaryComponent {
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['angular-component-generator', 'angular-service-generator'],
         prompt: `## Angular-Specific Review
 - Verify all components are standalone — flag any lingering NgModule declarations
 - Check that every component uses \`ChangeDetectionStrategy.OnPush\`
@@ -510,6 +508,7 @@ export class CartSummaryComponent {
       {
         name: 'test-writer',
         type: 'enrich',
+        skills: ['angular-component-generator', 'angular-service-generator'],
         prompt: `## Angular Testing
 - Use \`TestBed.configureTestingModule()\` with minimal providers — only what the test needs
 - Test standalone components by importing them directly in \`TestBed\` imports

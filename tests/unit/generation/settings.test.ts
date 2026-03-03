@@ -120,4 +120,15 @@ describe('generateSettings', () => {
     expect(result.content.endsWith('\n')).toBe(true);
     expect(() => JSON.parse(result.content)).not.toThrow();
   });
+
+  it('should include $schema as first key', () => {
+    const config = makeConfig();
+    const result = generateSettings(config, '/project');
+    const parsed = JSON.parse(result.content);
+
+    expect(parsed.$schema).toBe('https://json.schemastore.org/claude-code-settings.json');
+    // Verify it's the first key
+    const keys = Object.keys(parsed);
+    expect(keys[0]).toBe('$schema');
+  });
 });

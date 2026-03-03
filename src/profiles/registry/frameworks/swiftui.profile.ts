@@ -10,102 +10,19 @@ export const swiftuiProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'SwiftUI Architecture & Data Flow',
+        heading: 'SwiftUI Conventions',
         order: 2000,
-        content: `## SwiftUI Architecture & Data Flow
+        content: `## SwiftUI Conventions
 
-### View Composition
-- Build views as small, composable structs conforming to the \`View\` protocol — each view has one responsibility
-- Keep body computed properties under 40 lines — extract sub-views as separate structs, not helper methods
-- Use \`@ViewBuilder\` for custom container views that accept multiple child views
-- Use \`Group\`, \`Section\`, and container views (\`VStack\`, \`HStack\`, \`ZStack\`) for layout organization
-- Use \`ViewModifier\` to create reusable, composable style and behavior modifications
-- Separate data-fetching logic from views — use dedicated model types or view models
+Declarative UI framework. View composition, data flow with property wrappers.
 
-### Property Wrappers — Data Flow
-Choose the correct property wrapper for each data ownership scenario:
-- \`@State\`: Local, private, view-owned value state — mark it \`private\` always
-- \`@Binding\`: Two-way connection to a parent view's \`@State\` — the child does not own this data
-- \`@Observable\` + \`@Bindable\` (iOS 17+): Shared reference-type state across views — replaces ObservableObject + @Published
-- \`@Environment\`: Read system or app-wide values (color scheme, locale, custom keys) — injected by ancestor views
-- \`@AppStorage\`: UserDefaults-backed persistent state — use only for non-sensitive preferences
-- \`@SceneStorage\`: Scene-scoped state that persists across scene sessions (window position, tab state)
-- \`@Query\` (iOS 17+): SwiftData fetch request that auto-updates when model data changes
-- \`@FocusState\`: Track and control focus state for text fields and focusable views
+**Detailed rules:** see \`.claude/rules/swiftui/\` directory.
 
-### @Observable Macro (iOS 17+)
-- Prefer \`@Observable\` over \`ObservableObject\` for all new code targeting iOS 17+ — no \`@Published\` boilerplate needed
-- Views automatically track which properties they read and only re-render when those specific properties change
-- Use \`@Bindable\` to create two-way bindings to properties of an \`@Observable\` object
-- Store \`@Observable\` objects in \`@State\` when the view owns the lifecycle, or pass via \`@Environment\`
-- Migrate from \`ObservableObject\` to \`@Observable\` by removing \`@Published\` wrappers and the protocol conformance
-
-### Navigation
-- Use \`NavigationStack\` with value-driven \`NavigationLink(value:)\` and \`.navigationDestination(for:)\` — never deprecated \`NavigationView\`
-- Define navigation state as an enum or \`Hashable\` type for type-safe routing
-- Use \`NavigationPath\` for programmatic multi-step navigation and deep link handling
-- Use \`NavigationSplitView\` for sidebar-detail layouts on iPad and Mac
-- Handle deep links by pushing values onto \`NavigationPath\` from \`.onOpenURL\` modifier
-
-### SwiftData (iOS 17+)
-- Use \`@Model\` macro to define persistent model classes — automatic schema generation and migration
-- Use \`@Query\` in views for reactive, auto-updating fetch requests
-- Use \`ModelContainer\` at the app level and inject \`ModelContext\` via environment
-- Use in-memory \`ModelContainer\` for previews and tests — never connect previews to production data
-- Define \`SortDescriptor\` and \`Predicate\` for type-safe queries`,
-      },
-      {
-        heading: 'SwiftUI Conventions & Anti-Patterns',
-        order: 2001,
-        content: `## SwiftUI Conventions & Anti-Patterns
-
-### Previews
-- Create previews for every view using the \`#Preview\` macro (Swift 5.9+) — do not use deprecated \`PreviewProvider\`
-- Create multiple preview configurations: light mode, dark mode, accessibility text sizes, different devices
-- Use mock data and in-memory stores for preview dependencies — never hit real APIs or databases
-- Name previews descriptively: \`#Preview("Profile - Loading")\`, \`#Preview("Profile - Error State")\`
-- Use \`@Previewable @State\` for previewing views that require bindings
-
-### Platform & Accessibility
-- Follow Apple Human Interface Guidelines for platform-native UX on iOS, macOS, watchOS, tvOS, and visionOS
-- Use semantic views: \`Label\`, \`Toggle\`, \`Picker\`, \`DatePicker\` — they adapt to each platform automatically
-- Add \`.accessibilityLabel()\`, \`.accessibilityHint()\`, and \`.accessibilityValue()\` to custom views
-- Support Dynamic Type — never hardcode font sizes; use \`.font(.body)\`, \`.font(.headline)\`, etc.
-- Support both light and dark mode — use semantic colors from \`Color\` (\`.primary\`, \`.secondary\`, \`.accentColor\`)
-- Test with VoiceOver enabled to verify full accessibility
-
-### Common Anti-Patterns
-- **NavigationView**: Deprecated — always use \`NavigationStack\` or \`NavigationSplitView\`
-- **@ObservedObject for owned state**: Use \`@StateObject\` (pre-iOS 17) or \`@State\` with \`@Observable\` (iOS 17+) for view-owned objects
-- **Heavy body computation**: Never perform network calls, database queries, or heavy computation in the body — use \`.task\` or \`.onAppear\`
-- **Inline closures creating objects**: Avoid creating new objects inside \`body\` — extract to stored properties or computed properties
-- **Force unwrapping optionals in views**: Use \`if let\`, \`guard let\`, or nil coalescing — crashes in views kill the app
-- **Storing sensitive data in @AppStorage**: \`@AppStorage\` writes to UserDefaults (plaintext) — use Keychain for tokens and secrets
-- **Using .animation(.default) without value**: Always use \`.animation(.default, value: someValue)\` to scope animations
-- **AnyView for type erasure**: Avoid \`AnyView\` — it defeats SwiftUI's diffing algorithm; use \`@ViewBuilder\` or \`Group\` instead`,
-      },
-      {
-        heading: 'SwiftUI Commands',
-        order: 2002,
-        content: `## SwiftUI Commands
-
-### Build & Run
-- \`xcodebuild -scheme <Scheme> -destination 'platform=iOS Simulator,name=iPhone 16' build\` — build for simulator
-- \`xcodebuild -scheme <Scheme> -destination 'platform=iOS Simulator,name=iPhone 16' -resultBundlePath TestResults test\` — run tests
-- \`swift build\` — build Swift Package Manager projects
-- \`swift test\` — run SPM package tests
-- \`xcrun simctl boot "iPhone 16"\` — boot a simulator
-- \`xcrun simctl install booted <app-path>\` — install app on booted simulator
-
-### Linting & Formatting
-- \`swiftlint lint --strict\` — lint with strict mode (warnings become errors)
-- \`swiftlint lint --fix\` — auto-fix correctable violations
-- \`swiftformat .\` — format all Swift files in the project
-
-### Swift Package Manager
-- \`swift package resolve\` — resolve package dependencies
-- \`swift package update\` — update packages to latest compatible versions
-- \`swift package show-dependencies\` — display dependency tree`,
+**Key rules:**
+- Small views (<40 lines body), extract subviews as separate structs
+- \`@State\` for local, \`@Binding\` for parent-owned, \`@ObservedObject\`/\`@StateObject\` for models
+- Prefer \`LazyVStack\`/\`LazyHStack\` over \`VStack\`/\`HStack\` for large lists
+- Preview providers for every view — test visual states`,
       },
     ],
     settings: {
@@ -125,6 +42,7 @@ Choose the correct property wrapper for each data ownership scenario:
     rules: [
       {
         path: 'swiftui/view-composition-and-data-flow.md',
+        paths: ['**/*.swift'],
         governance: 'mandatory',
         description: 'SwiftUI view composition, property wrappers, navigation, and data flow patterns',
         content: `# SwiftUI View Composition & Data Flow
@@ -289,6 +207,7 @@ struct ContentView: View {
       },
       {
         path: 'swiftui/performance-and-rendering.md',
+        paths: ['**/*.swift'],
         governance: 'mandatory',
         description: 'SwiftUI body evaluation, rendering performance, lists, images, and animations',
         content: `# SwiftUI Performance & Rendering
@@ -374,6 +293,7 @@ ScrollView {
       },
       {
         path: 'swiftui/security-and-data-protection.md',
+        paths: ['**/*.swift'],
         governance: 'mandatory',
         description: 'iOS app security: Keychain, ATS, certificate pinning, and secure data handling',
         content: `# SwiftUI Security & Data Protection
@@ -441,6 +361,7 @@ UserDefaults.standard.set(authToken, forKey: "authToken")
       },
       {
         path: 'swiftui/accessibility-and-hig.md',
+        paths: ['**/*.swift'],
         governance: 'recommended',
         description: 'Apple Human Interface Guidelines compliance and accessibility best practices',
         content: `# SwiftUI Accessibility & Human Interface Guidelines
@@ -508,7 +429,11 @@ UserDefaults.standard.set(authToken, forKey: "authToken")
 ### Security
 - Verify Keychain is used for sensitive storage — flag UserDefaults/\`@AppStorage\` for secrets
 - Check that ATS is not disabled globally in Info.plist
-- Verify deep link URL handlers validate input`,
+- Verify deep link URL handlers validate input
+
+### Available Skills
+- \`swiftui-view-generator\`: Generate a complete SwiftUI view with architecture, previews, and tests
+- \`swiftui-navigation-setup\`: Set up type-safe navigation with NavigationStack, route enum, and deep linking`,
       },
       {
         name: 'test-writer',
@@ -539,7 +464,10 @@ UserDefaults.standard.set(authToken, forKey: "authToken")
 - Test full navigation flows with XCUITest — verify screen transitions and data persistence
 - Test deep link handling end-to-end
 - Test Keychain operations with real Keychain in integration tests (not mocked)
-- Test SwiftData persistence with temporary in-memory containers`,
+- Test SwiftData persistence with temporary in-memory containers
+
+### Available Skills
+- \`swiftui-view-generator\`: Generate a complete SwiftUI view with architecture, previews, and tests`,
       },
       {
         name: 'security-checker',
@@ -609,7 +537,11 @@ UserDefaults.standard.set(authToken, forKey: "authToken")
 - Always verify previews still render after each refactoring step
 - Test that navigation paths remain functional after route refactoring
 - Verify data flow is preserved — @Binding connections must not be broken
-- Run accessibility audit after refactoring to ensure labels and hints are preserved`,
+- Run accessibility audit after refactoring to ensure labels and hints are preserved
+
+### Available Skills
+- \`swiftui-view-generator\`: Generate a complete SwiftUI view with architecture, previews, and tests
+- \`swiftui-navigation-setup\`: Set up type-safe navigation with NavigationStack, route enum, and deep linking`,
       },
       {
         name: 'migration-helper',
@@ -642,7 +574,11 @@ UserDefaults.standard.set(authToken, forKey: "authToken")
 2. Replace \`@FetchRequest\` with \`@Query\`
 3. Replace \`NSPersistentContainer\` with \`ModelContainer\`
 4. Replace \`NSManagedObjectContext\` with \`ModelContext\`
-5. Test migration with production-like data volumes`,
+5. Test migration with production-like data volumes
+
+### Available Skills
+- \`swiftui-view-generator\`: Generate a complete SwiftUI view with architecture, previews, and tests
+- \`swiftui-navigation-setup\`: Set up type-safe navigation with NavigationStack, route enum, and deep linking`,
       },
     ],
     skills: [

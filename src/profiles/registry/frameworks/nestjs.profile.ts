@@ -13,42 +13,15 @@ export const nestjsProfile: Profile = {
         order: 20,
         content: `## NestJS Conventions
 
-### Modular Architecture
-- Every feature/domain gets its own module — modules are the primary organizational unit
-- Use dependency injection for all services — never instantiate with \`new\` manually
-- Controllers handle HTTP concerns only — delegate all business logic to services
-- Services are stateless and reusable — no request-specific data stored as instance state
-- Use DTOs with class-validator for all request input validation
-- Use custom decorators to reduce boilerplate and express domain intent
+Module-based architecture with dependency injection. Decorators for metadata, pipes for validation.
 
-### Provider Lifecycle & Scope
-- Default provider scope is \`SINGLETON\` — one instance shared across the entire app
-- Use \`REQUEST\` scope only when the provider genuinely needs per-request state (e.g., multi-tenancy, request-scoped caching)
-- Use \`TRANSIENT\` scope only when each consumer needs its own unique instance
-- Be aware: request-scoped providers bubble up — any provider injecting a request-scoped provider also becomes request-scoped
-- Prefer \`SINGLETON\` scope for performance — request-scoped providers incur per-request instantiation overhead
+**Detailed rules:** see \`.claude/rules/nestjs/\` directory.
 
-### Execution Pipeline Order
-Understand the exact order NestJS processes a request:
-1. **Middleware** — runs first (similar to Express middleware)
-2. **Guards** — authentication and authorization (can prevent execution)
-3. **Interceptors (before)** — pre-processing, logging, caching
-4. **Pipes** — input validation and transformation
-5. **Route handler** — the controller method
-6. **Interceptors (after)** — post-processing, response mapping
-7. **Exception filters** — error handling (catches thrown exceptions at any step)
-
-### Configuration
-- Use \`@nestjs/config\` ConfigModule with \`.env\` files and validation schemas (Joi or class-validator)
-- Access config via \`ConfigService\` injection — never use \`process.env\` directly in services
-- Use \`forRoot()\` / \`forRootAsync()\` for global configuration modules
-- Use \`registerAs()\` with namespaced configuration for organized config access
-
-### API Documentation
-- Use \`@nestjs/swagger\` decorators on all controllers and DTOs
-- Annotate endpoints with \`@ApiOperation()\`, \`@ApiResponse()\`, \`@ApiTags()\`
-- Use \`@ApiProperty()\` on all DTO fields for automatic schema generation
-- Generate OpenAPI spec automatically — keep Swagger UI enabled in development`,
+**Key rules:**
+- One module per feature domain, explicit imports/exports — no circular dependencies
+- DTOs with class-validator decorators for all input, Pipes for transformation
+- Guards for auth, Interceptors for cross-cutting concerns, Filters for error handling
+- Repository pattern for data access, services for business logic`,
       },
     ],
     settings: {
@@ -69,6 +42,7 @@ Understand the exact order NestJS processes a request:
     rules: [
       {
         path: 'nestjs/architecture.md',
+        paths: ['**/*.ts', 'src/**/*.module.ts', 'src/**/*.controller.ts', 'src/**/*.service.ts'],
         governance: 'mandatory',
         description: 'NestJS modular architecture, DI, providers, and execution pipeline',
         content: `# NestJS Architecture
@@ -287,6 +261,7 @@ export class OrdersService {
       },
       {
         path: 'nestjs/guards-pipes-interceptors.md',
+        paths: ['**/*.ts', 'src/**/*.module.ts', 'src/**/*.controller.ts', 'src/**/*.service.ts'],
         governance: 'mandatory',
         description: 'NestJS guards, pipes, interceptors, and exception filters patterns',
         content: `# NestJS Guards, Pipes, Interceptors & Exception Filters
@@ -531,6 +506,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       },
       {
         path: 'nestjs/naming.md',
+        paths: ['**/*.ts', 'src/**/*.module.ts', 'src/**/*.controller.ts', 'src/**/*.service.ts'],
         governance: 'recommended',
         description: 'NestJS naming and file conventions',
         content: `# NestJS Naming Conventions
@@ -626,6 +602,7 @@ src/
       },
       {
         path: 'nestjs/testing.md',
+        paths: ['**/*.ts', 'src/**/*.module.ts', 'src/**/*.controller.ts', 'src/**/*.service.ts'],
         governance: 'mandatory',
         description: 'NestJS testing patterns with @nestjs/testing and dependency injection',
         content: `# NestJS Testing Patterns
@@ -807,6 +784,7 @@ describe('UsersController (e2e)', () => {
       },
       {
         path: 'nestjs/security.md',
+        paths: ['**/*.ts', 'src/**/*.module.ts', 'src/**/*.controller.ts', 'src/**/*.service.ts'],
         governance: 'mandatory',
         description: 'NestJS authentication, authorization, and security patterns',
         content: `# NestJS Security
@@ -939,6 +917,7 @@ export class User {
       },
       {
         path: 'nestjs/database-patterns.md',
+        paths: ['**/*.ts', 'src/**/*.module.ts', 'src/**/*.controller.ts', 'src/**/*.service.ts'],
         governance: 'recommended',
         description: 'NestJS database integration with TypeORM, Prisma, and Mongoose',
         content: `# NestJS Database Patterns
@@ -1031,6 +1010,7 @@ TypeOrmModule.forRoot({
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['nestjs-module-generator', 'nestjs-auth-setup'],
         prompt: `## NestJS-Specific Review
 
 ### Architecture & Modularity
@@ -1075,6 +1055,7 @@ TypeOrmModule.forRoot({
       {
         name: 'test-writer',
         type: 'enrich',
+        skills: ['nestjs-module-generator', 'nestjs-auth-setup'],
         prompt: `## NestJS Testing
 
 ### Unit Tests (Services)
@@ -1111,6 +1092,7 @@ TypeOrmModule.forRoot({
       {
         name: 'security-checker',
         type: 'enrich',
+        skills: ['nestjs-auth-setup'],
         prompt: `## NestJS Security Review
 
 ### Authentication & Session

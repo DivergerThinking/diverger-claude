@@ -13,55 +13,15 @@ export const vueProfile: Profile = {
         order: 20,
         content: `## Vue.js Conventions
 
-### Composition API & Script Setup
-- Use \`<script setup>\` with TypeScript for all new components — it is the recommended default
-- Use \`ref()\` as the primary reactive primitive for all state (primitives and objects)
-- Use \`reactive()\` only when you need a plain object with no reassignment and no destructuring
-- Use \`computed()\` for all derived state — never compute values inside templates
-- Use \`watch()\` for side effects triggered by specific reactive source changes
-- Use \`watchEffect()\` for effects with automatic dependency tracking
-- Use \`toRefs()\` or \`toRef()\` when destructuring reactive objects to preserve reactivity
-- Use \`shallowRef()\` for large immutable structures or external state (e.g., third-party class instances)
-- Use \`defineModel()\` (Vue 3.4+) for two-way binding on custom components — replaces manual prop + emit pattern
+Composition API with \`<script setup>\`. Reactive state with \`ref()\` as primary primitive.
 
-### Component Communication
-- Props down, events up: \`defineProps<T>()\` for input, \`defineEmits<T>()\` for output — always with TypeScript generics
-- Never mutate props directly — emit an event and let the parent update
-- Never use \`getCurrentInstance()\` to access parent internals — use events or provide/inject
-- Use \`provide()\` / \`inject()\` with typed \`InjectionKey<T>\` for deep component tree data sharing
-- Use Pinia stores for shared global state — avoid hand-rolled reactive singletons in large apps
+**Detailed rules:** see \`.claude/rules/vue/\` directory.
 
-### Composables
-- Name composable functions with \`use\` prefix: \`useAuth\`, \`useFetch\`, \`useLocalStorage\`
-- Return a plain object of refs (not a reactive object) — enables destructuring without losing reactivity
-- Accept refs, getter functions, or plain values as input — normalize with \`toValue()\`
-- Handle cleanup with \`onUnmounted()\` or \`onScopeDispose()\` — never leave event listeners or timers dangling
-- Call composables only in \`<script setup>\`, \`setup()\`, or lifecycle hooks — always synchronously
-
-### Single-File Component Structure
-- Order sections consistently: \`<script setup>\`, \`<template>\`, \`<style scoped>\`
-- Always use scoped styles or CSS Modules — never leak global styles from components
-- Use CSS \`v-bind()\` for dynamic styles derived from component state
-- Prefer class selectors over element selectors in scoped styles (element selectors are slow)
-
-### Style Guide Priorities (from vuejs.org/style-guide)
-- **Priority A (Essential)**: multi-word component names, detailed prop definitions, keyed v-for, never v-if with v-for on same element, scoped styles
-- **Priority B (Strongly Recommended)**: PascalCase filenames, base component prefix (Base/App/V), full-word names, self-closing components, multi-attribute elements on multiple lines, simple template expressions
-- **Priority C (Recommended)**: consistent SFC tag order, consistent attribute order
-
-### Performance
-- Use \`shallowRef()\` and \`shallowReactive()\` for large data sets where deep reactivity is wasteful
-- Use \`markRaw()\` for third-party class instances that should never be proxied (maps, chart objects, editors)
-- Use \`v-once\` for content that never changes after initial render
-- Use \`v-memo\` to skip re-rendering of expensive sub-trees when dependencies are unchanged
-- Lazy-load routes with \`defineAsyncComponent()\` or dynamic \`import()\` in Vue Router
-- For lists exceeding 100 items, use virtual scrolling (vue-virtual-scroller or similar)
-
-### Accessibility
-- Use semantic HTML elements (\`<button>\`, \`<nav>\`, \`<main>\`, \`<form>\`)
-- Provide \`aria-label\` on interactive elements without visible text
-- Ensure keyboard accessibility on all interactive elements
-- Manage focus correctly in modals, drawers, and Teleport-rendered content`,
+**Key rules:**
+- \`ref()\` over \`reactive()\` for most state, \`computed()\` for derived values
+- Props via \`defineProps\`, emits via \`defineEmits\` — no implicit \`this\` access
+- Composables prefixed with \`use\`, return plain objects, handle cleanup
+- Follow Vue Style Guide priority levels (A: Essential, B: Strongly Recommended)`,
       },
     ],
     settings: {
@@ -80,6 +40,7 @@ export const vueProfile: Profile = {
     rules: [
       {
         path: 'vue/reactivity-and-composition.md',
+        paths: ['**/*.vue', '**/*.ts', '**/*.tsx'],
         governance: 'mandatory',
         description: 'Vue 3 reactivity system, Composition API patterns, and composable conventions',
         content: `# Vue.js Reactivity & Composition API
@@ -307,6 +268,7 @@ export function useInterval(callback: () => void, ms: number) {
       },
       {
         path: 'vue/component-patterns.md',
+        paths: ['**/*.vue', '**/*.ts', '**/*.tsx'],
         governance: 'mandatory',
         description: 'Vue.js component design, communication, and naming conventions',
         content: `# Vue.js Component Patterns
@@ -504,6 +466,7 @@ const activeTodos = computed(() => todos.value.filter(t => t.isActive))
       },
       {
         path: 'vue/pinia-state-management.md',
+        paths: ['**/*.vue', '**/*.ts', '**/*.tsx'],
         governance: 'recommended',
         description: 'Pinia store patterns, conventions, and anti-patterns',
         content: `# Pinia State Management
@@ -658,6 +621,7 @@ describe('CartStore', () => {
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['vue-component-generator', 'vue-composable-generator'],
         prompt: `## Vue.js-Specific Review
 
 ### Composition API Compliance
@@ -708,6 +672,7 @@ describe('CartStore', () => {
       {
         name: 'test-writer',
         type: 'enrich',
+        skills: ['vue-component-generator', 'vue-composable-generator'],
         prompt: `## Vue.js Testing
 
 ### Component Testing with Vue Test Utils
@@ -776,6 +741,7 @@ describe('TodoList', () => {
       {
         name: 'refactor-assistant',
         type: 'enrich',
+        skills: ['vue-component-generator', 'vue-composable-generator'],
         prompt: `## Vue.js Refactoring Patterns
 
 ### Options API to Composition API Migration
@@ -920,7 +886,7 @@ When generating a composable, follow these rules:
     externalTools: [
       {
         type: 'eslint',
-        filePath: '.eslintrc.vue.json',
+        filePath: '.eslintrc.json',
         config: {
           extends: [
             'plugin:vue/vue3-recommended',

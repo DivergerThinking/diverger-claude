@@ -13,36 +13,15 @@ export const djangoProfile: Profile = {
         order: 20,
         content: `## Django Conventions
 
-### Design Philosophies (from Django official docs)
-- **DRY**: every distinct piece of data or behavior lives in ONE place — models define everything about an object
-- **Loose coupling**: framework layers are independent — templates don't know about views, ORM doesn't know about presentation
-- **Explicit is better than implicit**: minimize "magic" — field behavior comes from explicit types and keyword arguments, not naming conventions
-- **Batteries included**: use Django's built-in features (auth, admin, forms, ORM, caching, sessions) before reaching for third-party packages
+Django's "batteries included" philosophy. Convention-driven, ORM-centric, MTV architecture.
 
-### App Organization
-- Organize code into reusable Django apps by domain (users, orders, products, inventory)
-- Each app represents a single domain concept — split apps when they grow beyond ~10 models or ~20 views
-- Place shared utilities in a \`common\` or \`core\` app
-- Use \`apps.py\` to configure app metadata and \`ready()\` for startup logic (signal connections)
+**Detailed rules:** see \`.claude/rules/django/\` directory.
 
-### Models
-- Models follow the Active Record pattern — include all domain logic, \`__str__\`, ordering, constraints
-- Define fields with explicit types, constraints, and validators — never rely on implicit behavior from field names
-- Use class-based views (CBVs) for standard CRUD patterns; function-based views (FBVs) for non-standard logic
-- Use Django REST Framework serializers and viewsets for API endpoints
-
-### Settings
-- Split settings into modules: \`base.py\` (shared), \`local.py\` (development), \`production.py\`, \`test.py\`
-- Use \`django-environ\` or \`python-decouple\` for environment variable parsing
-- Never access \`django.conf.settings\` at module level — use lazy evaluation to prevent premature configuration
-
-### Coding Style (from Django official coding style guide)
-- Format with \`black\` (88-char line limit for code, 79 for docstrings)
-- Sort imports with \`isort\`: \`__future__\` -> stdlib -> third-party -> Django -> local (one-dot relative)
-- Use \`snake_case\` for variables, functions, fields; \`InitialCaps\` for classes
-- Template spacing: \`{{ variable }}\`, \`{% tag %}\` — one space between braces and content
-- First parameter of every view function is \`request\` — never abbreviate to \`req\`
-- Use enumeration types (\`TextChoices\`, \`IntegerChoices\`) for model field choices`,
+**Key rules:**
+- Fat models, thin views — business logic in models/managers, not views
+- QuerySet chaining for DB access, \`select_related\`/\`prefetch_related\` to avoid N+1
+- Forms/serializers for all input validation, never trust request data directly
+- Migrations are forward-only in production — test migrations before deploying`,
       },
     ],
     settings: {
@@ -63,6 +42,7 @@ export const djangoProfile: Profile = {
     rules: [
       {
         path: 'django/models-and-orm.md',
+        paths: ['**/*.py', '**/views.py', '**/models.py', '**/urls.py'],
         governance: 'mandatory',
         description: 'Django model design, ORM patterns, and query optimization',
         content: `# Django Models & ORM
@@ -303,6 +283,7 @@ published = Article.objects.filter(status="published")
       },
       {
         path: 'django/views-urls-forms.md',
+        paths: ['**/*.py', '**/views.py', '**/models.py', '**/urls.py'],
         governance: 'mandatory',
         description: 'Django views, URL configuration, forms, and request handling',
         content: `# Django Views, URLs & Forms
@@ -524,6 +505,7 @@ class ArticleForm(forms.Form):
       },
       {
         path: 'django/security-and-settings.md',
+        paths: ['**/*.py', '**/views.py', '**/models.py', '**/urls.py'],
         governance: 'mandatory',
         description: 'Django security configuration, CSRF, XSS, and settings management',
         content: `# Django Security & Settings
@@ -708,6 +690,7 @@ cursor.execute(f"SELECT * FROM articles WHERE status = '{status}'")  # NEVER!
       },
       {
         path: 'django/admin-drf-deployment.md',
+        paths: ['**/*.py', '**/views.py', '**/models.py', '**/urls.py'],
         governance: 'recommended',
         description: 'Django admin, DRF patterns, signals, and deployment',
         content: `# Django Admin, REST Framework & Deployment
@@ -966,7 +949,9 @@ python manage.py collectstatic --noinput
 - [ ] Settings not accessed at module import level — lazy evaluation used
 - [ ] Signals use \`dispatch_uid\` to prevent duplicate connections
 - [ ] No hardcoded database credentials in settings files
-- [ ] Admin site URL is not the default \`/admin/\` in production (optional but recommended)`,
+- [ ] Admin site URL is not the default \`/admin/\` in production (optional but recommended)
+
+**Available skills:** Use \`django-model-generator\` for model scaffolding, \`django-app-scaffold\` for full app setup.`,
       },
       {
         name: 'test-writer',
@@ -997,6 +982,8 @@ python manage.py collectstatic --noinput
 - **Migrations**: verify data migrations work forward and backward
 - **Signals**: mock the receiver and assert it was called with correct args
 - **Admin**: verify list_display, search, actions (optional but valuable)
+
+**Available skills:** Use \`django-model-generator\` for model + test scaffolding, \`django-app-scaffold\` for full app with tests.
 
 ### Test Patterns
 \`\`\`python
@@ -1046,7 +1033,9 @@ class ArticleModelTest(TestCase):
 - [ ] \`manage.py check --deploy\` passes without warnings
 - [ ] Password validation configured with \`AUTH_PASSWORD_VALIDATORS\`
 - [ ] Admin site URL changed from default \`/admin/\` in production (reduces automated attack surface)
-- [ ] CORS properly configured via django-cors-headers — no \`CORS_ALLOW_ALL_ORIGINS = True\` in production`,
+- [ ] CORS properly configured via django-cors-headers — no \`CORS_ALLOW_ALL_ORIGINS = True\` in production
+
+**Available skills:** Use \`django-model-generator\` for secure model scaffolding, \`django-app-scaffold\` for full app setup with security defaults.`,
       },
     ],
     skills: [

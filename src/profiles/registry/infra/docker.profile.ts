@@ -10,72 +10,18 @@ export const dockerProfile: Profile = {
     claudeMd: [
       {
         heading: 'Docker Conventions',
-        order: 4000,
+        order: 40,
         content: `## Docker Conventions
 
-### Dockerfile Fundamentals
-- Use multi-stage builds to separate build dependencies from the final runtime image
-- Order Dockerfile instructions from least-changing to most-changing to maximize layer caching
-- Copy dependency manifests (package.json, requirements.txt, go.mod) BEFORE source code
-- Install dependencies in a separate layer from the source copy
-- Prefer \`COPY\` over \`ADD\` unless you need URL fetching or archive extraction
-- Combine related \`RUN\` commands with \`&&\` and line continuations to reduce layer count
-- Use \`.dockerignore\` to exclude unnecessary files from the build context (node_modules, .git, tests, docs)
-- Pin base image tags to specific versions (e.g. \`node:20.11-alpine3.19\`), never use \`latest\` in production
-- Use \`HEALTHCHECK\` instructions for container health monitoring and orchestrator integration
-- Set \`WORKDIR\` before \`COPY\`/\`RUN\` instructions instead of using absolute paths everywhere
+Multi-stage builds, minimal images, security-first container design.
 
-### Multi-Stage Build Patterns
-- Use named stages for clarity: \`FROM node:20-alpine AS builder\`
-- Use a dedicated build stage for compilation, transpilation, and dependency installation
-- Copy only the final artifacts to the runtime stage using \`COPY --from=builder\`
-- Use scratch or distroless base images for the final stage when possible (Go, Rust binaries)
-- Create a test stage that runs the test suite without bloating the final image
-- Use \`--target\` flag to build specific stages: \`docker build --target test .\`
+**Detailed rules:** see \`.claude/rules/docker/\` directory.
 
-### Base Image Selection
-- Prefer Alpine variants (\`-alpine\`) for smaller images when C library compatibility allows
-- Use Debian slim variants (\`-slim\`) when Alpine causes musl compatibility issues
-- Use \`distroless\` images (gcr.io/distroless) for production when no shell access is needed
-- Use \`scratch\` as the final stage for statically compiled binaries (Go, Rust with musl)
-- Always use official images from Docker Hub or verified publishers
-
-### Container Security
-- Run containers as a non-root user: \`RUN addgroup -S app && adduser -S app -G app\` then \`USER app\`
-- Never store secrets in images via \`ENV\`, \`ARG\`, or \`COPY\` of credential files
-- Use BuildKit secrets for build-time credentials: \`RUN --mount=type=secret,id=npmrc\`
-- Set a read-only root filesystem in production: \`--read-only\` flag or Compose \`read_only: true\`
-- Drop all Linux capabilities and add back only what is needed (\`--cap-drop=ALL --cap-add=NET_BIND_SERVICE\`)
-- Scan images for vulnerabilities with \`docker scout cves\` or Trivy before deployment
-- Use \`COPY --chown=app:app\` to set proper file ownership in the image
-- Never run \`apt-get upgrade\` or \`apk upgrade\` in Dockerfiles; pin specific package versions instead
-- Remove package manager caches in the same RUN layer: \`rm -rf /var/cache/apk/*\`
-
-### Docker Compose Patterns
-- Use Compose V2 syntax (\`docker compose\` CLI, no standalone \`docker-compose\` binary)
-- Use \`compose.yaml\` as the primary file name (Docker Compose V2 convention)
-- Use environment-specific override files: \`compose.override.yaml\` for local dev
-- Define health checks for service dependencies with \`depends_on.condition: service_healthy\`
-- Use named volumes for persistent data, bind mounts only for development hot-reload
-- Configure resource limits (\`deploy.resources.limits\`) for memory and CPU
-- Use \`profiles\` to group optional services (debug tools, monitoring) that only start when needed
-- Use \`env_file\` for environment variables, never inline secrets in \`compose.yaml\`
-- Use extension fields (\`x-\` prefix) to define reusable YAML anchors for shared configuration
-
-### Networking
-- Use user-defined bridge networks for service-to-service communication
-- Never use \`network_mode: host\` in production; use explicit port mappings
-- Use internal networks (\`internal: true\`) for backend services that should not be externally reachable
-- Reference services by their Compose service name as hostname (built-in DNS)
-- Expose only the ports that external clients need; keep internal service ports unexposed
-
-### BuildKit Features
-- Enable BuildKit with \`DOCKER_BUILDKIT=1\` or configure in Docker daemon settings
-- Use \`--mount=type=cache,target=/root/.npm\` to cache package manager downloads across builds
-- Use \`--mount=type=secret\` for build-time secrets that must not persist in image layers
-- Use \`--mount=type=ssh\` for SSH agent forwarding during build (private Git repos)
-- Use heredoc syntax for multi-line RUN commands: \`RUN <<EOF ... EOF\`
-- Use \`--build-arg BUILDKIT_INLINE_CACHE=1\` for inline cache metadata in pushed images`,
+**Key rules:**
+- Multi-stage builds: separate build and runtime stages, copy only artifacts
+- Use specific base image tags (not \`latest\`), prefer distroless or Alpine
+- Non-root user (\`USER\`) in production, read-only filesystem where possible
+- \`.dockerignore\` to exclude \`node_modules\`, \`.git\`, secrets from build context`,
       },
     ],
     settings: {
@@ -99,6 +45,7 @@ export const dockerProfile: Profile = {
       {
         path: 'infra/dockerfile-best-practices.md',
         governance: 'mandatory',
+        paths: ['Dockerfile*', 'docker-compose*.yml', '.dockerignore'],
         description: 'Dockerfile construction, multi-stage builds, layer caching, and image optimization',
         content: `# Dockerfile Best Practices
 
@@ -336,6 +283,7 @@ compose*.yaml
       {
         path: 'infra/docker-security.md',
         governance: 'mandatory',
+        paths: ['Dockerfile*', 'docker-compose*.yml', '.dockerignore'],
         description: 'Docker container security hardening and secret management',
         content: `# Docker Security
 
@@ -456,6 +404,7 @@ services:
       {
         path: 'infra/docker-compose-patterns.md',
         governance: 'recommended',
+        paths: ['Dockerfile*', 'docker-compose*.yml', '.dockerignore'],
         description: 'Docker Compose service orchestration, networking, and development workflow patterns',
         content: `# Docker Compose Patterns
 
@@ -646,6 +595,8 @@ services:
         type: 'enrich',
         prompt: `## Docker-Specific Review
 
+**Available skill:** \`docker-scaffold\` — use when generating new Docker configurations.
+
 ### Dockerfile Quality
 - Verify multi-stage builds are used to separate build dependencies from runtime
 - Check layer ordering: dependency manifests copied BEFORE source code
@@ -676,6 +627,8 @@ services:
         name: 'security-checker',
         type: 'enrich',
         prompt: `## Docker Security Review
+
+**Available skill:** \`docker-scaffold\` — use when generating secure Docker configurations from scratch.
 
 ### Image Security
 - Verify all images run as non-root user (\`USER\` directive after \`RUN adduser\`)
@@ -711,6 +664,8 @@ services:
         type: 'enrich',
         prompt: `## Docker Documentation Standards
 
+**Available skill:** \`docker-scaffold\` — use when scaffolding new Docker projects with documentation.
+
 ### README Docker Section
 - Document how to build the Docker image: exact \`docker build\` command with any required build args
 - Document how to run the container: \`docker run\` or \`docker compose up\` with required env vars
@@ -733,6 +688,8 @@ services:
         name: 'migration-helper',
         type: 'enrich',
         prompt: `## Docker Migration Assistance
+
+**Available skill:** \`docker-scaffold\` — use when generating Docker configs for migrated projects.
 
 ### Compose V1 to V2 Migration
 - Replace \`docker-compose\` CLI with \`docker compose\` (built-in plugin)

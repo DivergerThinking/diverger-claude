@@ -13,86 +13,15 @@ export const flutterProfile: Profile = {
       order: 2000,
       content: `## Flutter Conventions
 
-### Architecture (MVVM + Repository Pattern)
-- Follow the Flutter team's recommended architecture: View (Widget) -> ViewModel -> Repository -> Service/Data Source
-- **UI Layer**: Widgets display data and capture user events — keep widgets "dumb" with no business logic
-- **Data Layer**: Repositories are the single source of truth — they abstract data sources (API, database, local storage)
-- **ViewModels**: Contain all business logic and expose state to the UI via ChangeNotifier, ValueNotifier, or Riverpod notifiers
-- Use dependency injection (Provider, Riverpod, or get_it) — avoid globally accessible singletons
-- Use immutable data models — prefer \`freezed\` or \`built_value\` for equality, copyWith, and JSON serialization
-- Follow unidirectional data flow: Data Layer -> ViewModel -> UI Layer (events flow back via commands/methods)
+Widget-based UI composition. Declarative, immutable widget trees with state management.
 
-### Widget Composition
-- Build UI through composition — small, focused, reusable widgets
-- Prefer \`StatelessWidget\` over \`StatefulWidget\` when no local mutable state is needed
-- Use \`const\` constructors on every widget that supports them — Flutter short-circuits rebuild work for const widgets
-- Extract sub-widgets as separate widget classes, not helper methods returning widgets (functions lose widget identity and optimizations)
-- Keep \`build()\` methods under 80 lines — extract sub-widgets when they grow
-- Use \`Key\` correctly: \`ValueKey\` for items in lists, \`ObjectKey\` for model-based identity, \`GlobalKey\` only when truly necessary (form state, navigator state)
+**Detailed rules:** see \`.claude/rules/flutter/\` directory.
 
-### State Management
-- Pick one approach per project and use it consistently: Riverpod (recommended by community), Bloc, Provider, or built-in ValueNotifier
-- Localize \`setState()\` calls to the smallest subtree that needs to change — never call setState high in the widget tree
-- Separate UI state (selected tab, animation progress) from business state (user data, cart items)
-- Never put business logic in widgets — delegate to ViewModels, controllers, or notifiers
-- Dispose controllers, streams, and animation controllers in \`dispose()\` — resource leaks cause memory issues
-
-### Navigation
-- Use \`go_router\` for declarative routing — it covers 90% of Flutter navigation needs
-- Define route paths as constants — no magic strings scattered through the codebase
-- Handle deep links in route configuration from project start — retrofitting is difficult
-- Use route guards (redirect callbacks) for authentication flows
-- Use \`StatefulShellRoute\` for bottom navigation with preserved state per tab
-
-### Styling & Theming
-- Use \`ThemeData\` and \`ColorScheme.fromSeed()\` for consistent app-wide theming
-- Access theme values via \`Theme.of(context)\` — never hardcode colors or text styles
-- Support both Material and Cupertino design when targeting iOS and Android
-- Use \`MediaQuery\` and \`LayoutBuilder\` for responsive layouts — never hardcode dimensions
-- Define design tokens (spacing, radii, breakpoints) as constants in a dedicated theme file
-
-### Platform Channels
-- Use \`pigeon\` for type-safe platform channels — it generates Dart, Kotlin/Java, and Swift/ObjC code
-- Define clear method channel contracts with explicit types
-- Handle errors on both the Dart side and the native side — unhandled native exceptions crash the app
-- Test channel calls with mock method call handlers
-- Prefer existing plugins (pub.dev) over custom platform channels when available
-
-### Project Structure
-\`\`\`
-lib/
-  main.dart                    # entry point — wire dependencies
-  app.dart                     # MaterialApp / router configuration
-  config/                      # theme, constants, environment config
-  routing/                     # router definition, route constants
-  ui/
-    core/                      # shared widgets, NOT /widgets
-    <feature>/
-      <feature>_screen.dart    # View (widget)
-      <feature>_view_model.dart # ViewModel
-      widgets/                 # feature-specific widgets
-  data/
-    repositories/              # repository interfaces + implementations
-    services/                  # API clients, database access
-    models/                    # data models (freezed / json_serializable)
-  domain/                      # (optional) use cases for complex apps
-  utils/                       # pure utility functions
-test/
-  unit/                        # ViewModel, repository, service tests
-  widget/                      # widget tests with pumpWidget
-  integration/                 # integration_test/ for full-app flows
-\`\`\`
-
-### Common Commands
-- \`flutter run\` — run on connected device/emulator
-- \`flutter test\` — run all unit and widget tests
-- \`flutter test --coverage\` — generate lcov coverage report
-- \`flutter analyze\` — run Dart analyzer (lint checks)
-- \`flutter build apk\` / \`flutter build ios\` — release builds
-- \`flutter pub get\` — fetch dependencies
-- \`flutter pub outdated\` — check for dependency updates
-- \`flutter gen-l10n\` — generate localization files from ARB
-- \`dart run build_runner build --delete-conflicting-outputs\` — run code generation (freezed, json_serializable, etc.)`,
+**Key rules:**
+- Small, composable widgets — extract when a build method exceeds ~60 lines
+- \`const\` constructors for stateless widgets, keys for list items
+- State management: Provider/Riverpod for app state, \`StatefulWidget\` for local UI state
+- Follow \`dart analyze\` — zero warnings, use \`flutter_lints\` or \`very_good_analysis\``,
     }],
     settings: {
       permissions: {
@@ -115,6 +44,7 @@ test/
     rules: [
       {
         path: 'flutter/architecture-and-patterns.md',
+        paths: ['**/*.dart', 'lib/**/*'],
         governance: 'mandatory',
         description: 'Flutter architecture (MVVM), widget composition, state management, and navigation',
         content: `# Flutter Architecture & Patterns
@@ -357,6 +287,7 @@ final goRouter = GoRouter(
       },
       {
         path: 'flutter/performance.md',
+        paths: ['**/*.dart', 'lib/**/*'],
         governance: 'mandatory',
         description: 'Flutter performance: build optimization, lists, animations, memory, and profiling',
         content: `# Flutter Performance
@@ -543,6 +474,7 @@ for (int i = 0; i < 1000; i++) {
       },
       {
         path: 'flutter/testing-strategy.md',
+        paths: ['**/*.dart', 'lib/**/*'],
         governance: 'mandatory',
         description: 'Flutter testing: unit, widget, integration tests and mocking patterns',
         content: `# Flutter Testing Strategy
@@ -686,6 +618,7 @@ void main() {
       },
       {
         path: 'flutter/security.md',
+        paths: ['**/*.dart', 'lib/**/*'],
         governance: 'recommended',
         description: 'Flutter mobile security: secure storage, network safety, and platform hardening',
         content: `# Flutter Security
@@ -779,7 +712,11 @@ await prefs.setString('auth_token', token); // plaintext on disk!
 - Check that deep linking is configured and tested
 - Verify sensitive data uses flutter_secure_storage, NOT SharedPreferences
 - Check that API keys are not hardcoded in Dart source files
-- Verify code obfuscation flags in release build configuration`,
+- Verify code obfuscation flags in release build configuration
+
+### Available Skills
+- \`flutter-feature-generator\`: Generate a complete Flutter feature following MVVM architecture with tests
+- \`flutter-platform-channel-generator\`: Generate type-safe platform channels using pigeon`,
       },
       {
         name: 'test-writer',
@@ -812,7 +749,10 @@ await prefs.setString('auth_token', token); // plaintext on disk!
 ### Golden Tests
 - Use matchesGoldenFile for visual regression testing of key screens
 - Generate goldens with \`flutter test --update-goldens\`
-- Review golden diffs in pull requests to catch unintended visual changes`,
+- Review golden diffs in pull requests to catch unintended visual changes
+
+### Available Skills
+- \`flutter-feature-generator\`: Generate a complete Flutter feature following MVVM architecture with tests`,
       },
       {
         name: 'security-checker',
@@ -884,7 +824,11 @@ await prefs.setString('auth_token', token); // plaintext on disk!
 - Replace ListView(children: [...]) with ListView.builder for dynamic lists
 - Wrap independently-changing subtrees in RepaintBoundary
 - Extract animated children to the child parameter of AnimatedBuilder
-- Replace Opacity animations with AnimatedOpacity or FadeTransition`,
+- Replace Opacity animations with AnimatedOpacity or FadeTransition
+
+### Available Skills
+- \`flutter-feature-generator\`: Generate a complete Flutter feature following MVVM architecture with tests
+- \`flutter-platform-channel-generator\`: Generate type-safe platform channels using pigeon`,
       },
       {
         name: 'migration-helper',

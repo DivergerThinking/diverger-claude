@@ -13,49 +13,15 @@ export const reactNativeProfile: Profile = {
       order: 20,
       content: `## React Native Conventions
 
-### New Architecture (Fabric + TurboModules)
-- Use the New Architecture for all new projects — Fabric renderer + TurboModules + JSI (JavaScript Interface)
-- Define TypeScript specs for all native modules in a \`specs/\` directory — Codegen generates platform code automatically
-- Use \`TurboModuleRegistry.getEnforcing<Spec>()\` for required native modules, \`.get<Spec>()\` for optional ones
-- Prefix native module spec files with \`Native\` (e.g. \`NativeLocalStorage.ts\`)
-- Register native module packages in \`MainApplication.kt\` (Android) and AppDelegate (iOS)
+Cross-platform mobile with React patterns. Native modules for platform-specific features.
 
-### Platform-Specific Code
-- Use platform-specific file extensions (\`.ios.tsx\`, \`.android.tsx\`) for divergent UI implementations
-- Use \`Platform.select({ ios: ..., android: ..., default: ... })\` for runtime value selection
-- Use \`Platform.OS === 'ios'\` / \`Platform.OS === 'android'\` only in guard clauses or ternaries
-- Centralize platform-specific constants in a dedicated \`platform.ts\` module
-- Test on both iOS and Android throughout development — never leave one platform untested until the end
+**Detailed rules:** see \`.claude/rules/react-native/\` directory.
 
-### Core Components
-- Use \`View\`, \`Text\`, \`Pressable\`, \`Image\`, \`TextInput\`, \`ScrollView\` as the fundamental building blocks
-- Use \`Pressable\` over deprecated Touchable* components (\`TouchableOpacity\`, \`TouchableHighlight\`)
-- Use \`KeyboardAvoidingView\` with \`behavior="padding"\` (iOS) or \`behavior="height"\` (Android) to handle the keyboard
-- Use \`SafeAreaView\` or \`react-native-safe-area-context\` to respect device notches and status bars
-- Use \`StatusBar\` to control status bar appearance per screen
-- Use \`Modal\` sparingly — prefer navigation-based modals (React Navigation modal presentation)
-- Use \`ActivityIndicator\` for loading states, not custom spinners unless branding requires it
-
-### Styling
-- Always use \`StyleSheet.create()\` — never inline style objects (creates new objects every render)
-- Use \`StyleSheet.compose()\` to combine base and variant styles efficiently
-- Use \`StyleSheet.absoluteFill\` and \`StyleSheet.hairlineWidth\` for cross-platform consistency
-- Organize styles at the bottom of the file, colocated with the component
-- Use density-independent dimensions — never hardcode pixel values assuming a specific device
-- Avoid percentage-based widths for precision layouts — use \`Dimensions\` API or \`useWindowDimensions\` + flexbox
-
-### Navigation (React Navigation)
-- Use React Navigation as the primary navigation library
-- Define navigation types for type-safe route params with \`RootStackParamList\`
-- Configure deep linking from project start — not as an afterthought
-- Handle Android hardware back button with \`BackHandler\` or navigation listeners
-- Use navigation state persistence during development for faster iteration
-- Prefer \`@react-navigation/native-stack\` (native stack) over \`@react-navigation/stack\` (JS stack) for performance
-
-### Hermes Engine
-- Enable Hermes for all builds — it provides faster startup, lower memory usage, and smaller APK/IPA size
-- Use Hermes-compatible JavaScript features — avoid \`with\` statement, \`Proxy\` (limited support in older versions)
-- Profile with Hermes bytecode sampling profiler for CPU bottlenecks`,
+**Key rules:**
+- Use \`FlatList\`/\`SectionList\` with \`keyExtractor\` — never \`ScrollView\` for dynamic lists
+- Platform-specific code via \`.ios.ts\`/\`.android.ts\` suffixes or \`Platform.select()\`
+- Navigation with React Navigation — type-safe route params
+- Performance: avoid inline styles in render, use \`useCallback\` for list item callbacks`,
     }],
     settings: {
       permissions: {
@@ -77,6 +43,7 @@ export const reactNativeProfile: Profile = {
     rules: [
       {
         path: 'react-native/architecture-and-bridge.md',
+        paths: ['**/*.tsx', '**/*.ts', '**/*.jsx', '**/*.js'],
         governance: 'mandatory',
         description: 'New Architecture patterns, TurboModules, Fabric, and native bridge safety',
         content: `# React Native Architecture & Native Bridge
@@ -155,6 +122,7 @@ setText(\`Battery: \${level}%\`); // level could be null, crashing the render
       },
       {
         path: 'react-native/performance.md',
+        paths: ['**/*.tsx', '**/*.ts', '**/*.jsx', '**/*.js'],
         governance: 'mandatory',
         description: 'React Native performance optimization: lists, rendering, startup, memory, and frame rate',
         content: `# React Native Performance
@@ -275,6 +243,7 @@ function ProductList({ products }: { products: Item[] }) {
       },
       {
         path: 'react-native/navigation-and-deeplinks.md',
+        paths: ['**/*.tsx', '**/*.ts', '**/*.jsx', '**/*.js'],
         governance: 'mandatory',
         description: 'React Navigation patterns, deep linking, and type-safe routing',
         content: `# React Navigation & Deep Linking
@@ -364,6 +333,7 @@ const linking = {
       },
       {
         path: 'react-native/gestures-and-animations.md',
+        paths: ['**/*.tsx', '**/*.ts', '**/*.jsx', '**/*.js'],
         governance: 'recommended',
         description: 'Gesture handling and animation patterns for React Native',
         content: `# Gestures & Animations
@@ -433,6 +403,7 @@ function SwipeableCard({ onDismiss }: { onDismiss: () => void }) {
       },
       {
         path: 'react-native/mobile-security.md',
+        paths: ['**/*.tsx', '**/*.ts', '**/*.jsx', '**/*.js'],
         governance: 'mandatory',
         description: 'React Native mobile-specific security patterns',
         content: `# React Native Mobile Security
@@ -517,7 +488,11 @@ await AsyncStorage.setItem('authToken', token); // plaintext on disk
 - Verify React Navigation type safety (\`RootStackParamList\`, typed \`route.params\`)
 - Check deep linking configuration covers all navigable screens
 - Verify sensitive data uses Keychain/Keystore, NOT AsyncStorage
-- Check that API keys are not bundled in the JS source`,
+- Check that API keys are not bundled in the JS source
+
+### Available Skills
+- \`rn-turbomodule-generator\`: Generate TurboModule with TypeScript spec, Codegen config, and platform implementations
+- \`rn-screen-generator\`: Generate a complete React Native screen with navigation, styling, and testing`,
       },
       {
         name: 'test-writer',
@@ -545,7 +520,10 @@ await AsyncStorage.setItem('authToken', token); // plaintext on disk
 - Use \`testID\` props on all interactive elements for reliable selectors
 - Test on both iOS and Android — platform-specific bugs are common
 - Test deep linking and push notification flows end-to-end
-- Test app lifecycle: background, foreground, kill, and restore`,
+- Test app lifecycle: background, foreground, kill, and restore
+
+### Available Skills
+- \`rn-screen-generator\`: Generate a complete React Native screen with navigation, styling, and testing`,
       },
       {
         name: 'security-checker',

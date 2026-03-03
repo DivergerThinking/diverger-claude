@@ -10,64 +10,19 @@ export const detoxProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'Detox E2E Testing Conventions',
-        order: 3060,
-        content: `## Detox E2E Testing Conventions
+        heading: 'Detox Conventions',
+        order: 30,
+        content: `## Detox Conventions
 
-### Gray-Box Testing Model
-- Detox is a gray-box E2E testing framework for React Native — it has direct access to the app's internal state for synchronization
-- Detox automatically synchronizes with animations, network requests, React Native bridge, and timers before executing actions
-- Never use arbitrary sleeps or manual waits — rely on Detox auto-synchronization or use \`waitFor\` as a fail-safe
-- Use \`device.disableSynchronization()\` only when testing loading states or animations — re-enable immediately after
+Gray-box E2E testing for React Native. Automatic synchronization with the app.
 
-### Element Selection
-- Use \`testID\` props on React Native components as the primary element identifier — match with \`by.id()\`
-- Use \`by.text()\` for verifying user-visible text content — avoid for interaction targets that may change with i18n
-- Use \`by.label()\` for accessibility labels — prefer for elements whose text content is dynamic
-- Use \`by.type()\` to match native view types (e.g., \`RCTTextView\`) — use sparingly as a last resort
-- Never use index-based selectors — they are brittle and break on layout changes
-- Forward \`testID\` down to the nearest native component in custom components — it only works on native views
+**Detailed rules:** see \`.claude/rules/detox/\` directory.
 
-### Test Structure
-- Structure tests with \`describe\`/\`it\` blocks organized around user journeys and feature flows
-- Use \`beforeAll\` for one-time setup (login, data seeding) and \`beforeEach\` for per-test state reset
-- Use \`device.launchApp({newInstance: true})\` in \`beforeAll\` for a clean app state per suite
-- Use \`device.reloadReactNative()\` in \`beforeEach\` for faster state resets within a suite — note it only resets JS state
-- Clean up test data in \`afterAll\` — never leave state that affects other test suites
-- Run tests serially by default — parallel Detox execution requires careful state isolation
-
-### Actions API
-- Use \`element.tap()\` for taps, \`element.longPress()\` for long press interactions
-- Use \`element.typeText()\` for keyboard input — this uses the real keyboard and triggers all callbacks
-- Use \`element.replaceText()\` for faster text replacement — but it skips keyboard callbacks
-- Use \`element.clearText()\` before typing to ensure clean input state
-- Use \`element.scroll(offset, direction)\` and \`element.scrollTo(edge)\` for scrollable content
-- Use \`element.swipe(direction)\` for swipe gestures with configurable speed and offset
-- Use \`element.tapReturnKey()\` and \`element.tapBackspaceKey()\` for keyboard key interactions
-
-### Assertions & waitFor
-- Use \`expect(element(by.id('x'))).toBeVisible()\` to verify element visibility in the UI hierarchy
-- Use \`expect(element(by.id('x'))).toExist()\` to verify element exists (even if not visible/offscreen)
-- Use \`expect(element(by.id('x'))).toHaveText('value')\` for text content verification
-- Use \`expect(element(by.id('x'))).not.toBeVisible()\` to negate any assertion
-- Use \`waitFor(element(by.id('x'))).toBeVisible().withTimeout(5000)\` for async elements — always set a timeout
-- Use \`waitFor(element(by.id('x'))).toBeVisible().whileElement(by.id('scroll')).scroll(100, 'down')\` for scroll-and-find
-
-### Device API
-- \`device.launchApp({newInstance: true})\` — cold start the app for a fresh state
-- \`device.launchApp({newInstance: false})\` — bring app from background to foreground
-- \`device.reloadReactNative()\` — reload JS bundle without restarting the app (faster)
-- \`device.sendToHome()\` — simulate pressing home button (test background behavior)
-- \`device.openURL({url: 'scheme://path'})\` — test deep link handling
-- \`device.setURLBlacklist(['.*cdn.example.com.*'])\` — block specific network URLs for stubbing
-
-### CI & Artifacts
-- Configure artifacts in \`.detoxrc.js\`: screenshots, videos, device logs, and timeline traces
-- Use \`"shouldTakeAutomaticSnapshots"\` to capture screenshots on test failure automatically
-- Run tests on dedicated iOS simulators / Android emulators in CI — use headless mode where possible
-- Use \`--retries\` flag for CI re-runs of flaky tests — but investigate and fix root causes
-- Lock Node.js, Detox, and mobile SDK versions in CI for reproducible builds
-- Set \`testRunner.jest.setupTimeout: 120000\` to allow time for app build and device boot in CI`,
+**Key rules:**
+- \`element(by.id(...))\` for reliable selectors — set \`testID\` props on components
+- Detox auto-syncs with animations and network — avoid manual waits
+- \`device.reloadReactNative()\` in \`beforeEach\` for clean state
+- Run on CI with \`detox build\` + \`detox test\` — release builds for reliability`,
       },
     ],
     settings: {
@@ -85,6 +40,7 @@ export const detoxProfile: Profile = {
     rules: [
       {
         path: 'testing/detox-conventions.md',
+        paths: ['**/*.test.ts', '**/*.test.tsx', 'e2e/**/*'],
         governance: 'mandatory',
         description: 'Detox E2E testing conventions — element selection, synchronization, device API, and test structure',
         content: `# Detox E2E Testing Conventions
@@ -199,6 +155,7 @@ await element(by.id('Submit')).tap();
       },
       {
         path: 'testing/detox-configuration.md',
+        paths: ['**/*.test.ts', '**/*.test.tsx', 'e2e/**/*'],
         governance: 'recommended',
         description: 'Detox configuration best practices for .detoxrc.js, test runner, and CI setup',
         content: `# Detox Configuration Best Practices
@@ -307,6 +264,7 @@ e2e/
         name: 'code-reviewer',
         type: 'enrich',
         prompt: `## Detox E2E Test Review Checklist
+Available skills: detox-test-generator
 - Verify \`testID\` props are used for element selection — \`by.id()\` should be the primary matcher
 - Check that \`testID\` is forwarded to native components in custom React Native components
 - Verify testID naming follows a consistent convention (e.g., \`'ScreenName.ElementDescription'\`)
@@ -324,6 +282,7 @@ e2e/
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Detox E2E Test Writing Guidelines
+Available skills: detox-test-generator
 - Structure tests around user journeys: group with \`describe('Feature Flow', ...)\`
 - Use \`testID\` props with \`by.id()\` for all element interaction — forward testID in custom components
 - Use consistent testID naming: \`'ScreenName.ElementName'\` (e.g., \`'Login.EmailInput'\`, \`'Login.SubmitButton'\`)
@@ -354,6 +313,7 @@ e2e/
         name: 'refactor-assistant',
         type: 'enrich',
         prompt: `## Detox Test Refactoring Guidance
+Available skills: detox-test-generator
 - Extract repeated element interactions into reusable helper functions or screen objects
 - Create a screen object pattern: one class per screen encapsulating testIDs and common actions
 - Replace hardcoded testID strings with constants defined in a central \`testIDs.ts\` file

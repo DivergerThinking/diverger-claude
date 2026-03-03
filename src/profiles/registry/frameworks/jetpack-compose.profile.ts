@@ -14,63 +14,15 @@ export const jetpackComposeProfile: Profile = {
         order: 2000,
         content: `## Jetpack Compose Conventions
 
-### Composable Design
-- Use composable functions as the primary UI building block — UI = f(state)
-- Separate stateless composables (receive state, emit events) from stateful composables (wrap stateless with remember/ViewModel)
-- Accept \`Modifier\` as the first optional parameter in every composable that emits UI
-- Keep composables small and focused — extract sub-composables when exceeding 80 lines
-- Use slot APIs (\`content: @Composable () -> Unit\`) for flexible, composable layouts
-- Composable functions that return Unit use PascalCase naming (like types)
-- Composable functions that return a value use camelCase naming (like regular functions)
-- Name state holders with \`*State\` suffix (e.g., \`ScrollState\`, \`DrawerState\`)
-- Name callbacks with \`on*\` prefix followed by a verb (e.g., \`onClick\`, \`onValueChange\`)
+Declarative Android UI. Composable functions, unidirectional data flow, Material 3.
 
-### State Management
-- Follow unidirectional data flow: state flows down, events flow up
-- Use \`remember {}\` for state that survives recomposition
-- Use \`rememberSaveable {}\` for state that survives configuration changes and process death
-- Use \`derivedStateOf {}\` for computed state that depends on other state — prevents unnecessary recompositions
-- Use ViewModel + \`StateFlow\` / \`mutableStateOf\` for screen-level state owned by the lifecycle
-- Never store state that can be computed from other state — derive it instead
-- State hoisting: move state to the nearest common ancestor that needs it
-- Avoid storing mutable collections (List, Map, Set) in state — use \`kotlinx.collections.immutable\` or \`toList()\`
+**Detailed rules:** see \`.claude/rules/jetpack-compose/\` directory.
 
-### Side Effects
-- \`LaunchedEffect(key)\`: run suspend functions tied to composition lifecycle, re-launches when key changes
-- \`DisposableEffect(key)\`: register/unregister listeners, callbacks, or observers with onDispose cleanup
-- \`SideEffect\`: publish Compose state to non-Compose code every successful recomposition (no cleanup)
-- \`rememberCoroutineScope()\`: obtain a scope for event-driven coroutine launching in callbacks
-- \`produceState(initialValue, key)\`: convert non-Compose state sources (Flow, LiveData) into Compose state
-- Never launch coroutines directly in a composable body — always use LaunchedEffect or rememberCoroutineScope
-- Never perform I/O (network, database, file) in the composition phase — use LaunchedEffect or ViewModel
-
-### Material Design 3
-- Apply MaterialTheme with colorScheme, typography, and shapes at the root
-- Use dynamic color with \`dynamicLightColorScheme()\` / \`dynamicDarkColorScheme()\` on Android 12+
-- Follow Material 3 component APIs: Scaffold, TopAppBar, NavigationBar, NavigationRail, FloatingActionButton
-- Use Surface as the base container for content areas
-- Respect content color conventions — use MaterialTheme.colorScheme for all color references
-
-### Compose Navigation
-- Use \`NavHost\` + \`NavController\` for type-safe routing between screens
-- Define routes as sealed classes, data classes, or string constants — no magic strings
-- Pass arguments via navigation routes, not through shared mutable state
-- Use \`rememberNavController()\` at the top-level composable
-- Handle deep links in the navigation graph configuration
-
-### Accessibility
-- Provide \`contentDescription\` for all images, icons, and decorative elements
-- Use \`semantics {}\` modifier to add accessibility labels, roles, and state descriptions
-- Material 3 components include built-in accessibility support — use them as-is
-- Merge related elements with \`Modifier.semantics(mergeDescendants = true)\` for logical grouping
-- Test accessibility by inspecting the semantic tree in tests
-
-### Previews
-- Annotate composables with \`@Preview\` for design-time rendering in Android Studio
-- Create previews with representative sample data — never empty or placeholder data
-- Include light and dark theme previews with \`@Preview(uiMode = ...)\`
-- Use \`@PreviewParameter\` with \`PreviewParameterProvider\` for data-driven previews
-- Preview at different font scales and device configurations (phone, tablet, foldable)`,
+**Key rules:**
+- Stateless composables with state hoisting — pass state down, events up
+- \`remember\`/\`rememberSaveable\` for local state, ViewModel for screen state
+- \`LazyColumn\`/\`LazyRow\` with stable keys for lists
+- Compose previews (\`@Preview\`) for all reusable components`,
       },
     ],
     settings: {
@@ -86,6 +38,7 @@ export const jetpackComposeProfile: Profile = {
     rules: [
       {
         path: 'jetpack-compose/compose-patterns.md',
+        paths: ['**/*.kt'],
         governance: 'mandatory',
         description: 'Compose composable design, state management, side effects, and stability rules',
         content: `# Jetpack Compose Patterns
@@ -282,6 +235,7 @@ data class UserUiState(
       },
       {
         path: 'jetpack-compose/compose-performance.md',
+        paths: ['**/*.kt'],
         governance: 'recommended',
         description: 'Compose recomposition optimization, lazy layouts, phase deferral, and profiling',
         content: `# Jetpack Compose Performance
@@ -424,6 +378,7 @@ LazyColumn {
       },
       {
         path: 'jetpack-compose/compose-security.md',
+        paths: ['**/*.kt'],
         governance: 'mandatory',
         description: 'Android-specific security considerations for Compose apps',
         content: `# Jetpack Compose Security
@@ -493,7 +448,11 @@ LazyColumn {
 
 ### Previews
 - Check that @Preview annotations exist for UI composables
-- Verify previews use representative data, not empty or placeholder values`,
+- Verify previews use representative data, not empty or placeholder values
+
+### Available Skills
+- \`compose-screen-generator\`: Generate Compose screens with architecture, state hoisting, and preview setup
+- \`compose-preview-generator\`: Generate comprehensive @Preview annotations for composables`,
       },
       {
         name: 'test-writer',
@@ -550,7 +509,10 @@ fun userList_displaysAllItems() {
 ### Screenshot Testing
 - Use Paparazzi for JVM-based screenshot comparison tests (no emulator needed)
 - Use \`composeTestRule.onRoot().captureToImage()\` for on-device screenshot tests
-- Compare screenshots across light/dark theme and multiple font scales`,
+- Compare screenshots across light/dark theme and multiple font scales
+
+### Available Skills
+- \`compose-screen-generator\`: Generate Compose screens with architecture, state hoisting, and preview setup`,
       },
       {
         name: 'security-checker',
@@ -593,7 +555,10 @@ fun userList_displaysAllItems() {
 ### Architecture Documentation
 - Document the screen → ViewModel → repository data flow for each feature
 - Document navigation graph structure and deep link handling
-- Document custom design system tokens (colors, typography, shapes) if deviating from Material 3 defaults`,
+- Document custom design system tokens (colors, typography, shapes) if deviating from Material 3 defaults
+
+### Available Skills
+- \`compose-preview-generator\`: Generate comprehensive @Preview annotations for composables`,
       },
       {
         name: 'refactor-assistant',
@@ -619,7 +584,11 @@ fun userList_displaysAllItems() {
 - Wrap expensive computations in \`remember(key) {}\`
 - Replace unstable List/Map/Set parameters with immutable collection equivalents
 - Convert state reads in parent composables to lambda parameters for phase deferral
-- Extract frequently-recomposing sections into separate composables to limit recomposition scope`,
+- Extract frequently-recomposing sections into separate composables to limit recomposition scope
+
+### Available Skills
+- \`compose-screen-generator\`: Generate Compose screens with architecture, state hoisting, and preview setup
+- \`compose-preview-generator\`: Generate comprehensive @Preview annotations for composables`,
       },
       {
         name: 'migration-helper',
@@ -645,7 +614,10 @@ fun userList_displaysAllItems() {
 ### Testing Migration
 - Replace Espresso UI tests with Compose testing APIs (ComposeTestRule)
 - Map Espresso matchers to Compose finders: onView(withText(...)) -> onNodeWithText(...)
-- Map Espresso actions to Compose actions: perform(click()) -> performClick()`,
+- Map Espresso actions to Compose actions: perform(click()) -> performClick()
+
+### Available Skills
+- \`compose-screen-generator\`: Generate Compose screens with architecture, state hoisting, and preview setup`,
       },
     ],
     skills: [

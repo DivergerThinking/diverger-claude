@@ -9,71 +9,19 @@ export const vercelProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'Vercel Platform Conventions',
-        order: 4050,
-        content: `## Vercel Platform Conventions
+        heading: 'Vercel Conventions',
+        order: 40,
+        content: `## Vercel Conventions
 
-### Deployment Workflow
-- Vercel auto-detects framework presets (Next.js, Vite, Nuxt, SvelteKit, etc.) and configures builds accordingly
-- Every Git push to a non-production branch creates a **Preview Deployment** with a unique URL
-- Merges to the production branch (main/master) trigger a **Production Deployment**
-- Use \`vercel.json\` (static) or \`vercel.ts\` (programmatic, runs at build time) for project-level configuration
-- Only one configuration file per project — \`vercel.json\` and \`vercel.ts\` are mutually exclusive
-- Override build settings when needed: \`buildCommand\`, \`installCommand\`, \`outputDirectory\`, \`framework\`
-- Use \`ignoreCommand\` in vercel.json to skip builds based on custom logic (e.g., path-based monorepo filtering)
-- Use the Vercel CLI (\`vercel\`, \`vercel dev\`, \`vercel env pull\`) for local development and environment sync
+Edge-first deployment. Serverless/edge functions, environment-based configuration.
 
-### Vercel Functions
-- Functions use Web Standard APIs: \`Request\`/\`Response\` objects with \`fetch\` handler or HTTP method exports
-- Default runtime is Node.js; use \`export const runtime = 'edge'\` for Edge Functions (global distribution)
-- Edge Functions run in V8 isolates — no Node.js-specific APIs (\`fs\`, \`child_process\`, \`net\`)
-- Configure function behavior in \`vercel.json\`: \`memory\` (128-3008 MB), \`maxDuration\` (plan-dependent), \`regions\`
-- Use \`@vercel/functions\` package for helpers: \`waitUntil()\`, \`geolocation()\`, \`ipAddress()\`, \`getCache()\`
-- Enable \`fluid\` compute in vercel.json for optimized concurrency on I/O-bound and AI workloads
-- Functions scale to zero when idle — design for stateless execution with no persistent in-memory state
-- Handle \`SIGTERM\` signals for cleanup (up to 500ms) during scale-down events
-- Use \`supportsCancellation: true\` for long-running functions (AI chat, streaming) to handle client aborts
-- Functions execute in a single region by default (iad1) — set \`regions\` close to your data source
+**Detailed rules:** see \`.claude/rules/vercel/\` directory.
 
-### Routing and Headers
-- Use \`rewrites\` in vercel.json for clean URLs, API proxying, and SPA fallbacks
-- Use \`redirects\` for URL migration, canonical URLs, and domain consolidation
-- Use \`headers\` for security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options)
-- Use \`cleanUrls: true\` to strip \`.html\` extensions automatically
-- Use \`trailingSlash\` to enforce consistent URL formatting
-- Use \`middleware.ts\` for request-level logic: auth, geolocation-based routing, A/B testing, bot protection
-
-### Edge Config
-- Edge Config is a global key-value store with sub-millisecond read latency at the edge
-- Use for: feature flags, A/B testing, critical redirects, IP blocking, rate limiting configuration
-- Read with \`@vercel/edge-config\` SDK in Middleware or Functions
-- Edge Config is optimized for frequent reads, infrequent writes — not a general-purpose database
-- Updates propagate globally but are eventually consistent; do not use for real-time mutable state
-- Scope Edge Configs per environment using different connection strings in env vars
-
-### Caching and Performance
-- Leverage automatic static optimization for pages without server-side data fetching
-- Use ISR (Incremental Static Regeneration) for data-driven pages with \`revalidate\` intervals
-- Configure \`Cache-Control\` headers on API routes: \`s-maxage\` for CDN, \`stale-while-revalidate\` for background refresh
-- Use \`@vercel/functions\` \`getCache()\` for Runtime Cache to cache computation results across invocations
-- Use \`invalidateByTag()\` or \`dangerouslyDeleteByTag()\` for on-demand cache purging
-- Use Vercel Image Optimization (\`images\` config) for responsive, optimized images
-- Monitor performance with Vercel Speed Insights and Web Vitals analytics
-- Use \`next/dynamic\` or framework-specific lazy loading for code splitting heavy components
-
-### Environment Variables
-- Store all secrets (API keys, tokens, database URLs) in Vercel Environment Variables — never in source code
-- Use separate values for Development, Preview, and Production environments
-- Use \`NEXT_PUBLIC_\` prefix (Next.js) or framework-equivalent for client-exposed variables only
-- Use \`vercel env pull\` to sync environment variables to local \`.env.local\`
-- Document required variables in \`.env.example\` with placeholder values — never commit real secrets
-- Use Vercel's Sensitive Environment Variables feature to mask values in logs and UI
-
-### Cron Jobs
-- Use the \`crons\` property in vercel.json to schedule serverless function execution
-- Cron expressions follow standard format: \`"0 5 * * *"\` (daily at 5:00 UTC)
-- Cron functions must respond within the function timeout — design for bounded execution time
-- Use Vercel's cron monitoring to track execution history and failures`,
+**Key rules:**
+- Use \`vercel.json\` for rewrites, headers, and function configuration
+- Environment variables via Vercel dashboard — never commit secrets
+- Edge Functions for low-latency, Serverless Functions for compute-heavy tasks
+- Preview deployments for every PR — use \`VERCEL_ENV\` to detect environment`,
       },
     ],
     settings: {
@@ -104,6 +52,7 @@ export const vercelProfile: Profile = {
       {
         path: 'infra/vercel-deployment-conventions.md',
         governance: 'mandatory',
+        paths: ['vercel.json', 'api/**/*', '.vercel/**/*'],
         description: 'Vercel deployment configuration, functions, routing, and caching best practices',
         content: `# Vercel Deployment Conventions
 
@@ -279,6 +228,7 @@ headers: { 'Cache-Control': 'public, max-age=31536000, immutable' }
       {
         path: 'infra/vercel-security.md',
         governance: 'mandatory',
+        paths: ['vercel.json', 'api/**/*', '.vercel/**/*'],
         description: 'Vercel security: environment variables, headers, deployment protection, and secrets management',
         content: `# Vercel Security Best Practices
 
@@ -425,6 +375,7 @@ Never set \`Access-Control-Allow-Origin: *\` on API routes that handle authentic
       {
         path: 'infra/vercel-function-patterns.md',
         governance: 'recommended',
+        paths: ['vercel.json', 'api/**/*', '.vercel/**/*'],
         description: 'Vercel function patterns: streaming, Edge Config, cron jobs, and performance optimization',
         content: `# Vercel Function Patterns
 
@@ -561,6 +512,8 @@ Configure in vercel.json:
         type: 'enrich',
         prompt: `## Vercel-Specific Review
 
+**Available skill:** \`vercel-scaffold\` — use when generating new Vercel configurations.
+
 ### Configuration
 - Check vercel.json for proper $schema reference and valid configuration properties
 - Verify framework preset matches the actual project framework
@@ -591,6 +544,8 @@ Configure in vercel.json:
         name: 'security-checker',
         type: 'enrich',
         prompt: `## Vercel Security Review
+
+**Available skill:** \`vercel-scaffold\` — use when generating secure Vercel configurations from scratch.
 
 ### Environment Variables and Secrets
 - Verify no secrets committed in source code, vercel.json, or .env files
@@ -623,6 +578,8 @@ Configure in vercel.json:
         type: 'enrich',
         prompt: `## Vercel Documentation Standards
 
+**Available skill:** \`vercel-scaffold\` — use when scaffolding documented Vercel projects.
+
 ### Deployment Documentation
 - Document the deployment pipeline: Git push → Preview → Production promotion flow
 - List all required environment variables with descriptions (never include actual values)
@@ -645,6 +602,8 @@ Configure in vercel.json:
         name: 'migration-helper',
         type: 'enrich',
         prompt: `## Vercel Migration Assistance
+
+**Available skill:** \`vercel-scaffold\` — use when generating Vercel configs for migrated projects.
 
 ### Framework Migration
 - When migrating frameworks (e.g., Pages Router to App Router), update vercel.json function paths

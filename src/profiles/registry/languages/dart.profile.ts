@@ -12,56 +12,15 @@ export const dartProfile: Profile = {
       order: 10,
       content: `## Dart Conventions
 
-### Effective Dart Style
-- Follow Effective Dart (style, documentation, usage, design) for all code
-- Run \`dart format\` on every save — never deviate from the standard formatter
-- Run \`dart analyze\` before commits — treat all warnings as errors
-- Maximum line length: 80 characters (dart format default)
+Effective Dart guidelines. Sound null safety, strong typing, \`dart format\` enforced.
 
-### Naming (Effective Dart: Style)
-- Types, classes, enums, typedefs, type parameters, extensions, mixins: \`UpperCamelCase\`
-- Libraries, packages, directories, source files: \`lowercase_with_underscores\`
-- Variables, functions, parameters, named parameters: \`lowerCamelCase\`
-- Constants: \`lowerCamelCase\` (NOT SCREAMING_CAPS) — \`const defaultTimeout = Duration(seconds: 30);\`
-- Private members: prefix with underscore (\`_privateField\`)
-- Avoid abbreviations unless universally understood (\`id\`, \`http\`, \`url\` are fine)
+**Detailed rules:** see \`.claude/rules/dart/\` directory.
 
-### Import Organization
-- Order imports: \`dart:\` core libraries, then \`package:\` packages, then relative imports
-- Separate each group with a blank line
-- Use relative imports for files within the same package
-- Never use \`part\` / \`part of\` — prefer separate libraries with imports
-- Sort imports alphabetically within each group
-
-### Null Safety (Sound)
-- All types are non-nullable by default — use \`?\` suffix only when null is a valid domain value
-- Use \`required\` keyword for mandatory named parameters
-- Prefer null-aware operators: \`?.\`, \`??\`, \`??=\`, \`?[]\`
-- Avoid \`!\` (null assertion) except in tests — use pattern matching or null checks instead
-- Never use \`late\` unless initialization is guaranteed before access and alternatives are worse
-
-### Dart 3+ Modern Features
-- Use records for lightweight multi-value returns: \`(String name, int age)\`
-- Use patterns and destructuring in variable declarations, switch, and if-case
-- Use sealed classes for exhaustive type hierarchies (state machines, ASTs, result types)
-- Use switch expressions (not switch statements) for multi-branch value computation
-- Use class modifiers (\`sealed\`, \`final\`, \`base\`, \`interface\`, \`mixin\`) to express design intent
-- Use extension types for zero-cost type-safe wrappers around existing types
-
-### Async Programming
-- Use \`async\`/\`await\` for all asynchronous operations — avoid raw \`Future.then()\` chains
-- Use \`Stream\` for reactive data patterns and event sequences
-- Always handle errors in Futures and Streams — never leave unhandled rejections
-- Use \`Future.wait()\` for concurrent independent async operations
-- Use \`Completer\` only when bridging callback-based APIs to Future-based ones
-
-### Collections & Idioms
-- Use collection literals: \`[]\`, \`{}\`, \`<K, V>{}\` — not \`List()\`, \`Map()\` constructors
-- Use spread (\`...\`) and collection if/for for building collections declaratively
-- Prefer \`isEmpty\` / \`isNotEmpty\` over \`length == 0\` / \`length > 0\`
-- Use cascade notation (\`..\`) for multiple operations on the same object
-- Use \`const\` constructors wherever possible for compile-time constants and performance
-- Prefer expression bodies (\`=>\`) for single-expression functions and getters`,
+**Key rules:**
+- Sound null safety: use \`late\` sparingly, prefer null-aware operators (\`??\`, \`?.\`)
+- Prefer \`final\` for local variables, \`const\` for compile-time constants
+- Use named parameters for clarity, cascade notation (\`..\`) for builder-style operations
+- Follow \`dart analyze\` — zero warnings before committing`,
     }],
     settings: {
       permissions: {
@@ -86,6 +45,7 @@ export const dartProfile: Profile = {
     rules: [
       {
         path: 'dart/dart-style-and-design.md',
+        paths: ['**/*.dart'],
         governance: 'mandatory',
         description: 'Effective Dart style, naming, documentation, and design conventions',
         content: `# Dart Style & Design (Effective Dart)
@@ -287,6 +247,7 @@ dynamic fetchData() async {
       },
       {
         path: 'dart/dart-null-safety-and-patterns.md',
+        paths: ['**/*.dart'],
         governance: 'mandatory',
         description: 'Dart sound null safety, pattern matching, records, and sealed classes',
         content: `# Dart Null Safety & Modern Patterns
@@ -549,6 +510,7 @@ Future<User?> findUser(UserId id) async {
       },
       {
         path: 'dart/dart-error-handling-and-async.md',
+        paths: ['**/*.dart'],
         governance: 'mandatory',
         description: 'Dart error handling patterns, async/await, streams, and concurrency',
         content: `# Dart Error Handling & Async Patterns
@@ -821,6 +783,7 @@ ParsedData _parseJson(String json) {
       {
         name: 'test-writer',
         type: 'enrich',
+        skills: ['dart-tooling'],
         prompt: `## Dart Testing
 
 ### Test Framework
@@ -928,6 +891,7 @@ void main() {
       {
         name: 'refactor-assistant',
         type: 'enrich',
+        skills: ['dart-tooling'],
         prompt: `## Dart-Specific Refactoring Patterns
 
 ### Null Safety Modernization
@@ -1122,7 +1086,7 @@ assert(result is Map<String, dynamic>, 'Expected Map, got \${result.runtimeType}
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.dart$" && grep -nP "\\bdynamic\\b" "$CLAUDE_FILE_PATH" | grep -v "//.*dynamic" | grep -v "fromJson\\|toJson\\|decode\\|encode" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: dynamic type detected outside serialization boundaries — consider using typed alternatives" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.dart$" && grep -nE "\\bdynamic\\b" "$CLAUDE_FILE_PATH" | grep -v "//.*dynamic" | grep -v "fromJson\\|toJson\\|decode\\|encode" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: dynamic type detected outside serialization boundaries — consider using typed alternatives" || true',
             timeout: 10,
           },
         ],
@@ -1134,7 +1098,7 @@ assert(result is Map<String, dynamic>, 'Expected Map, got \${result.runtimeType}
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.dart$" && grep -cP "^\\s*///" "$CLAUDE_FILE_PATH" | grep -q "^0$" && grep -qP "^(class|enum|mixin|extension|typedef|sealed|final class|base class|interface class)\\b" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:0:Warning: public type declarations found without any doc comments (///)" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.dart$" && grep -cE "^\\s*///" "$CLAUDE_FILE_PATH" | grep -q "^0$" && grep -qE "^(class|enum|mixin|extension|typedef|sealed|final class|base class|interface class)\\b" "$CLAUDE_FILE_PATH" && echo "HOOK_EXIT:0:Warning: public type declarations found without any doc comments (///)" || true',
             timeout: 10,
           },
         ],

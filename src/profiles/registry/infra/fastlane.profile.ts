@@ -10,94 +10,18 @@ export const fastlaneProfile: Profile = {
     claudeMd: [
       {
         heading: 'Fastlane Conventions',
-        order: 4010,
+        order: 40,
         content: `## Fastlane Conventions
 
-### Fastfile Structure & Ruby DSL
-- Define lanes inside \`platform :ios do ... end\` and \`platform :android do ... end\` blocks
-- Use \`before_all\` for shared setup: \`ensure_git_status_clean\`, \`cocoapods\`, \`git_pull\`
-- Use \`after_all\` for post-lane cleanup and success notifications (Slack, email)
-- Use \`error\` block for failure notifications and cleanup on lane errors
-- Use \`private_lane\` for reusable helper lanes that should not be called from the CLI directly
-- Pass options to lanes with \`lane :beta do |options|\` and access via \`options[:version]\`
-- Use \`lane_context\` (e.g. \`lane_context[SharedValues::IPA_OUTPUT_PATH]\`) to share data between actions
-- Use \`import("../shared/Fastfile")\` to share lanes across projects in monorepos
-- Keep Fastfile focused — extract complex logic into custom actions or plugins
+Mobile CI/CD automation. Lanes for build/test/deploy workflows, match for code signing.
 
-### Configuration Files
-- **Appfile**: Team ID, app identifier, Apple ID credentials — shared across all lanes
-- **Matchfile**: Match Git URL, storage type (git or S3), app identifiers, certificate types
-- **Deliverfile**: App Store metadata defaults — pricing, availability, review information
-- **Gymfile**: Default build settings — scheme, workspace, output directory, export method
-- **Scanfile**: Default test settings — scheme, device, clean, code coverage options
-- **Snapfile**: Screenshot settings — devices list, languages, scheme, output directory
-- **Pluginfile**: Gemfile-like declarations for Fastlane plugins used by the project
-- Use \`.env\` files for per-environment config: \`.env.default\`, \`.env.staging\`, \`.env.production\`
-- Load environment with \`fastlane <lane> --env production\`
+**Detailed rules:** see \`.claude/rules/fastlane/\` directory.
 
-### Core Tools & Actions
-
-#### match (Code Signing)
-- Centralized certificate and provisioning profile management via a shared Git repo or S3 bucket
-- Run \`match appstore\`, \`match adhoc\`, \`match development\` to sync specific profile types
-- Use \`readonly: true\` in CI to prevent accidental certificate regeneration
-- Store the match passphrase in the \`MATCH_PASSWORD\` environment variable
-- Use \`force_for_new_devices: true\` in development/adhoc to auto-re-provision when devices change
-- Use separate Git branches or storage paths for different teams or apps
-
-#### gym (build_app)
-- Builds the iOS app and generates the IPA file
-- Set \`export_method\` to match distribution type: \`app-store\`, \`ad-hoc\`, \`development\`, \`enterprise\`
-- Use \`clean: true\` for CI builds to avoid stale build artifacts
-- Set \`output_directory\` explicitly for consistent artifact paths
-- Use \`include_bitcode: false\` unless App Store Connect requires it
-- Access the built IPA path via \`lane_context[SharedValues::IPA_OUTPUT_PATH]\`
-
-#### deliver (upload_to_app_store)
-- Uploads IPA and metadata to App Store Connect
-- Manage metadata in the \`fastlane/metadata/\` directory structure (description, keywords, release notes)
-- Use \`submit_for_review: true\` to auto-submit after upload
-- Use \`automatic_release: true\` for auto-release after Apple approval
-- Use \`precheck_include_in_app_purchases: false\` if IAP metadata check causes issues
-- Run \`deliver download_metadata\` to fetch existing metadata from App Store Connect
-
-#### pilot (upload_to_testflight)
-- Uploads builds to TestFlight for beta testing
-- Use \`skip_waiting_for_build_processing: true\` in CI to avoid long waits
-- Use \`distribute_external: true\` with \`groups\` to distribute to external testers
-- Set \`changelog\` for beta build release notes (What to Test)
-
-#### scan (run_tests)
-- Runs Xcode tests with configurable output formats
-- Use \`code_coverage: true\` to generate coverage reports
-- Use \`output_types: "junit"\` for CI-compatible test result output
-- Use \`result_bundle: true\` for detailed Xcode test result bundles
-- Set \`fail_build: true\` (default) to fail the lane on test failures
-
-#### supply (upload_to_play_store)
-- Uploads APK/AAB and metadata to Google Play Console
-- Set \`track\` to \`internal\`, \`alpha\`, \`beta\`, or \`production\`
-- Use \`release_status: "draft"\` for manual review before rollout
-- Manage metadata in \`fastlane/metadata/android/\` directory structure
-- Use \`json_key\` or \`json_key_data\` for Google Play service account authentication
-
-#### snapshot (capture_screenshots) & screengrab
-- \`snapshot\`: Captures iOS screenshots using UI tests
-- \`screengrab\`: Captures Android screenshots using Espresso or instrumentation tests
-- Configure target devices and languages in Snapfile/Screengrabfile
-- Use \`frameit\` to add device frames to screenshots for App Store/Play Store listings
-
-#### pem & cert
-- \`pem\`: Generates and renews push notification certificates
-- \`cert\`: Generates signing certificates (prefer \`match\` for team environments)
-- Use \`pem\` with \`generate_p12: true\` for services that require .p12 files
-
-### Plugin Ecosystem
-- Install plugins with \`fastlane add_plugin <name>\`
-- Declare plugins in the \`Pluginfile\` and install with \`bundle exec fastlane install_plugins\`
-- Popular plugins: \`firebase_app_distribution\`, \`versioning\`, \`badge\`, \`appcenter\`
-- Create custom actions in \`fastlane/actions/\` for project-specific automation
-- Create shareable plugins with \`fastlane new_plugin\` for cross-project reuse`,
+**Key rules:**
+- One lane per action: \`build\`, \`test\`, \`beta\`, \`release\` — compose in parent lanes
+- \`match\` for code signing (Git-encrypted), never manual provisioning profiles
+- Environment variables for secrets, \`.env\` files for non-sensitive lane config
+- Error handling with \`error\` blocks, Slack/Teams notifications on failure`,
       },
     ],
     settings: {
@@ -126,6 +50,7 @@ export const fastlaneProfile: Profile = {
       {
         path: 'infra/fastlane-lane-structure.md',
         governance: 'mandatory',
+        paths: ['fastlane/**/*', 'Fastfile', 'Appfile', 'Matchfile'],
         description: 'Fastlane lane architecture, Fastfile organization, and secret management',
         content: `# Fastlane Lane Structure & Security
 
@@ -295,6 +220,7 @@ readonly(is_ci)
       {
         path: 'infra/fastlane-ci-integration.md',
         governance: 'recommended',
+        paths: ['fastlane/**/*', 'Fastfile', 'Appfile', 'Matchfile'],
         description: 'Fastlane CI/CD integration, build automation, and platform distribution',
         content: `# Fastlane CI/CD Integration
 
@@ -468,6 +394,8 @@ end
         type: 'enrich',
         prompt: `## Fastlane Review
 
+**Available skill:** \`fastlane-setup\` — use when generating new Fastlane configurations.
+
 ### Fastfile Quality
 - Verify lanes are organized inside platform blocks (\`platform :ios do ... end\`)
 - Check that \`before_all\`, \`after_all\`, and \`error\` blocks are defined for each platform
@@ -501,6 +429,8 @@ end
         type: 'enrich',
         prompt: `## Fastlane Security Review
 
+**Available skill:** \`fastlane-setup\` — use when generating secure Fastlane configurations from scratch.
+
 ### Credential Exposure
 - Check for hardcoded passwords, API keys, or tokens in Fastfile, Appfile, Matchfile, Deliverfile
 - Verify \`MATCH_PASSWORD\`, \`FASTLANE_USER\`, \`FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD\` come from env vars
@@ -533,6 +463,8 @@ end
         type: 'enrich',
         prompt: `## Fastlane Migration Assistance
 
+**Available skill:** \`fastlane-setup\` — use when generating Fastlane configs for new or migrated projects.
+
 ### Initial Fastlane Setup
 - Set up Fastlane for a mobile project: \`fastlane init\` and configure Appfile, Matchfile
 - Configure match for team certificate management with a shared Git repo
@@ -559,6 +491,8 @@ end
         name: 'doc-writer',
         type: 'enrich',
         prompt: `## Fastlane Documentation Standards
+
+**Available skill:** \`fastlane-setup\` — use when scaffolding documented Fastlane projects.
 
 ### README Fastlane Section
 - Document all available lanes with their purpose: \`fastlane ios test\`, \`fastlane ios beta\`, etc.

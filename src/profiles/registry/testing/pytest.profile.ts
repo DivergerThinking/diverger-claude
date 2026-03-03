@@ -9,101 +9,19 @@ export const pytestProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'Pytest Testing Conventions',
-        order: 3000,
-        content: `## Pytest Testing Conventions
+        heading: 'Pytest Conventions',
+        order: 30,
+        content: `## Pytest Conventions
 
-### Test Structure & Organization
-- Place tests in a top-level \`tests/\` directory mirroring \`src/\` structure — one test file per source module
-- Use \`test_*.py\` naming convention for test files and \`test_*\` for test functions
-- Use classes (\`Test*\`) only for logical grouping — never for shared mutable state; prefer plain functions
-- Use subdirectories for \`unit/\`, \`integration/\`, and \`e2e/\` separation with their own \`conftest.py\`
-- Follow Arrange-Act-Assert (AAA) pattern in every test — clearly separate setup, execution, and verification
-- Use descriptive test names: \`test_should_return_404_when_user_does_not_exist\`
-- Use \`pytest.skip()\`, \`pytest.xfail()\`, or \`@pytest.mark.skip\` for planned but incomplete tests — never leave empty test bodies
+Pythonic testing with fixtures, parametrize, and plugins. Convention over configuration.
 
-### Fixtures
-- Define shared fixtures in \`conftest.py\` at the appropriate directory level — pytest discovers them automatically, never import from conftest directly
-- Use \`scope\` parameter wisely: \`function\` (default) for full isolation, \`class\`, \`module\`, \`package\`, \`session\` for expensive shared resources
-- Use \`yield\` fixtures for setup/teardown: code before \`yield\` is setup, code after is teardown (runs even if test fails)
-- Prefer factory fixtures (fixtures returning a callable) for creating test data with customizable parameters
-- Use \`autouse=True\` sparingly — only for truly universal setup like resetting global state or database transactions
-- Use \`request\` fixture to access test context: \`request.param\` for parametrized fixtures, \`request.node\` for test metadata
-- Use \`@pytest.fixture(params=[...])\` to parametrize fixtures — all dependent tests run once per parameter value
+**Detailed rules:** see \`.claude/rules/pytest/\` directory.
 
-### Built-in Fixtures
-- \`tmp_path\` — \`pathlib.Path\` to a unique temporary directory per test (prefer over deprecated \`tmpdir\`)
-- \`tmp_path_factory\` — session-scoped factory for creating temporary directories
-- \`capsys\` — captures \`sys.stdout\` / \`sys.stderr\`; access via \`capsys.readouterr()\` returning \`(out, err)\`
-- \`capfd\` — captures file descriptors 1 and 2 (includes subprocess output)
-- \`caplog\` — captures log records; access \`.records\`, \`.text\`, \`.messages\`; use \`with caplog.at_level(logging.WARNING)\`
-- \`monkeypatch\` — temporarily modifies attributes, dict items, env vars; methods: \`setattr\`, \`delattr\`, \`setitem\`, \`delitem\`, \`setenv\`, \`delenv\`, \`syspath_prepend\`, \`chdir\`
-- \`recwarn\` — records warnings; use \`recwarn.pop(DeprecationWarning)\` to assert specific warnings
-- \`request\` — provides information about the requesting test function and fixture parameters
-
-### Parametrize
-- Use \`@pytest.mark.parametrize("arg1,arg2", [(val1, val2), ...])\` for data-driven tests with multiple input/output combinations
-- Provide descriptive \`ids\` for parametrized cases: \`@pytest.mark.parametrize("email,valid", [...], ids=["valid-email", "missing-at"])\`
-- Stack multiple \`@pytest.mark.parametrize\` decorators for combinatorial (cross-product) testing
-- Use \`pytest.param(..., marks=pytest.mark.xfail)\` to mark individual parametrized cases as expected failures
-- Use \`pytest.param(..., id="descriptive-name")\` for individual case IDs within the argvalues list
-- Use \`indirect=True\` to route parametrize values through a fixture before reaching the test
-
-### Markers
-- Register custom markers in \`pyproject.toml\` under \`[tool.pytest.ini_options] markers\` to avoid \`PytestUnknownMarkWarning\`
-- \`@pytest.mark.skip(reason="...")\` — unconditionally skip a test with a reason
-- \`@pytest.mark.skipif(condition, reason="...")\` — skip conditionally (e.g., platform, Python version, dependency availability)
-- \`@pytest.mark.xfail(reason="...")\` — expect a failure; test passes if it fails, reports \`XPASS\` if it unexpectedly passes
-- \`@pytest.mark.usefixtures("fixture_name")\` — apply fixtures to a test class without requesting them as parameters
-- Use custom markers like \`@pytest.mark.slow\`, \`@pytest.mark.integration\` for selective test execution with \`-m\`
-- Run marker expressions: \`pytest -m "not slow"\`, \`pytest -m "integration and not flaky"\`
-
-### Assertions & Exception Testing
-- Use plain \`assert\` statements — pytest rewrites them to show detailed failure context with introspection
-- Add descriptive messages for complex assertions: \`assert result > 0, f"Expected positive result, got {result}"\`
-- Use \`pytest.raises(ExceptionType)\` as context manager for exception testing; access \`.value\`, \`.type\`, \`.traceback\`
-- Use \`match\` parameter for regex matching: \`with pytest.raises(ValueError, match=r"invalid.*email")\`
-- Use \`pytest.warns(WarningType)\` to assert warnings are raised
-- Use \`pytest.approx(expected, rel=1e-6)\` for floating-point comparisons — works with floats, sequences, dicts
-
-### Async Testing
-- Use \`pytest-asyncio\` plugin — decorate async tests with \`@pytest.mark.asyncio\` or set \`asyncio_mode = "auto"\` in config
-- Use \`@pytest_asyncio.fixture\` for async fixtures (yields async resources)
-- Configure the event loop scope: \`asyncio_default_fixture_loop_scope = "function"\` in \`pyproject.toml\`
-
-### Mocking with pytest-mock
-- Use the \`mocker\` fixture (from \`pytest-mock\`) for clean mocking — wraps \`unittest.mock\` with automatic cleanup
-- \`mocker.patch("module.Class.method")\` — replaces target with MagicMock, auto-restored after test
-- \`mocker.patch.object(obj, "method")\` — patches attribute on a live object
-- \`mocker.spy(obj, "method")\` — wraps method to track calls while preserving original implementation
-- \`mocker.MagicMock(spec=MyClass)\` — create spec-constrained mocks that error on non-existent attribute access
-- \`mocker.patch.dict(os.environ, {"KEY": "value"})\` — temporarily modify dictionaries
-- Prefer \`monkeypatch\` for simple attribute/env overrides; use \`mocker\` for call tracking and return value configuration
-
-### Coverage & Plugins
-- Use \`pytest-cov\` for coverage: \`pytest --cov=src --cov-report=term-missing --cov-report=html\`
-- Enforce coverage thresholds: \`pytest --cov=src --cov-fail-under=80\`
-- Use \`pytest-xdist\` for parallel execution: \`pytest -n auto\` distributes across CPU cores
-- Use \`pytest-randomly\` to detect order-dependent tests by shuffling test execution order
-- Use \`pytest-timeout\` to enforce time limits: \`@pytest.mark.timeout(10)\` or global \`timeout = 30\` in config
-- Use \`# pragma: no cover\` sparingly with a justification comment for intentionally uncovered lines
-
-### Configuration
-- Configure pytest in \`pyproject.toml\` under \`[tool.pytest.ini_options]\` (preferred over \`pytest.ini\` or \`setup.cfg\`)
-- Use \`addopts\` to set default CLI options: \`addopts = "-ra -q --strict-markers --strict-config"\`
-- Use \`testpaths = ["tests"]\` to scope test discovery to the tests directory
-- Use \`pythonpath = ["src"]\` to make source packages importable without installation
-- Use \`filterwarnings\` to control warning behavior: \`filterwarnings = ["error", "ignore::DeprecationWarning:third_party_lib"]\`
-- Use \`--strict-markers\` (via \`addopts\`) to error on unregistered markers, preventing typos
-
-### Common Anti-Patterns to Avoid
-- Using \`unittest.TestCase\` setUp/tearDown instead of pytest fixtures — fixtures are more flexible and composable
-- Importing from \`conftest.py\` directly — pytest handles fixture injection automatically by name
-- Tests that depend on execution order or share mutable global state — each test must be independent
-- Over-mocking: mocking everything means you test nothing — mock only external boundaries (network, DB, filesystem)
-- Using \`time.sleep()\` in tests — use \`monkeypatch\` to control time or mock the time-dependent calls
-- Empty \`except\` blocks in test code — always assert the specific exception with \`pytest.raises\`
-- Using \`assert True\` or \`assert result\` without checking the actual value — assert specific expected outcomes`,
+**Key rules:**
+- Fixtures for setup/teardown, \`conftest.py\` for shared fixtures
+- \`@pytest.mark.parametrize\` for data-driven tests
+- Use \`pytest.raises\` for exception testing, \`tmp_path\` for file tests
+- Naming: \`test_*.py\` files, \`test_*\` functions with descriptive names`,
       },
     ],
     settings: {
@@ -125,6 +43,7 @@ export const pytestProfile: Profile = {
     rules: [
       {
         path: 'testing/pytest-conventions.md',
+        paths: ['**/test_*.py', '**/*_test.py', 'tests/**/*.py', 'conftest.py'],
         governance: 'mandatory',
         description: 'Pytest testing conventions and best practices — mandatory rules for fixtures, assertions, mocking, parametrize, and test structure',
         content: `# Pytest Testing Conventions
@@ -218,6 +137,7 @@ export const pytestProfile: Profile = {
       },
       {
         path: 'testing/pytest-configuration.md',
+        paths: ['**/test_*.py', '**/*_test.py', 'tests/**/*.py', 'conftest.py'],
         governance: 'recommended',
         description: 'Pytest configuration best practices and recommended pyproject.toml settings',
         content: `# Pytest Configuration Best Practices
@@ -300,6 +220,7 @@ exclude_lines = [
         name: 'code-reviewer',
         type: 'enrich',
         prompt: `## Pytest-Specific Review Checklist
+Available skills: pytest-test-generator
 - Verify pytest fixtures are used instead of unittest setUp/tearDown patterns
 - Check that \`conftest.py\` is never imported directly — fixtures are injected by name
 - Verify fixture scopes are appropriate: \`function\` for unit tests, wider scopes only for expensive shared resources
@@ -321,6 +242,7 @@ exclude_lines = [
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Pytest-Specific Test Writing Guidelines
+Available skills: pytest-test-generator
 - Structure tests with plain functions (\`test_*\`) or \`Test*\` classes for logical grouping — prefer functions
 - Use descriptive names: \`test_should_raise_value_error_when_amount_is_negative\`
 - Follow AAA pattern: arrange fixtures and test data, act by calling the function, assert with plain \`assert\`
@@ -355,6 +277,7 @@ exclude_lines = [
         name: 'refactor-assistant',
         type: 'enrich',
         prompt: `## Pytest Test Refactoring Guidance
+Available skills: pytest-test-generator
 - Replace duplicated test logic with \`@pytest.mark.parametrize\` — extract varying inputs and expected outputs
 - Convert unittest setUp/tearDown patterns to pytest \`yield\` fixtures in \`conftest.py\`
 - Replace inline test data construction with factory fixtures that return callables

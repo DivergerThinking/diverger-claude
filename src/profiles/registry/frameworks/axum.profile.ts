@@ -13,58 +13,15 @@ export const axumProfile: Profile = {
         order: 20,
         content: `## Axum Conventions
 
-### Core Architecture
-- Axum is built on Tokio, Tower, and Hyper — leverage the full Tower middleware ecosystem
-- Router is the central type: compose routes with \`Router::new().route("/path", get(handler))\`
-- Handlers are plain async functions: \`async fn(extract1, extract2, ...) -> impl IntoResponse\`
-- No macros required — routing and extraction are type-driven and compile-time checked
-- All services must have \`Infallible\` error type — errors are handled via \`IntoResponse\`, never propagated as service errors
+Tower-based async web framework. Extractors for request parsing, middleware via Tower layers.
 
-### Routing (0.8+ Syntax)
-- Path parameters use braces: \`"/{id}"\` (not \`/:id\`) — the old colon syntax was removed in 0.8
-- Wildcard captures use \`/{*rest}\` (not \`/*rest\`)
-- Escape literal braces with \`{{\` and \`}}\`
-- Method routing: \`get(handler)\`, \`post(handler)\`, \`put(handler)\`, \`delete(handler)\`, \`patch(handler)\`
-- Combine methods on same path: \`method_router.get(list).post(create)\`
-- Nest routers: \`Router::nest("/api/v1", api_router)\` for modular organization
-- Merge routers: \`Router::merge(other_router)\` to combine modules at the same prefix
-- Fallback: \`Router::fallback(handler_404)\` for unmatched routes
+**Detailed rules:** see \`.claude/rules/axum/\` directory.
 
-### Extractors
-- Extract typed data from requests — extractors are function parameters, compile-time checked
-- Body-consuming extractors (\`Json<T>\`, \`Form<T>\`, \`Bytes\`, \`String\`) must be the LAST parameter
-- Non-body extractors (\`Path<T>\`, \`Query<T>\`, \`State<T>\`, \`HeaderMap\`) can appear in any order before the body extractor
-- \`Option<T>\` as extractor requires \`T: OptionalFromRequestParts\` (0.8+) — rejections are no longer silently swallowed
-- Use \`axum_extra\` for: \`TypedHeader\`, \`CookieJar\`, \`SignedCookieJar\`, \`Multipart\`, \`Cached<T>\`, \`WithRejection<T, R>\`
-
-### Application State
-- Define a shared state struct, attach with \`Router::with_state(state)\`
-- Access via \`State<AppState>\` extractor — state must implement \`Clone\`
-- Use \`Arc<T>\` for expensive-to-clone fields: DB pools, HTTP clients, caches
-- Derive \`FromRef\` for sub-states: each handler extracts only the state slice it needs
-- Never use \`Extension<T>\` for application state — prefer typed \`State<T>\`
-
-### Error Handling
-- Implement \`IntoResponse\` for custom error types to control HTTP error responses
-- Use \`Result<T, AppError>\` as handler return type — both T and AppError must implement \`IntoResponse\`
-- Map domain errors to appropriate HTTP status codes in the \`IntoResponse\` impl
-- Return structured JSON error bodies: \`{ "error": "code", "message": "description" }\`
-- Use \`thiserror\` for defining error enums with \`#[from]\` for automatic conversion
-- Use \`anyhow\` in application code, \`thiserror\` in library/domain code
-
-### Middleware (Tower Layers)
-- Apply middleware with \`Router::layer()\` or \`ServiceBuilder\` for composition
-- Use \`axum::middleware::from_fn\` for simple middleware as async functions
-- Use \`axum::middleware::from_fn_with_state\` when middleware needs app state
-- Ordering: outermost layer runs first on request, last on response
-- Recommended order: tracing → compression → CORS → timeout → auth → routes
-- Use \`tower_http\` crate: \`TraceLayer\`, \`CorsLayer\`, \`CompressionLayer\`, \`TimeoutLayer\`, \`SetResponseHeaderLayer\`
-
-### Graceful Shutdown
-- Use \`axum::serve(...).with_graceful_shutdown(signal)\` for clean shutdown
-- Wait for in-flight requests to complete before terminating
-- Add a timeout to graceful shutdown so hung requests do not block indefinitely
-- Use \`tokio::signal::ctrl_c()\` or a custom shutdown channel for the signal`,
+**Key rules:**
+- Extractors (\`Path\`, \`Query\`, \`Json\`) for type-safe request parsing
+- Tower middleware layers for auth, logging, rate-limiting — compose with \`ServiceBuilder\`
+- Shared state via \`Extension\` or \`State\`, use \`Arc\` for thread-safe sharing
+- Error handling: implement \`IntoResponse\` for custom error types`,
       },
     ],
     settings: {
@@ -85,6 +42,7 @@ export const axumProfile: Profile = {
     rules: [
       {
         path: 'axum/architecture.md',
+        paths: ['**/*.rs'],
         governance: 'mandatory',
         description: 'Axum architecture: handlers, extractors, state, and routing (0.8+)',
         content: `# Axum Architecture
@@ -294,6 +252,7 @@ impl IntoResponse for AppError {
       },
       {
         path: 'axum/middleware-and-layers.md',
+        paths: ['**/*.rs'],
         governance: 'mandatory',
         description: 'Axum middleware patterns with Tower layers and tower-http',
         content: `# Axum Middleware & Tower Layers
@@ -437,6 +396,7 @@ async fn slow_middleware(req: Request, next: Next) -> Response {
       },
       {
         path: 'axum/project-structure.md',
+        paths: ['**/*.rs'],
         governance: 'recommended',
         description: 'Axum project structure, graceful shutdown, and production patterns',
         content: `# Axum Project Structure & Production Patterns
@@ -568,6 +528,7 @@ async fn readiness_check(State(db): State<PgPool>) -> StatusCode {
       },
       {
         path: 'axum/testing.md',
+        paths: ['**/*.rs'],
         governance: 'recommended',
         description: 'Axum testing patterns: integration tests with oneshot, test helpers',
         content: `# Axum Testing Patterns
@@ -741,6 +702,8 @@ async fn test_auth_middleware_rejects_unauthenticated() {
         type: 'enrich',
         prompt: `## Axum Review
 
+**Available skills:** axum-handler-generator, axum-middleware-skill
+
 ### Routing & Handlers
 - Verify path parameters use brace syntax \`/{id}\` not colon syntax \`/:id\` (removed in 0.8)
 - Check that body-consuming extractors (Json, Form, Bytes, String) are the LAST handler parameter
@@ -781,6 +744,8 @@ async fn test_auth_middleware_rejects_unauthenticated() {
         type: 'enrich',
         prompt: `## Axum Testing
 
+**Available skills:** axum-handler-generator, axum-middleware-skill
+
 ### Integration Tests (Preferred)
 - Build the full Router with test state and use \`tower::ServiceExt::oneshot(request)\`
 - Construct requests with \`Request::builder()\` from the \`http\` crate
@@ -814,6 +779,8 @@ async fn test_auth_middleware_rejects_unauthenticated() {
         type: 'enrich',
         prompt: `## Axum Security Review
 
+**Available skills:** axum-handler-generator, axum-middleware-skill
+
 ### Input Validation
 - Verify all user input extracted via Json<T>, Path<T>, Query<T> uses validated types (not raw String for IDs, emails, etc.)
 - Check for request body size limits via \`RequestBodyLimitLayer\` — unbounded bodies enable DoS
@@ -841,6 +808,8 @@ async fn test_auth_middleware_rejects_unauthenticated() {
         name: 'refactor-assistant',
         type: 'enrich',
         prompt: `## Axum Refactoring
+
+**Available skills:** axum-handler-generator, axum-middleware-skill
 
 ### Common Refactorings
 - Extract repeated extractor combinations into custom extractor structs (e.g., AuthUser, Pagination)
@@ -1015,7 +984,7 @@ where
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nP "\\broute\\s*\\(\\s*\"[^\"]*:[^\"]*\"" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: colon path parameters detected — Axum 0.8+ requires brace syntax: /{param} not /:param" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "\\broute\\s*\\(\\s*\"[^\"]*:[^\"]*\"" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: colon path parameters detected — Axum 0.8+ requires brace syntax: /{param} not /:param" || true',
             timeout: 10,
           },
         ],
@@ -1027,7 +996,7 @@ where
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nP "CorsLayer\\s*::\\s*permissive\\s*\\(\\)" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: CorsLayer::permissive() detected — use specific allowed origins in production" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "CorsLayer\\s*::\\s*permissive\\s*\\(\\)" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: CorsLayer::permissive() detected — use specific allowed origins in production" || true',
             timeout: 10,
           },
         ],
@@ -1039,7 +1008,7 @@ where
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nP "Extension\\s*<" "$CLAUDE_FILE_PATH" | grep -v "extensions_mut" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: Extension<T> detected — prefer State<T> with Router::with_state() for compile-time safety" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "Extension\\s*<" "$CLAUDE_FILE_PATH" | grep -v "extensions_mut" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: Extension<T> detected — prefer State<T> with Router::with_state() for compile-time safety" || true',
             timeout: 10,
           },
         ],

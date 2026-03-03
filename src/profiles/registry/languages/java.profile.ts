@@ -13,31 +13,15 @@ export const javaProfile: Profile = {
         order: 10,
         content: `## Java Conventions
 
-### Modern Java (17+ LTS / 21+ LTS)
-- Use records for immutable data carriers — replace POJOs that only carry data
-- Use sealed classes/interfaces to restrict type hierarchies to known subtypes
-- Use pattern matching for \`instanceof\` — eliminate manual casts
-- Use switch expressions with arrow syntax and pattern matching (Java 21+)
-- Use text blocks (triple-quoted strings) for multi-line SQL, JSON, and templates
-- Prefer \`var\` for local variables when the right-hand side makes the type obvious
-- Use virtual threads (Java 21+) for I/O-bound concurrency instead of platform threads
+Modern Java (17+) with strong typing, records, sealed classes, and pattern matching.
 
-### Null Safety and Optionals
-- Return \`Optional<T>\` for values that may legitimately be absent — never return null from public APIs
-- Never use Optional as a method parameter, field, or collection element
-- Chain Optional operations: \`.map()\`, \`.flatMap()\`, \`.orElseThrow()\` — avoid \`.isPresent()\` + \`.get()\`
-- Use \`@Nullable\` / \`@NonNull\` annotations (jakarta.annotation or JSpecify) for API boundaries
+**Detailed rules:** see \`.claude/rules/java/\` directory.
 
-### Resource Management
-- Use try-with-resources for all \`AutoCloseable\` resources — never rely on finalizers
-- Declare multiple resources in a single try-with-resources when they share a lifecycle
-- Implement \`AutoCloseable\` on custom resource holders
-
-### Javadoc
-- Document all public classes, interfaces, methods, and constructors with Javadoc
-- Use \`@param\`, \`@return\`, \`@throws\` tags on every public method
-- First sentence of Javadoc is the summary — keep it concise and actionable
-- Document thread-safety guarantees on concurrent classes`,
+**Key rules:**
+- Use records for immutable data, sealed interfaces for sum types, Optional for nullable returns
+- Follow standard naming: PascalCase classes, camelCase methods, UPPER_SNAKE constants
+- Streams for collection processing, but prefer readability over chaining
+- Handle exceptions with specific types — never catch generic \`Exception\` in business logic`,
       },
     ],
     settings: {
@@ -57,6 +41,7 @@ export const javaProfile: Profile = {
     rules: [
       {
         path: 'java/conventions.md',
+        paths: ['**/*.java'],
         governance: 'mandatory',
         description: 'Java coding conventions aligned with Google Java Style Guide and Oracle conventions',
         content: `# Java Conventions
@@ -234,6 +219,7 @@ t1.join(); t2.join();
       },
       {
         path: 'java/streams-and-collections.md',
+        paths: ['**/*.java'],
         governance: 'recommended',
         description: 'Java Stream API patterns and collection best practices',
         content: `# Java Stream API & Collections
@@ -364,6 +350,7 @@ com.example.myapp/
       {
         name: 'refactor-assistant',
         type: 'enrich',
+        skills: ['java-refactor'],
         prompt: `## Java-Specific Refactoring
 - Convert POJOs to records when the class is a pure data carrier (only fields + accessors + equals/hashCode)
 - Replace instanceof chains with switch expressions using pattern matching (Java 21+)

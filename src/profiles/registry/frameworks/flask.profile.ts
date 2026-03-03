@@ -13,46 +13,15 @@ export const flaskProfile: Profile = {
         order: 20,
         content: `## Flask Conventions
 
-### Application Factory & Configuration
-- Always use the application factory pattern with \`create_app()\` in \`app/__init__.py\`
-- Initialize extensions outside the factory (module-level), bind inside with \`ext.init_app(app)\`
-- Load config from environment-specific classes via \`app.config.from_object()\`
-- Override per-environment with \`app.config.from_prefixed_env()\` (FLASK_ prefix)
-- Never import \`app\` directly — use \`current_app\` inside request context and \`app_context()\` outside
+Micro-framework with explicit setup. Application factory pattern, Blueprints for modularity.
 
-### Blueprints & Routing
-- One Blueprint per domain/feature — self-contained with own templates, static, and error handlers
-- Register with URL prefixes: \`app.register_blueprint(users_bp, url_prefix='/users')\`
-- Apply \`@bp.before_request\` for scoped middleware (auth checks, rate limiting)
-- Decorators: \`@route()\` outermost, then \`@login_required\`, then other decorators
-- Use \`url_for()\` for all URL generation — never hardcode paths
+**Detailed rules:** see \`.claude/rules/flask/\` directory.
 
-### Request & Response
-- Validate all input from \`request.args\`, \`request.form\`, \`request.json\` before use
-- Use \`flask.jsonify()\` for JSON responses — sets Content-Type and handles serialization
-- Use \`g\` object for request-scoped data (current user, DB connections)
-- Register \`@app.teardown_appcontext\` for resource cleanup (DB sessions, file handles)
-- Use \`make_response()\` when you need fine-grained control over headers and status
-
-### Error Handling
-- Register \`@app.errorhandler(code)\` for HTTP errors and custom exception classes
-- Return consistent JSON error shapes for API endpoints (status, message, details)
-- Log errors with context — never expose stack traces or internal paths in production
-- Use \`abort()\` from flask for raising HTTP errors in views
-
-### Extensions Ecosystem
-- Flask-SQLAlchemy + Flask-Migrate for ORM and schema migrations
-- Flask-Login or Flask-JWT-Extended for authentication
-- Flask-WTF for CSRF protection and form validation
-- Flask-CORS for cross-origin resource sharing
-- Flask-Caching for response and function caching
-- Flask-Session (server-side) for session data beyond signed cookies
-
-### Deployment
-- NEVER use the development server in production — use Gunicorn, uWSGI, or Waitress
-- Place a reverse proxy (nginx/Apache) in front of WSGI server
-- Configure \`ProxyFix\` middleware when behind a reverse proxy
-- Disable debug mode (\`FLASK_DEBUG=0\`) in production — exposes interactive debugger`,
+**Key rules:**
+- Application factory (\`create_app()\`) with config from environment, not hardcoded
+- Blueprints for feature grouping, one per domain area
+- Request validation at the boundary (marshmallow, pydantic, or WTForms)
+- Error handlers registered on app, return JSON for APIs, HTML for web`,
       },
     ],
     settings: {
@@ -73,6 +42,7 @@ export const flaskProfile: Profile = {
     rules: [
       {
         path: 'flask/architecture.md',
+        paths: ['**/*.py', 'app/**/*'],
         governance: 'mandatory',
         description: 'Flask application factory, Blueprints, and project structure',
         content: `# Flask Architecture
@@ -342,6 +312,7 @@ class User(db.Model):
       },
       {
         path: 'flask/security.md',
+        paths: ['**/*.py', 'app/**/*'],
         governance: 'mandatory',
         description: 'Flask security: CSRF, sessions, secrets, and deployment hardening',
         content: `# Flask Security Best Practices
@@ -500,6 +471,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
       },
       {
         path: 'flask/patterns.md',
+        paths: ['**/*.py', 'app/**/*'],
         governance: 'recommended',
         description: 'Flask patterns: view decorators, Celery background tasks, streaming, error handling',
         content: `# Flask Patterns
@@ -743,7 +715,9 @@ def export_csv():
 - Check session cookies have SECURE, HTTPONLY, and SAMESITE flags set
 - Verify CSRF protection is active for form submissions (Flask-WTF)
 - Check that \`url_for()\` is used for URL generation — no hardcoded paths
-- Verify development server is NOT used in production — Gunicorn/uWSGI/Waitress configured`,
+- Verify development server is NOT used in production — Gunicorn/uWSGI/Waitress configured
+
+**Available skills:** Use \`flask-blueprint-generator\` for Blueprint scaffolding, \`flask-migration-generator\` for database migrations.`,
       },
       {
         name: 'test-writer',
@@ -762,7 +736,9 @@ def export_csv():
 - Test redirects with \`follow_redirects=True\` and check \`response.history\`
 - Use an in-memory SQLite database for test isolation (\`sqlite:///:memory:\`)
 - Roll back database transactions between tests — never persist test data
-- Override services with mocks via dependency injection or monkeypatch`,
+- Override services with mocks via dependency injection or monkeypatch
+
+**Available skills:** Use \`flask-blueprint-generator\` for Blueprint + test scaffolding, \`flask-migration-generator\` for migration management.`,
       },
       {
         name: 'security-checker',
@@ -783,7 +759,9 @@ def export_csv():
 - [ ] SQL queries use ORM or parameterized statements — no f-string SQL
 - [ ] Error responses do not expose stack traces, file paths, or config values
 - [ ] Authentication routes are rate-limited to prevent brute force
-- [ ] \`send_file()\` / \`send_from_directory()\` used for file serving — never open() + return`,
+- [ ] \`send_file()\` / \`send_from_directory()\` used for file serving — never open() + return
+
+**Available skills:** Use \`flask-blueprint-generator\` for secure Blueprint scaffolding, \`flask-migration-generator\` for migration management.`,
       },
       {
         name: 'refactor-assistant',
@@ -799,7 +777,9 @@ def export_csv():
 - Replace \`@app.route\` with Blueprint routes when file grows beyond 10 routes
 - Extract repeated \`before_request\` logic into Blueprint-level hooks or decorators
 - Replace \`print()\` debugging with \`app.logger\` or structured \`logging\` module
-- Move test setup into \`conftest.py\` fixtures using the application factory`,
+- Move test setup into \`conftest.py\` fixtures using the application factory
+
+**Available skills:** Use \`flask-blueprint-generator\` for Blueprint refactoring, \`flask-migration-generator\` for migration management.`,
       },
     ],
     skills: [

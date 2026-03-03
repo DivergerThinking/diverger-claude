@@ -13,35 +13,15 @@ export const expressProfile: Profile = {
         order: 20,
         content: `## Express Conventions
 
-### Application Setup
-- Use \`express.json()\` and \`express.urlencoded({ extended: false })\` for body parsing (Express 5 defaults \`extended\` to \`false\`)
-- Set security headers with \`helmet\` middleware — always load it first after CORS
-- Use \`compression\` middleware for gzip/Brotli responses (or delegate to a reverse proxy in production)
-- Disable the \`x-powered-by\` header (\`app.disable('x-powered-by')\`) to reduce fingerprinting
-- Set \`NODE_ENV=production\` in production — it enables view caching, CSS caching, and less-verbose errors (up to 3x perf gain)
-- Use \`app.set('trust proxy', ...)\` when behind a reverse proxy (Nginx, ALB) so \`req.ip\` and \`req.protocol\` are correct
+Middleware-based architecture. Route → validate → handle → respond pattern.
 
-### Routing & Middleware
-- Organize routes by resource/domain using \`express.Router()\` in separate files
-- Keep the middleware chain focused and composable — one concern per middleware
-- Order global middleware: CORS -> helmet -> compression -> body parsing -> logging -> auth -> routes -> 404 handler -> error handler
-- Use \`app.route('/resource')\` to chain HTTP methods and reduce duplication
-- Use \`router.param()\` for reusable parameter preprocessing (e.g., loading an entity by ID)
-- Use \`mergeParams: true\` on child routers that need access to parent route parameters
+**Detailed rules:** see \`.claude/rules/express/\` directory.
 
-### Async Error Handling
-- Express 5 automatically catches rejected promises in async handlers — no wrapper needed
-- Express 4 requires an async wrapper or \`express-async-errors\` to catch rejected promises
-- Always define a centralized error-handling middleware as the last middleware (\`(err, req, res, next)\`)
-- If headers are already sent, delegate to the default handler: \`if (res.headersSent) return next(err)\`
-
-### Architecture
-- Structure the app: routes -> controllers -> services -> data access
-- Controllers extract data from the request, call services, and send the response — no business logic
-- Services are framework-agnostic (no \`req\`/\`res\` objects) and throw typed errors
-- Use HTTP status codes correctly and consistently — 201 for creation, 204 for deletion, 422 for validation
-- Never send stack traces or internal errors to clients in production
-- Use environment-based configuration — never hardcode secrets`,
+**Key rules:**
+- Centralized error handling middleware — never swallow errors in route handlers
+- Validate request input at the boundary (Zod, Joi, or express-validator)
+- Use Router for route grouping, separate concerns: routes → controllers → services
+- Security middleware: helmet, cors, rate-limiting on auth endpoints`,
       },
     ],
     settings: {
@@ -61,6 +41,7 @@ export const expressProfile: Profile = {
     rules: [
       {
         path: 'express/middleware-and-error-handling.md',
+        paths: ['**/*.ts', '**/*.js', 'routes/**/*', 'middleware/**/*'],
         governance: 'mandatory',
         description: 'Express middleware chain, error handling, and async patterns',
         content: `# Express Middleware & Error Handling
@@ -240,6 +221,7 @@ export class ForbiddenError extends AppError {
       },
       {
         path: 'express/security.md',
+        paths: ['**/*.ts', '**/*.js', 'routes/**/*', 'middleware/**/*'],
         governance: 'mandatory',
         description: 'Express security patterns from official best practices',
         content: `# Express Security
@@ -386,6 +368,7 @@ app.get('/redirect', (req, res) => {
       },
       {
         path: 'express/route-organization.md',
+        paths: ['**/*.ts', '**/*.js', 'routes/**/*', 'middleware/**/*'],
         governance: 'recommended',
         description: 'Express route organization, project structure, and architecture',
         content: `# Express Route Organization & Architecture
@@ -511,6 +494,7 @@ When upgrading from Express 4 to 5:
       },
       {
         path: 'express/performance.md',
+        paths: ['**/*.ts', '**/*.js', 'routes/**/*', 'middleware/**/*'],
         governance: 'recommended',
         description: 'Express performance patterns from official best practices',
         content: `# Express Performance
@@ -590,6 +574,7 @@ Place Nginx or a cloud load balancer in front of Express to handle:
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['express-middleware-generator', 'express-router-generator'],
         prompt: `## Express-Specific Review
 
 ### Middleware & Error Handling
@@ -628,6 +613,7 @@ Place Nginx or a cloud load balancer in front of Express to handle:
       {
         name: 'test-writer',
         type: 'enrich',
+        skills: ['express-middleware-generator', 'express-router-generator'],
         prompt: `## Express Testing
 
 ### Integration Tests with Supertest
@@ -678,6 +664,7 @@ describe('POST /api/users', () => {
       {
         name: 'security-checker',
         type: 'enrich',
+        skills: ['express-middleware-generator'],
         prompt: `## Express Security Audit
 
 ### Headers & Transport
@@ -713,6 +700,7 @@ describe('POST /api/users', () => {
       {
         name: 'migration-helper',
         type: 'enrich',
+        skills: ['express-router-generator'],
         prompt: `## Express 4 -> Express 5 Migration
 
 ### Breaking Changes to Check

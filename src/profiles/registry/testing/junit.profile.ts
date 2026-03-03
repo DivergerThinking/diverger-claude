@@ -9,63 +9,19 @@ export const junitProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'JUnit Testing Conventions',
-        order: 3030,
-        content: `## JUnit Testing Conventions
+        heading: 'JUnit 5 Conventions',
+        order: 30,
+        content: `## JUnit 5 Conventions
 
-### Test Structure & Organization
-- Use JUnit 5 (Jupiter) APIs exclusively — never use JUnit 4 annotations (\`org.junit.Test\`, \`@RunWith\`) or runners
-- Place tests in \`src/test/java/\` mirroring the \`src/main/java/\` package structure — one test class per source class
-- Use \`@DisplayName\` on every test method and \`@Nested\` class for human-readable descriptions in test reports
-- Use \`@Nested\` inner classes to group related test scenarios hierarchically by method or behavior — max 2 levels of nesting
-- Follow the Given-When-Then or Arrange-Act-Assert (AAA) pattern in every test — clearly separate setup, execution, and verification
-- Use \`@Test\` from \`org.junit.jupiter.api.Test\`, never from \`org.junit.Test\`
-- Use \`@Disabled("JIRA-123: reason")\` instead of commenting out tests — always include a ticket reference
+Modern Java testing platform. Jupiter API with extensions, parameterized tests, nested tests.
 
-### Assertions & AssertJ
-- Prefer AssertJ fluent assertions over JUnit's built-in assertions for readability and discoverability
-- Use \`assertThat(result).isEqualTo(expected)\` for equality, \`assertThat(list).hasSize(3).contains(item)\` for collections
-- Use \`assertThatThrownBy(() -> ...)\` for exception assertions with type and message verification
-- Use \`SoftAssertions.assertSoftly(softly -> { ... })\` for grouped assertions that should all be evaluated without stopping at the first failure
-- Use \`assertThat(optional).isPresent().hasValue(expected)\` for Optional assertions
-- Use \`assertThat(result).extracting("field1", "field2")\` for object property extraction
-- Use \`assertAll()\` from JUnit only when AssertJ SoftAssertions is not available
+**Detailed rules:** see \`.claude/rules/junit/\` directory.
 
-### Parameterized Tests
-- Use \`@ParameterizedTest\` with descriptive \`name\` attribute instead of duplicating test methods
-- Use \`@ValueSource\` for single-argument tests with primitives or strings
-- Use \`@CsvSource\` for multi-argument tests with inline tabular data
-- Use \`@MethodSource\` for complex argument generation — method must be static and return \`Stream<Arguments>\`
-- Use \`@EnumSource\` for testing all or filtered enum values
-- Use \`@NullAndEmptySource\` combined with \`@ValueSource\` for null/empty edge cases
-- Use \`@ArgumentsSource\` with custom \`ArgumentsProvider\` for reusable complex argument generation
-
-### Lifecycle & Extensions
-- Use \`@BeforeEach\` / \`@AfterEach\` for per-test setup and teardown — keep setup minimal and test-specific
-- Use \`@BeforeAll\` / \`@AfterAll\` only for expensive shared resources (database connections, containers)
-- Use \`@ExtendWith(MockitoExtension.class)\` for Mockito integration — never call \`MockitoAnnotations.openMocks()\` manually
-- Use \`@TempDir\` for temporary file system operations — JUnit handles creation and cleanup automatically
-- Use \`@Timeout(value = 5, unit = TimeUnit.SECONDS)\` to prevent hanging tests
-- Avoid \`@TestInstance(Lifecycle.PER_CLASS)\` unless sharing expensive resources — default per-method is safer
-- Use \`@Tag("slow")\`, \`@Tag("integration")\` for test categorization and selective execution
-
-### Mocking with Mockito
-- Annotate test class with \`@ExtendWith(MockitoExtension.class)\` — this initializes \`@Mock\`, \`@Spy\`, and \`@InjectMocks\` automatically
-- Use \`@Mock\` for dependencies and \`@InjectMocks\` for the system under test — prefer constructor injection in production code
-- Use \`when(mock.method()).thenReturn(value)\` for stubbing — use \`thenThrow()\` for error simulation
-- Use BDDMockito \`given(...).willReturn(...)\` style for BDD-oriented tests
-- Use \`verify(mock).method(args)\` for interaction verification — avoid over-verification of implementation details
-- Use \`ArgumentCaptor<T>\` to capture and assert on method arguments passed to mocks
-- Use \`verifyNoMoreInteractions(mock)\` sparingly — only when exhaustive interaction checking is needed
-- Use strict stubbing (default in Mockito 5+) — use \`lenient()\` only when justified with a comment
-
-### Common Anti-Patterns to Avoid
-- Testing implementation details (private methods, internal state) instead of observable behavior
-- Tests that depend on execution order or share mutable state — each test must be independent
-- Multiple unrelated assertions in a single test without \`SoftAssertions\` — split into separate tests
-- Using \`Thread.sleep()\` in tests — use \`@Timeout\`, \`Awaitility\`, or \`CountDownLatch\` instead
-- Over-mocking: if you mock everything, you test nothing — mock only external boundaries
-- Catching exceptions manually instead of using \`assertThatThrownBy()\` or \`assertThrows()\``,
+**Key rules:**
+- \`@DisplayName\` for readable test names, nested \`@Nested\` classes for grouping
+- \`@ParameterizedTest\` with \`@ValueSource\`/\`@MethodSource\` for data-driven tests
+- AssertJ for fluent assertions, Mockito for mocking with \`@ExtendWith(MockitoExtension.class)\`
+- Test lifecycle: \`@BeforeEach\` for setup, \`@AfterEach\` for cleanup — no shared state`,
       },
     ],
     settings: {
@@ -85,6 +41,7 @@ export const junitProfile: Profile = {
     rules: [
       {
         path: 'testing/junit-conventions.md',
+        paths: ['**/*Test.java', '**/*Tests.java', 'src/test/**/*.java'],
         governance: 'mandatory',
         description:
           'JUnit 5 testing conventions and best practices — mandatory rules for test structure, assertions, mocking, and lifecycle management',
@@ -174,6 +131,7 @@ export const junitProfile: Profile = {
       },
       {
         path: 'testing/junit-project-structure.md',
+        paths: ['**/*Test.java', '**/*Tests.java', 'src/test/**/*.java'],
         governance: 'recommended',
         description:
           'JUnit 5 project structure and configuration recommendations for Maven and Gradle',
@@ -287,6 +245,7 @@ junit.jupiter.displayname.generator.default=\\
         name: 'code-reviewer',
         type: 'enrich',
         prompt: `## JUnit 5-Specific Review Checklist
+Available skills: junit-test-generator
 - Verify JUnit 5 annotations are used exclusively — flag any \`org.junit.Test\`, \`@RunWith\`, or \`@Rule\` from JUnit 4
 - Check that \`@DisplayName\` is present on all test methods and \`@Nested\` classes for readable test reports
 - Verify \`@Nested\` classes are used for logical grouping of test scenarios by method or behavior
@@ -307,6 +266,7 @@ junit.jupiter.displayname.generator.default=\\
         name: 'test-writer',
         type: 'enrich',
         prompt: `## JUnit 5-Specific Test Writing Guidelines
+Available skills: junit-test-generator
 - Structure tests with \`@Nested\` inner classes grouped by method under test or scenario
 - Use \`@DisplayName\` on every test method and \`@Nested\` class for human-readable descriptions
 - Follow Given-When-Then pattern: set up preconditions, execute the action, verify the outcome
@@ -339,6 +299,7 @@ junit.jupiter.displayname.generator.default=\\
         name: 'refactor-assistant',
         type: 'enrich',
         prompt: `## JUnit Test Refactoring Guidance
+Available skills: junit-test-generator
 - Replace duplicated test logic with \`@ParameterizedTest\` using \`@CsvSource\` or \`@MethodSource\`
 - Extract shared test setup into \`@BeforeEach\` methods — but keep setup minimal and shared-only
 - Replace JUnit 4 annotations with Jupiter equivalents: \`@Before\` to \`@BeforeEach\`, \`@RunWith\` to \`@ExtendWith\`, \`@Rule\` to \`@ExtendWith\`

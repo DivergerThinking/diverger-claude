@@ -9,50 +9,19 @@ export const vitestProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'Vitest Testing Conventions',
+        heading: 'Vitest Conventions',
         order: 30,
-        content: `## Vitest Testing Conventions
+        content: `## Vitest Conventions
 
-### Core Principles
-- Leverage Vitest's native ESM support — no module transformation workarounds required
-- Use Vitest's own API: \`vi.fn()\`, \`vi.spyOn()\`, \`vi.mock()\`, \`vi.hoisted()\` — never import from Jest
-- Follow Arrange-Act-Assert (AAA) pattern in every test
-- Keep tests deterministic — no reliance on timing, randomness, or external services
-- One logical assertion per test — multiple expects only when verifying a single cohesive behavior
+Fast Vite-native test runner. ESM-first, in-source testing support.
 
-### Test Structure
-- Organize tests with \`describe\` blocks mirroring module structure (max 3 nesting levels)
-- Use clear, descriptive test names: \`it('should return 404 when user does not exist')\`
-- Place tests colocated as \`*.test.ts\` / \`*.spec.ts\` or in a parallel \`__tests__/\` directory
-- One test file per source module — mirror the source directory structure
-- Use \`test.each\` / \`it.each\` for parameterized tests with multiple input combinations
+**Detailed rules:** see \`.claude/rules/vitest/\` directory.
 
-### Mocking
-- Use \`vi.mock()\` at module level for dependency mocking with full TypeScript type safety
-- Use \`vi.hoisted()\` for mock factories that need to be hoisted above vi.mock() calls
-- Use \`vi.spyOn()\` when preserving original implementation matters
-- Use \`vi.stubEnv()\` / \`vi.unstubAllEnvs()\` for environment variable testing
-- Use \`vi.stubGlobal()\` / \`vi.unstubAllGlobals()\` for global variable mocking
-- Reset mocks in \`afterEach\` with \`vi.restoreAllMocks()\` to ensure test isolation
-- Use \`vi.useFakeTimers()\` for time-dependent tests, \`vi.useRealTimers()\` in cleanup
-
-### Vitest-Specific Features
-- Use \`expectTypeOf\` for compile-time type assertions in \`*.test-d.ts\` files
-- Use in-source testing with \`if (import.meta.vitest) { ... }\` for small utility functions
-- Use \`vitest bench\` with \`bench()\` in \`*.bench.ts\` files for performance benchmarks
-- Configure \`pool: 'threads'\` for speed or \`pool: 'forks'\` for full isolation
-- Use workspace configuration (\`vitest.workspace.ts\`) for monorepo projects
-- Enable concurrent tests with \`describe.concurrent\` or \`it.concurrent\` for independent tests
-
-### Commands Reference
-- \`npx vitest\` — run in watch mode (development)
-- \`npx vitest run\` — single run (CI)
-- \`npx vitest run --coverage\` — with coverage report
-- \`npx vitest --ui\` — visual UI mode for development
-- \`npx vitest bench\` — run benchmarks
-- \`npx vitest typecheck\` — run type-level tests
-- \`npx vitest --reporter=verbose\` — detailed test output
-- \`npx vitest related src/module.ts\` — run tests related to changed files`,
+**Key rules:**
+- Arrange-Act-Assert pattern, \`describe\`/\`it\` with descriptive names
+- Co-locate tests: \`*.test.ts\` next to source or in \`__tests__/\` directory
+- Use \`vi.fn()\`/\`vi.spyOn()\` for mocking, \`vi.mock()\` for module-level
+- Snapshot tests only for serializable output — prefer explicit assertions`,
       },
     ],
     settings: {
@@ -72,6 +41,7 @@ export const vitestProfile: Profile = {
     rules: [
       {
         path: 'testing/vitest-conventions.md',
+        paths: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx'],
         governance: 'mandatory',
         description: 'Vitest testing conventions, mocking patterns, and best practices',
         content: `# Vitest Testing Conventions
@@ -140,6 +110,7 @@ vi.mock('./module', () => ({ myFn: mockFn }));
       },
       {
         path: 'testing/vitest-patterns.md',
+        paths: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx'],
         governance: 'recommended',
         description: 'Vitest advanced patterns and anti-patterns to avoid',
         content: `# Vitest Advanced Patterns
@@ -184,6 +155,7 @@ vi.mock('./module', () => ({ myFn: mockFn }));
         name: 'code-reviewer',
         type: 'enrich',
         prompt: `## Vitest-Specific Review
+Available skills: vitest-test-generator
 - Verify mocks are properly reset in afterEach (vi.restoreAllMocks or vi.clearAllMocks)
 - Check that vi.mock() calls are at module level, not inside test functions
 - Verify vi.hoisted() is used for mock factory variables that need hoisting above vi.mock()
@@ -201,6 +173,7 @@ vi.mock('./module', () => ({ myFn: mockFn }));
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Vitest-Specific Testing
+Available skills: vitest-test-generator
 - Use \`vi.fn()\` for creating type-safe mock functions
 - Use \`vi.spyOn()\` when you need to observe calls while preserving original behavior
 - Use \`vi.mock()\` at module level with \`vi.hoisted()\` for mock factory variables
@@ -220,6 +193,7 @@ vi.mock('./module', () => ({ myFn: mockFn }));
         name: 'refactor-assistant',
         type: 'enrich',
         prompt: `## Vitest-Specific Refactoring
+Available skills: vitest-test-generator
 - When refactoring, always run \`npx vitest run\` after each atomic change to verify no regressions
 - Use \`npx vitest related src/changed-file.ts\` to run only tests affected by a refactored module
 - Extract repeated test setup into beforeEach blocks or custom vi.fn() factories

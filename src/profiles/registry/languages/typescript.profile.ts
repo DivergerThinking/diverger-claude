@@ -13,38 +13,15 @@ export const typescriptProfile: Profile = {
         order: 10,
         content: `## TypeScript Conventions
 
-### Type Safety
-- Enable \`"strict": true\` in tsconfig.json — this activates noImplicitAny, strictNullChecks, strictFunctionTypes, strictBindCallApply, strictPropertyInitialization, noImplicitThis, alwaysStrict, and useUnknownInCatchVariables
-- Enable \`noUncheckedIndexedAccess\` for safer array/object indexed access
-- Use \`unknown\` instead of \`any\` — explicitly narrow with type guards, \`typeof\`, \`instanceof\`, or discriminated unions
-- Use \`satisfies\` operator to validate types while preserving narrower inferred types
-- Use \`as const\` assertions for literal types and immutable data structures
-- Use branded/opaque types for domain-specific IDs and validated values (e.g., \`UserId\`, \`Email\`, \`PositiveInt\`)
-- Prefer \`interface\` for object shapes (extendable, better error messages); use \`type\` for unions, intersections, mapped types, and conditional types
-- Use \`readonly\` on properties and arrays/tuples when mutation is not needed
-- Use \`NoInfer<T>\` (TS 5.4+) to control type inference in generic functions
+Strict TypeScript with maximum type safety. No \`any\`, prefer \`unknown\`. Discriminated unions over type assertions.
 
-### Imports and Exports
-- Use \`import type { Foo }\` or \`import { type Foo }\` for type-only imports — reduces runtime bundle and clarifies intent
-- Group imports: (1) node built-ins, (2) external packages, (3) internal modules, (4) type-only imports
-- Prefer named exports over default exports — enables consistent imports across codebase
-- Use ESM (\`import\`/\`export\`) — never use \`require()\` in TypeScript
+**Detailed rules:** see \`.claude/rules/typescript/\` directory.
 
-### Patterns
-- Use discriminated unions for state machines, variant types, and API responses — always handle exhaustively with \`switch\` + \`never\` default
-- Prefer \`const\` arrays with \`as const\` over \`enum\` — unions of string literals are tree-shakeable, structurally typed, and bundle-friendly
-- Use template literal types for string manipulation at the type level
-- Use \`Record<K, V>\` for index signatures, \`Map<K, V>\` for dynamic key collections
-- Use utility types: \`Partial<T>\`, \`Required<T>\`, \`Readonly<T>\`, \`Pick<T, K>\`, \`Omit<T, K>\`, \`ReturnType<F>\`, \`Awaited<T>\`, \`Parameters<F>\`
-- Use explicit return types on exported/public functions — private/local functions may rely on inference
-- Prefer nullish coalescing (\`??\`) over logical OR (\`||\`) for default values — avoids false-positive on \`0\`, \`""\`, \`false\`
-- Prefer optional chaining (\`?.\`) over manual null checks
-
-### Error Handling
-- Use typed error classes extending \`Error\` with meaningful \`message\` and \`cause\`
-- In catch blocks, treat the caught value as \`unknown\` (enabled by \`useUnknownInCatchVariables\`) and narrow before accessing properties
-- Use Result/Either patterns for expected, recoverable failures in library code
-- Never silently swallow errors — always log or rethrow with context`,
+**Key rules:**
+- Enable \`strict\`, \`noUncheckedIndexedAccess\` — use \`satisfies\` and \`as const\` over enums
+- Explicit return types on exported functions, \`catch (error: unknown)\`
+- Prefer \`import type\` for type-only imports, barrel exports only at package boundary
+- Use \`Result\`/discriminated union patterns for expected failures`,
       },
     ],
     settings: {
@@ -62,6 +39,7 @@ export const typescriptProfile: Profile = {
         path: 'typescript/conventions.md',
         governance: 'mandatory',
         description: 'TypeScript coding conventions and type safety rules',
+        paths: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'],
         content: `# TypeScript Conventions
 
 ## Why This Matters
@@ -315,6 +293,7 @@ export function calculateTotal(items: CartItem[]) {
         path: 'typescript/naming-and-structure.md',
         governance: 'recommended',
         description: 'TypeScript naming conventions and project structure guidelines',
+        paths: ['**/*.ts', '**/*.tsx'],
         content: `# TypeScript Naming & Project Structure
 
 ## Why This Matters
@@ -430,6 +409,7 @@ function transform<A, B>(input: A, fn: (val: A) => B): B {
         path: 'typescript/async-patterns.md',
         governance: 'recommended',
         description: 'TypeScript async/await patterns and Promise handling',
+        paths: ['**/*.ts', '**/*.tsx'],
         content: `# TypeScript Async Patterns
 
 ## Why This Matters
@@ -543,6 +523,7 @@ function add(a: number, b: number): number {
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['typescript-module-scaffold'],
         prompt: `## TypeScript-Specific Review Checklist
 
 ### Type Safety
@@ -621,6 +602,7 @@ function add(a: number, b: number): number {
       {
         name: 'refactor-assistant',
         type: 'enrich',
+        skills: ['typescript-module-scaffold'],
         prompt: `## TypeScript Refactoring Patterns
 
 ### Type System Refactorings
@@ -753,7 +735,7 @@ export { create{Feature} } from './{feature}.service.js';
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.(ts|tsx)$" && grep -nP "\\bcatch\\s*\\(\\w+\\)" "$CLAUDE_FILE_PATH" | grep -vE ":\\s*unknown" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: catch block without explicit :unknown type annotation — enable useUnknownInCatchVariables or annotate manually" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.(ts|tsx)$" && grep -nE "\\bcatch\\s*\\(\\w+\\)" "$CLAUDE_FILE_PATH" | grep -vE ":\\s*unknown" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: catch block without explicit :unknown type annotation — enable useUnknownInCatchVariables or annotate manually" || true',
             timeout: 5,
           },
         ],

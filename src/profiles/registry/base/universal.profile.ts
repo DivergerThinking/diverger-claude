@@ -10,109 +10,20 @@ export const universalProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'Code Quality Standards',
+        heading: 'Project Conventions',
         order: 0,
-        content: `## Code Quality Standards
+        content: `## Project Conventions
 
-### Clean Code Principles
-- **Meaningful names**: variables, functions, and classes must reveal intent — no abbreviations, no single-letter names outside loops
-- **Small functions**: each function does one thing, at one level of abstraction, under 30 lines
-- **Single Responsibility**: every module/class/function has one reason to change
-- **DRY without over-abstraction**: extract only when a pattern repeats 3+ times and the abstraction is natural
-- **YAGNI**: do not build speculative features — only what is currently needed
-- **Boy Scout Rule**: leave code cleaner than you found it
+Clean Code, SOLID, and security-first development. Conventional Commits for all git messages.
 
-### SOLID Principles
-- **S — Single Responsibility**: one class = one reason to change
-- **O — Open/Closed**: extend behavior without modifying existing code (use interfaces, strategy pattern)
-- **L — Liskov Substitution**: subtypes must be substitutable for their base types without altering correctness
-- **I — Interface Segregation**: prefer many small, focused interfaces over one large interface
-- **D — Dependency Inversion**: depend on abstractions, not concretions — inject dependencies
+**Detailed rules:** see \`.claude/rules/\` directory.
 
-### Key Patterns
-- Prefer composition over inheritance
-- Prefer pure functions for business logic — no side effects, same input = same output
-- Prefer explicit over implicit behavior
-- Use guard clauses for early returns instead of deeply nested conditionals
-- Encapsulate boundary conditions (off-by-one, null checks) in dedicated helpers
-
-### Common Anti-Patterns to Avoid
-- **God objects/functions**: classes or functions that do too much — split by responsibility
-- **Primitive obsession**: use value objects or types instead of raw strings/numbers for domain concepts
-- **Feature envy**: a function that uses more data from another module than its own — move it there
-- **Shotgun surgery**: one change requires editing many files — consolidate related logic
-- **Dead code**: remove unused functions, variables, imports — do not comment them out`,
-      },
-      {
-        heading: 'Git Conventions',
-        order: 1,
-        content: `## Git Conventions
-
-### Conventional Commits (v1.0.0)
-Format: \`<type>[optional scope]: <description>\`
-
-Types:
-- \`feat\`: new feature (MINOR in SemVer)
-- \`fix\`: bug fix (PATCH in SemVer)
-- \`docs\`: documentation only
-- \`style\`: formatting, no logic change
-- \`refactor\`: code change that neither fixes a bug nor adds a feature
-- \`perf\`: performance improvement
-- \`test\`: adding or correcting tests
-- \`chore\`: maintenance tasks (deps, config)
-- \`ci\`: CI/CD configuration changes
-- \`build\`: build system or external dependency changes
-- \`revert\`: reverts a previous commit
-
-Breaking changes: append \`!\` before colon or add \`BREAKING CHANGE:\` footer.
-Example: \`feat(auth)!: require OAuth2 for all endpoints\`
-
-### Commit Discipline
-- Keep commits atomic — one logical change per commit
-- Write imperative mood in the subject line ("add feature" not "added feature")
-- Subject line max 72 characters, body wraps at 80
-- Separate subject from body with a blank line
-- Never commit secrets, credentials, API keys, or .env files
-- Squash WIP commits before merging to main`,
-      },
-      {
-        heading: 'Error Handling',
-        order: 2,
-        content: `## Error Handling
-
-### Principles
-- Handle errors explicitly — never silently swallow exceptions
-- Fail fast on unrecoverable errors — do not attempt heroic recovery
-- Use typed/custom error classes with meaningful messages and context
-- Log errors with sufficient context: what failed, which inputs, what state
-- Provide user-friendly error messages separately from debug information
-
-### Patterns
-- Use guard clauses to validate preconditions at function entry
-- Wrap external calls (APIs, DB, filesystem) in try/catch with specific error types
-- Propagate errors up the call stack — do not handle at the wrong level of abstraction
-- Use Result/Either patterns when the language supports them for expected failures
-- Distinguish between operational errors (expected) and programmer errors (bugs)
-
-### Anti-Patterns
-- Empty catch blocks — always log or rethrow
-- Catch-all handlers that swallow error context
-- Using exceptions for control flow
-- Returning null instead of throwing on unexpected failures
-- Error messages that leak internal implementation details to end users`,
-      },
-      {
-        heading: 'Performance Awareness',
-        order: 3,
-        content: `## Performance Awareness
-
-- Avoid premature optimization — profile first, optimize hot paths
-- Be aware of algorithmic complexity: prefer O(n) or O(n log n) over O(n^2) for data processing
-- Avoid unnecessary allocations inside tight loops
-- Use pagination for large data sets — never load unbounded collections into memory
-- Cache expensive computations when the result is reusable and invalidation is manageable
-- Prefer streaming over buffering for large I/O operations
-- Measure before and after: every optimization must be validated with benchmarks`,
+**Key principles:**
+- Small functions (<30 lines), meaningful names, guard clauses over nesting
+- Handle errors explicitly — no empty catch blocks, typed errors with context
+- Parameterized queries, input validation, no hardcoded secrets (OWASP Top 10)
+- Atomic commits in imperative mood, \`<type>[scope]: <description>\` format
+- Profile before optimizing — prefer O(n) over O(n²), paginate large datasets`,
       },
     ],
     settings: {
@@ -164,7 +75,7 @@ Example: \`feat(auth)!: require OAuth2 for all endpoints\`
           {
             type: 'command',
             command:
-              'tail -c 1 "$CLAUDE_FILE_PATH" | grep -qP "\\S" && echo "HOOK_EXIT:0:Warning: file does not end with a newline" || true',
+              'tail -c 1 "$CLAUDE_FILE_PATH" | grep -q "[^[:space:]]" && echo "HOOK_EXIT:0:Warning: file does not end with a newline" || true',
             timeout: 5,
           },
         ],

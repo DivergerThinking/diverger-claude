@@ -1,16 +1,8 @@
 import type { AgentDefinition, ComposedConfig, GeneratedFile } from '../../core/types.js';
 import { CLAUDE_DIR, AGENTS_DIR } from '../../core/constants.js';
 import { assertPathWithin } from '../../utils/fs.js';
+import { yamlEscape } from './yaml-utils.js';
 import path from 'path';
-
-/** Escape a string for safe inclusion in YAML frontmatter */
-function yamlEscape(value: string): string {
-  if (/[:\n\r#"'{}[\],&*?|><!%@`]/.test(value) || value.trim() !== value) {
-    return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`;
-
-  }
-  return value;
-}
 
 /** Validate an agent name is safe for use as a filename */
 function validateAgentName(name: string): void {

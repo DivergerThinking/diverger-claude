@@ -13,56 +13,15 @@ export const ginProfile: Profile = {
         order: 20,
         content: `## Gin Conventions
 
-### Engine Setup
-- Use \`gin.New()\` in production with explicitly registered middleware — \`gin.Default()\` is for development only (includes Logger + Recovery)
-- Set \`gin.SetMode(gin.ReleaseMode)\` in production via \`GIN_MODE=release\` env var — never leave debug mode in production
-- Call \`engine.SetTrustedProxies()\` with explicit CIDR ranges — Gin trusts ALL proxies by default, which is insecure
-- If not behind a proxy, disable with \`engine.SetTrustedProxies(nil)\` so \`c.ClientIP()\` returns the remote address directly
-- Set \`engine.MaxMultipartMemory\` to limit multipart form memory (default 32 MiB)
-- Use \`engine.HandleMethodNotAllowed = true\` and register \`engine.NoMethod()\` for proper 405 responses
-- Register \`engine.NoRoute()\` to return structured JSON 404 responses instead of the default plain-text "404 page not found"
+Fast Go HTTP framework. Middleware chains, structured routing with \`gin.Engine\`.
 
-### Routing & Route Groups
-- Group related routes with \`router.Group("/prefix")\` for shared middleware and path prefixes
-- Apply auth middleware at the group level, not per-route — keeps route registration clean and consistent
-- Use RESTful conventions: GET reads, POST creates, PUT full replaces, PATCH partial updates, DELETE removes
-- Version APIs via route groups: \`v1 := router.Group("/api/v1")\`, \`v2 := router.Group("/api/v2")\`
-- Keep handler functions thin — extract request data, call service, write response
-- Never import gin packages in the service layer — keep services framework-agnostic
+**Detailed rules:** see \`.claude/rules/gin/\` directory.
 
-### Request Binding & Validation
-- Use \`ShouldBind\` variants (\`ShouldBindJSON\`, \`ShouldBindQuery\`, \`ShouldBindUri\`) — they return errors for you to handle
-- Never use \`Bind\` / \`BindJSON\` / \`MustBindWith\` — they abort with 400 on failure, giving you no control over the error response
-- Combine binding sources: \`ShouldBindUri\` for path params, \`ShouldBindQuery\` for query, \`ShouldBindJSON\` for body
-- Use struct tags for validation: \`binding:"required,min=1,max=100"\` (powered by go-playground/validator)
-- Register custom validators via \`binding.Validator.Engine().(*validator.Validate).RegisterValidation()\`
-- Return 400 with structured validation error details on binding failure — never return raw validator error strings
-
-### Response Patterns
-- Use \`c.JSON(status, obj)\` for typed struct responses — prefer typed structs for documented API responses
-- Use \`gin.H{}\` only for ad-hoc or error responses — never for primary API contracts
-- Maintain a consistent envelope: \`{"data": ...}\` for success, \`{"error": {"code": "...", "message": "..."}}\` for errors
-- Use correct HTTP status codes: 200 OK, 201 Created, 204 No Content, 400 Bad Request, 401/403/404/409/422/429/500
-
-### Middleware
-- Use \`gin.HandlerFunc\` signature for all middleware
-- Call \`c.Next()\` to proceed, \`c.Abort()\` to stop the chain, \`c.AbortWithStatusJSON()\` to stop with a JSON error response
-- Order middleware: Recovery -> Logging -> Security headers -> CORS -> Auth -> Rate limiting -> Handlers
-- Create middleware factories (functions returning \`gin.HandlerFunc\`) for configurable middleware
-- Use \`c.Set()\` / \`c.Get()\` / \`c.MustGet()\` for passing typed data through the middleware chain
-- Use \`CustomRecoveryWithWriter\` instead of default \`Recovery()\` to format panic responses as JSON
-
-### Error Handling
-- Use \`c.Error(err)\` to collect errors during request processing for centralized handling
-- Create an error-handling middleware that runs after \`c.Next()\` and processes \`c.Errors\` in bulk
-- Define application error types with HTTP status codes for the error middleware to map
-- Never expose internal error details (stack traces, SQL errors, file paths) to clients
-- Log errors with request context: method, path, client IP, request ID, latency
-
-### Graceful Shutdown
-- Wrap the Gin engine in an \`http.Server\` with explicit ReadTimeout, WriteTimeout, and IdleTimeout
-- Use \`signal.Notify\` for SIGINT/SIGTERM and call \`server.Shutdown(ctx)\` with a timeout context
-- Close database pools, caches, and background workers after the server stops accepting requests`,
+**Key rules:**
+- Route groups for API versioning and middleware scoping
+- \`ShouldBindJSON\`/\`ShouldBindQuery\` for input validation with struct tags
+- Custom middleware for auth, logging, rate-limiting — use \`c.Next()\` and \`c.Abort()\`
+- Structured error responses: consistent JSON shape across all endpoints`,
       },
     ],
     settings: {
@@ -78,6 +37,7 @@ export const ginProfile: Profile = {
     rules: [
       {
         path: 'gin/routing-middleware.md',
+        paths: ['**/*.go'],
         governance: 'mandatory',
         description: 'Gin routing, middleware chain, and request binding patterns',
         content: `# Gin Routing, Middleware & Request Binding
@@ -272,6 +232,7 @@ func handleCreateUser2(c *gin.Context) {
       },
       {
         path: 'gin/error-handling.md',
+        paths: ['**/*.go'],
         governance: 'mandatory',
         description: 'Gin centralized error handling and standard error response patterns',
         content: `# Gin Error Handling
@@ -453,6 +414,7 @@ func handler3(c *gin.Context) {
       },
       {
         path: 'gin/project-structure.md',
+        paths: ['**/*.go'],
         governance: 'recommended',
         description: 'Gin project structure, handler pattern, and production configuration',
         content: `# Gin Project Structure & Production Config
@@ -661,6 +623,7 @@ type Config struct {
       },
       {
         path: 'gin/security.md',
+        paths: ['**/*.go'],
         governance: 'mandatory',
         description: 'Gin security patterns: trusted proxies, CORS, security headers, rate limiting',
         content: `# Gin Security
@@ -863,7 +826,9 @@ func BadAuthMiddleware() gin.HandlerFunc {
 ### Graceful Shutdown
 - Verify the Gin engine is wrapped in http.Server with explicit ReadTimeout, WriteTimeout, IdleTimeout
 - Check for signal.Notify handling SIGINT/SIGTERM with server.Shutdown()
-- Verify database pools and connections are closed after server shutdown`,
+- Verify database pools and connections are closed after server shutdown
+
+**Available skills:** Use \`gin-handler-generator\` to scaffold new handlers, \`gin-middleware-generator\` for middleware.`,
       },
       {
         name: 'test-writer',
@@ -922,7 +887,9 @@ func TestCreateOrder_Integration(t *testing.T) {
 - Mock service layer interfaces — never mock HTTP internals or Gin context directly
 - Test route groups: verify auth middleware is applied to protected routes and absent from public routes
 - Test NoRoute and NoMethod handlers return structured JSON responses
-- Use table-driven tests with t.Run() for handlers with multiple input scenarios`,
+- Use table-driven tests with t.Run() for handlers with multiple input scenarios
+
+**Available skills:** Use \`gin-handler-generator\` to scaffold handlers with tests, \`gin-middleware-generator\` for middleware with tests.`,
       },
       {
         name: 'security-checker',
@@ -955,7 +922,9 @@ func TestCreateOrder_Integration(t *testing.T) {
 - Verify panic recovery middleware returns JSON, not default HTML
 - Check that 500 errors return generic messages — never err.Error() from database, filesystem, or external services
 - Verify validation errors do not expose internal struct field names (use json tag names)
-- Check that c.Errors are processed by middleware — not left unhandled`,
+- Check that c.Errors are processed by middleware — not left unhandled
+
+**Available skills:** Use \`gin-handler-generator\` to scaffold secure handlers, \`gin-middleware-generator\` for security middleware.`,
       },
     ],
     skills: [

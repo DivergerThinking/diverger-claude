@@ -13,20 +13,15 @@ export const fastapiProfile: Profile = {
         order: 20,
         content: `## FastAPI Conventions
 
-- Use \`async def\` for endpoints performing I/O (database, HTTP calls, file I/O); use \`def\` for CPU-bound endpoints — FastAPI runs sync endpoints in a threadpool
-- Define all request and response data with Pydantic models — never accept or return raw dicts
-- Use separate Pydantic schemas per operation: \`UserCreate\`, \`UserUpdate\`, \`UserResponse\` — never expose internal fields (password hashes, internal IDs) in response models
-- Use \`Annotated[type, Depends(fn)]\` for all dependency injection — create reusable type aliases for common dependencies
-- Organize routes with \`APIRouter\` — one router per domain/resource with prefix, tags, and shared dependencies
-- Specify \`response_model\` and explicit \`status_code\` on every path operation
-- Use \`Path()\`, \`Query()\`, \`Body()\`, \`Header()\`, \`Cookie()\` for parameter metadata, validation, and OpenAPI documentation
-- Use \`Field()\` with constraints (\`min_length\`, \`max_length\`, \`ge\`, \`le\`, \`pattern\`) on all Pydantic model fields
-- Use \`lifespan\` async context manager for startup/shutdown logic (DB pools, caches, ML models) — not deprecated \`on_event\`
-- Use \`BackgroundTasks\` for fire-and-forget work (emails, notifications) — use Celery/task queues for heavy or critical background processing
-- Use \`HTTPException\` with proper status codes and detail messages for error responses — create custom exception handlers for domain errors
-- Configure CORS, TrustedHost, and GZip middleware via \`app.add_middleware()\`
-- Use Pydantic Settings (\`BaseSettings\`) with \`.env\` files for configuration — inject settings as a dependency with \`@lru_cache\`
-- Keep OpenAPI documentation accurate: add \`summary\`, \`description\`, \`tags\`, \`responses\`, and model examples`,
+Async-first Python API framework. Pydantic models for validation, dependency injection for shared logic.
+
+**Detailed rules:** see \`.claude/rules/fastapi/\` directory.
+
+**Key rules:**
+- Pydantic models for all request/response schemas — never use raw dicts
+- Dependency injection via \`Depends()\` for auth, DB sessions, and shared services
+- Path operations organized by router (\`APIRouter\`), one domain per router file
+- Background tasks for non-blocking operations, proper async DB drivers`,
       },
     ],
     settings: {
@@ -46,6 +41,7 @@ export const fastapiProfile: Profile = {
     rules: [
       {
         path: 'fastapi/architecture.md',
+        paths: ['**/*.py', 'app/**/*', 'routers/**/*'],
         governance: 'mandatory',
         description: 'FastAPI project structure, routing, and Pydantic patterns',
         content: `# FastAPI Architecture
@@ -271,6 +267,7 @@ class User(BaseModel):
       },
       {
         path: 'fastapi/dependencies-and-settings.md',
+        paths: ['**/*.py', 'app/**/*', 'routers/**/*'],
         governance: 'mandatory',
         description: 'FastAPI dependency injection, settings, and configuration patterns',
         content: `# FastAPI Dependencies & Settings
@@ -459,6 +456,7 @@ client = TestClient(app)
       },
       {
         path: 'fastapi/error-handling.md',
+        paths: ['**/*.py', 'app/**/*', 'routers/**/*'],
         governance: 'mandatory',
         description: 'FastAPI error handling, exception handlers, and security patterns',
         content: `# FastAPI Error Handling & Security
@@ -669,6 +667,7 @@ app.add_middleware(
       },
       {
         path: 'fastapi/testing-deployment.md',
+        paths: ['**/*.py', 'app/**/*', 'routers/**/*'],
         governance: 'recommended',
         description: 'FastAPI testing strategies and deployment patterns',
         content: `# FastAPI Testing & Deployment
@@ -821,6 +820,7 @@ CMD ["fastapi", "dev", "main.py"]  # Dev server in production!
       },
       {
         path: 'fastapi/websockets-advanced.md',
+        paths: ['**/*.py', 'app/**/*', 'routers/**/*'],
         governance: 'recommended',
         description: 'FastAPI WebSocket patterns and advanced features',
         content: `# FastAPI WebSockets & Advanced Patterns
@@ -977,6 +977,7 @@ alembic downgrade -1
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['fastapi-endpoint-generator', 'fastapi-crud-scaffold'],
         prompt: `## FastAPI-Specific Review
 - Verify endpoints use \`async def\` for I/O-bound operations and \`def\` for CPU-bound
 - Check that all request/response data uses Pydantic models with Field constraints — no raw dicts
@@ -997,6 +998,7 @@ alembic downgrade -1
       {
         name: 'test-writer',
         type: 'enrich',
+        skills: ['fastapi-endpoint-generator', 'fastapi-crud-scaffold'],
         prompt: `## FastAPI Testing
 - Use \`TestClient\` from \`fastapi.testclient\` for synchronous endpoint tests
 - Use \`httpx.AsyncClient\` with \`ASGITransport\` for async endpoint tests

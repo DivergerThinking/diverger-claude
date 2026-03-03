@@ -13,21 +13,15 @@ export const fiberProfile: Profile = {
         order: 20,
         content: `## Fiber Conventions
 
-- Fiber is built on top of fasthttp, NOT net/http — third-party libraries expecting net/http require the fiber adaptor package
-- Use fiber.New(fiber.Config{}) for app initialization — configure ErrorHandler, StructValidator, AppName, and timeouts at creation
-- Register routes with app.Get(), app.Post(), app.Put(), app.Patch(), app.Delete(); use app.All() for all methods
-- Use app.Group() for route groups with shared middleware and path prefixes
-- Use app.Use() for global middleware; in v3 Use() also mounts sub-apps (replaces v2 app.Mount)
-- Use c.Bind().Body() (v3) or c.BodyParser() (v2) for request body parsing into structs
-- Use c.JSON() for JSON responses, c.SendString() for plain text, c.SendStatus() for empty responses
-- Return errors from handlers — use fiber.NewError(code, message) for HTTP-level errors
-- Configure fiber.Config.ErrorHandler for centralized error response formatting
-- Use c.Locals() for passing request-scoped data through the middleware chain (type-safe Get/Set in v3)
-- Be aware that fasthttp reuses request/response objects — do NOT store references to c.Body(), c.Params(), c.Query() beyond the handler
-- Use copy() or string() conversion to retain values when passing to goroutines or async operations
-- Configure graceful shutdown with app.ShutdownWithTimeout() or app.ShutdownWithContext() with signal handling
-- Register app hooks for lifecycle events: OnListen, OnPreShutdown, OnPostShutdown
-- Use ListenConfig for production: EnablePrefork for multi-process, TLS certificates, GracefulContext for signal-based shutdown`,
+Express-inspired Go framework built on fasthttp. High throughput, familiar API.
+
+**Detailed rules:** see \`.claude/rules/fiber/\` directory.
+
+**Key rules:**
+- Route grouping with \`app.Group()\`, middleware for cross-cutting concerns
+- \`c.BodyParser()\` for input binding, validate with struct tags or custom validators
+- Use Fiber's built-in middleware: recover, logger, limiter, cors, helmet
+- Note: fasthttp is NOT net/http compatible — some Go libraries may not work`,
       },
     ],
     settings: {
@@ -43,6 +37,7 @@ export const fiberProfile: Profile = {
     rules: [
       {
         path: 'fiber/routing-middleware.md',
+        paths: ['**/*.go'],
         governance: 'mandatory',
         description: 'Fiber routing, middleware, and error handling patterns',
         content: `# Fiber Routing & Middleware
@@ -296,6 +291,7 @@ func (h *Handler) ProcessAsync(c fiber.Ctx) error {
       },
       {
         path: 'fiber/project-structure.md',
+        paths: ['**/*.go'],
         governance: 'recommended',
         description: 'Fiber project structure, configuration, and lifecycle management',
         content: `# Fiber Project Structure & Lifecycle
@@ -478,6 +474,7 @@ func main() {
       },
       {
         path: 'fiber/security-production.md',
+        paths: ['**/*.go'],
         governance: 'mandatory',
         description: 'Fiber production hardening and security best practices',
         content: `# Fiber Security & Production Hardening
@@ -590,7 +587,9 @@ app := fiber.New(fiber.Config{
 - Verify CORS is configured restrictively (no wildcard "*" in production)
 - Check for graceful shutdown with signal handling and ShutdownWithContext/ShutdownWithTimeout
 - Verify ProxyHeader and TrustedProxies are configured when behind a reverse proxy
-- Check consistent JSON response shapes across all endpoints (success and error)`,
+- Check consistent JSON response shapes across all endpoints (success and error)
+
+**Available skills:** Use \`fiber-handler-generator\` to scaffold new handlers, \`fiber-middleware-generator\` for middleware.`,
       },
       {
         name: 'test-writer',
@@ -642,7 +641,9 @@ func TestGetUser_Success(t *testing.T) {
 - Test error cases: parsing failures, validation errors, service errors, auth failures, not found
 - Test the custom ErrorHandler with various error types including fiber.NewError() and wrapped errors
 - Test route groups to verify middleware is applied correctly (e.g., auth group requires token)
-- Test fasthttp edge cases: empty body, missing Content-Type, oversized payload`,
+- Test fasthttp edge cases: empty body, missing Content-Type, oversized payload
+
+**Available skills:** Use \`fiber-handler-generator\` to scaffold handlers with tests, \`fiber-middleware-generator\` for middleware with tests.`,
       },
       {
         name: 'security-checker',
@@ -659,7 +660,9 @@ func TestGetUser_Success(t *testing.T) {
 - Verify Limiter middleware is applied to auth endpoints and public APIs
 - Check that ReadTimeout, WriteTimeout, IdleTimeout, and BodyLimit are set
 - Verify ProxyHeader and TrustedProxies are configured when deployed behind a load balancer
-- Check that Prefork mode accounts for non-shared in-memory state across worker processes`,
+- Check that Prefork mode accounts for non-shared in-memory state across worker processes
+
+**Available skills:** Use \`fiber-handler-generator\` to scaffold secure handlers, \`fiber-middleware-generator\` for security middleware.`,
       },
     ],
     skills: [

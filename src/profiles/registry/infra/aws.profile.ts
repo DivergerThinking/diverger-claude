@@ -9,129 +9,19 @@ export const awsProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'AWS Cloud Conventions',
-        order: 4020,
-        content: `## AWS Cloud Conventions
+        heading: 'AWS Conventions',
+        order: 40,
+        content: `## AWS Conventions
 
-### Well-Architected Framework Principles
-- Design for failure: assume every component can fail — use multi-AZ deployments, retries with exponential backoff, and circuit breakers
-- Apply the principle of least privilege to ALL IAM policies, security groups, and resource policies
-- Automate everything: infrastructure changes go through IaC (CDK, CloudFormation, Terraform) — no manual console changes in production
-- Use managed services over self-hosted when possible — let AWS handle undifferentiated heavy lifting (RDS over self-managed DB, Fargate over EC2 for containers)
-- Tag all resources consistently for cost allocation, ownership tracking, and automated operations
-- Encrypt data at rest (KMS, SSE) and in transit (TLS 1.2+) — no exceptions
-- Design for cost awareness: use right-sizing, spot instances, reserved capacity, and Savings Plans
-- Enable observability from day one: CloudWatch metrics, alarms, dashboards, and X-Ray tracing
+Cloud-native AWS patterns. IAM least-privilege, infrastructure as code, observability.
 
-### IAM Security
-- Use IAM roles for ALL service-to-service communication — never use long-lived access keys
-- Use IAM Identity Center (SSO) for human user access — never create IAM users with console passwords
-- Enable MFA on all human accounts, especially the root account
-- Scope IAM policies to specific resources and actions — avoid \`Resource: "*"\` and \`Action: "*"\`
-- Use conditions in IAM policies: \`aws:SourceIp\`, \`aws:RequestedRegion\`, \`aws:PrincipalOrgID\`
-- Use IAM Access Analyzer to identify unused permissions and public/cross-account access
-- Use Service Control Policies (SCPs) in AWS Organizations for account-level guardrails
-- Use permission boundaries to delegate IAM management without granting full admin
-- Rotate credentials regularly and remove unused IAM users, roles, and access keys
-- Never use the root account for daily operations — lock it down with MFA hardware token
+**Detailed rules:** see \`.claude/rules/aws/\` directory.
 
-### S3 Best Practices
-- Enable server-side encryption (SSE-S3 or SSE-KMS) on all buckets — use bucket policies to enforce
-- Block public access at the account level (\`S3 Block Public Access\`) and bucket level by default
-- Enable versioning for critical data buckets — use lifecycle policies to manage version costs
-- Use S3 access points for application-level access control instead of complex bucket policies
-- Use S3 Intelligent-Tiering or lifecycle policies to move infrequently accessed data to cheaper storage classes
-- Enable access logging and CloudTrail data events for audit trails on sensitive buckets
-- Use pre-signed URLs for temporary access — never make buckets public for file sharing
-- Use multipart upload for files >100MB and transfer acceleration for cross-region uploads
-
-### Lambda Best Practices
-- Initialize SDK clients and database connections outside the handler function to reuse across invocations
-- Keep functions focused on a single responsibility — under 15 seconds of execution for API-backed functions
-- Set appropriate memory (proportional to CPU) and timeout configurations — use AWS Lambda Power Tuning to find optimal settings
-- Write idempotent code — Lambda guarantees at-least-once delivery, not exactly-once
-- Use environment variables for configuration, AWS Secrets Manager or SSM Parameter Store for secrets
-- Use Lambda layers for shared dependencies — keep deployment packages small
-- Use structured JSON logging with correlation IDs for distributed tracing
-- Use reserved concurrency for critical functions, provisioned concurrency for latency-sensitive workloads
-- Never store user data in the execution environment — it persists across invocations and leaks data
-- Avoid recursive Lambda invocations — use Step Functions for orchestration
-- Cache static assets in \`/tmp\` (up to 10GB ephemeral storage) for subsequent invocations
-- Use Powertools for AWS Lambda for idempotency, structured logging, metrics, and tracing
-
-### DynamoDB Best Practices
-- Design tables around access patterns — understand query requirements BEFORE creating tables
-- Use single-table design when multiple entities share access patterns to minimize latency and cost
-- Choose partition keys with high cardinality to distribute workload evenly
-- Use composite sort keys for flexible querying (e.g., \`STATUS#TIMESTAMP\`)
-- Use Global Secondary Indexes (GSIs) for alternate query patterns — local secondary indexes only if you need strong consistency
-- Use on-demand capacity for unpredictable workloads, provisioned with auto-scaling for steady workloads
-- Enable point-in-time recovery (PITR) for critical tables
-- Use DynamoDB Streams for event-driven architectures and cross-region replication
-
-### Networking & VPC
-- Use VPC endpoints (Gateway and Interface) for private access to AWS services — avoid NAT Gateway costs for AWS-to-AWS traffic
-- Use private subnets for databases, application servers, and Lambda functions — public subnets only for load balancers and bastion hosts
-- Use security groups as the primary network access control — stateful, easier to manage than NACLs
-- Follow the principle of least privilege for security groups: specific ports, specific source CIDR or security group references
-- Use Transit Gateway for multi-VPC and hybrid connectivity instead of VPC peering at scale
-- Enable VPC Flow Logs for network monitoring and security analysis
-
-### Monitoring & Observability
-- Create CloudWatch alarms for every critical metric: error rates, latency p99, queue depth, throttling
-- Use CloudWatch Contributor Insights to identify top-N contributors to operational issues
-- Use AWS X-Ray for distributed tracing across Lambda, API Gateway, and downstream services
-- Use CloudWatch Logs Insights for querying structured logs at scale
-- Enable AWS Config for configuration compliance monitoring
-- Enable GuardDuty for threat detection across accounts
-- Use Security Hub for centralized security findings aggregation
-- Use AWS Cost Anomaly Detection to catch unexpected spending spikes`,
-      },
-      {
-        heading: 'AWS CDK & Infrastructure as Code',
-        order: 4021,
-        content: `## AWS CDK & Infrastructure as Code
-
-### CDK Application Structure
-- Model infrastructure with Constructs (reusable logical units), deploy with Stacks (deployment units)
-- Keep infrastructure code and runtime code (Lambda handlers, Docker images) in the same package for atomic versioning
-- Use L2 (curated) and L3 (pattern) constructs over L1 (raw CloudFormation) for safer defaults
-- Organize by feature/domain: each construct encapsulates a complete capability (API + Lambda + DynamoDB)
-- Start simple and add complexity as requirements evolve — do not over-architect the CDK app upfront
-
-### CDK Best Practices
-- Let CDK generate resource names — do not hardcode physical names (prevents duplicate deployments, enables replacement)
-- Pass references via construct properties (props), not environment variables inside constructs
-- Use \`grant*\` methods for IAM permissions: \`bucket.grantRead(myLambda)\` — generates least-privilege policies automatically
-- Separate stateful resources (databases, S3 buckets) from stateless resources (Lambda, API Gateway) into different stacks
-- Enable termination protection on stateful stacks
-- Commit \`cdk.context.json\` to version control for deterministic synthesis
-- Model all environments (dev, staging, production) as separate stacks in the same app — one commit produces all templates
-- Make decisions at synthesis time using programming language constructs (if/for), not CloudFormation Conditions or Parameters
-- Define removal policies and log retention explicitly — CDK defaults to RETAIN which may cause resource leaks
-- Use Aspects for cross-cutting concerns: enforce encryption, validate tagging, audit security groups
-- Never perform side effects (API calls, resource modifications) during synthesis
-
-### CDK Security
-- Use CDK \`grant*\` methods instead of manually writing IAM policies — they generate least-privilege automatically
-- Enforce guardrails with SCPs and permission boundaries, not just CDK wrapper constructs
-- Use \`cdk-nag\` for static analysis of CloudFormation templates generated by CDK
-- Validate templates with CloudFormation Guard before deployment
-- Use CDK Pipelines for automated, auditable deployments with approval stages
-
-### CDK Testing
-- Write unit tests asserting logical IDs of stateful resources remain stable (renaming causes replacement)
-- Test infrastructure assertions: \`Template.fromStack(stack).hasResourceProperties(...)\`
-- Use snapshot tests to catch unintended drift in generated CloudFormation templates
-- Test each construct in isolation with mock dependencies
-
-### CloudFormation Best Practices
-- Use \`DeletionPolicy: Retain\` on stateful resources (databases, S3 buckets) to prevent accidental data loss
-- Use \`UpdateReplacePolicy: Retain\` for resources that cannot be recreated without data loss
-- Use stack policies to prevent updates to critical resources
-- Use change sets to preview infrastructure changes before applying them
-- Use nested stacks or StackSets for multi-account/multi-region deployments
-- Export outputs sparingly — cross-stack references create tight coupling and prevent independent stack updates`,
+**Key rules:**
+- IAM roles with least-privilege policies — never use root or \`*\` permissions
+- Use IaC (CDK, SAM, CloudFormation) — no manual console changes in production
+- Enable CloudTrail, CloudWatch Logs, and X-Ray for observability
+- Encrypt at rest (KMS) and in transit (TLS) for all data stores`,
       },
     ],
     settings: {
@@ -176,6 +66,7 @@ export const awsProfile: Profile = {
       {
         path: 'infra/aws-security.md',
         governance: 'mandatory',
+        paths: ['**/*.ts', '**/*.py', 'cdk/**/*', 'sam/**/*', 'cloudformation/**/*', 'template.yaml'],
         description: 'AWS IAM security, encryption, network isolation, and secret management best practices',
         content: `# AWS Security Best Practices
 
@@ -329,6 +220,7 @@ export async function handler() {
       {
         path: 'infra/aws-tagging.md',
         governance: 'recommended',
+        paths: ['**/*.ts', '**/*.py', 'cdk/**/*', 'sam/**/*', 'cloudformation/**/*', 'template.yaml'],
         description: 'AWS resource tagging strategy for cost allocation, ownership, and automated operations',
         content: `# AWS Resource Tagging Strategy
 
@@ -388,6 +280,7 @@ Tags.of(app).add('Owner', 'platform-team');
       {
         path: 'infra/aws-cdk-conventions.md',
         governance: 'recommended',
+        paths: ['**/*.ts', '**/*.py', 'cdk/**/*', 'sam/**/*', 'cloudformation/**/*', 'template.yaml'],
         description: 'AWS CDK construct design, stack organization, and deployment patterns',
         content: `# AWS CDK Conventions
 
@@ -516,6 +409,8 @@ test('Lambda function has appropriate timeout', () => {
         type: 'enrich',
         prompt: `## AWS-Specific Review Checklist
 
+**Available skill:** \`aws-cdk-scaffold\` — use when generating new AWS CDK infrastructure.
+
 ### IAM & Security
 - Check IAM policies follow least privilege: no \`"Action": "*"\` or \`"Resource": "*"\` unless explicitly justified
 - Verify no hardcoded AWS credentials, access keys, or secret keys in source code
@@ -555,6 +450,8 @@ test('Lambda function has appropriate timeout', () => {
         name: 'security-checker',
         type: 'enrich',
         prompt: `## AWS Security Audit Checklist
+
+**Available skill:** \`aws-cdk-scaffold\` — use when generating secure AWS infrastructure from scratch.
 
 ### IAM Policy Analysis
 - CRITICAL: Flag any IAM policy with \`"Action": "*"\` or \`"Resource": "*"\` — demand specific scoping
@@ -596,6 +493,8 @@ test('Lambda function has appropriate timeout', () => {
         type: 'enrich',
         prompt: `## AWS Documentation Standards
 
+**Available skill:** \`aws-cdk-scaffold\` — use when scaffolding documented AWS projects.
+
 ### Architecture Documentation
 - Document AWS architecture with diagrams showing: VPC layout, subnets, security groups, service interactions, and data flow
 - Include a services inventory table: service name, purpose, region, and criticality level
@@ -625,6 +524,8 @@ test('Lambda function has appropriate timeout', () => {
         name: 'migration-helper',
         type: 'enrich',
         prompt: `## AWS Migration Assistance
+
+**Available skill:** \`aws-cdk-scaffold\` — use when generating CDK infrastructure for migrated projects.
 
 ### AWS SDK v2 to v3 Migration
 - Replace monolithic \`aws-sdk\` import with modular clients: \`@aws-sdk/client-s3\`, \`@aws-sdk/client-dynamodb\`

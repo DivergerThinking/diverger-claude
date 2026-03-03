@@ -12,61 +12,15 @@ export const kotlinProfile: Profile = {
       order: 10,
       content: `## Kotlin Conventions
 
-### Naming (Official Coding Conventions)
-- Packages: lowercase, no underscores — \`org.example.project\`
-- Classes, objects, interfaces: PascalCase (nouns/noun phrases) — \`UserRepository\`, \`ConnectionPool\`
-- Functions: camelCase (verbs/verb phrases) — \`processDeclarations()\`, \`findById()\`
-- Properties, local variables: camelCase — \`remainingRetries\`, \`activeUserCount\`
-- Constants (\`const val\` / top-level \`val\`): SCREAMING_SNAKE_CASE — \`MAX_RETRY_COUNT\`, \`DEFAULT_TIMEOUT_MS\`
-- Backing properties: prefix with underscore — \`_elementList\` exposed as \`elementList\`
-- Acronyms: 2-letter uppercase (\`IOStream\`), 3+ capitalize only first (\`HttpClient\`, \`XmlParser\`)
-- Factory functions may match return type name — \`fun Foo(): Foo\`
-- Test methods: backticks or underscores allowed — \`\\\`should return 404 when user not found\\\`()\`
+Kotlin-idiomatic code. Null safety, data classes, coroutines for async.
 
-### Null Safety
-- Never use \`!!\` — use safe calls (\`?.\`), elvis (\`?:\`), or \`requireNotNull()\`/\`checkNotNull()\`
-- Use \`?.let { }\` for nullable transformations
-- Prefer \`lateinit\` for DI-injected properties over nullable types
-- Use \`value == true\` / \`value == false\` for nullable Boolean checks
-- Declare platform types explicitly in public API — never expose inferred platform types
+**Detailed rules:** see \`.claude/rules/kotlin/\` directory.
 
-### Idiomatic Patterns
-- Prefer \`val\` over \`var\` — immutability by default
-- Use immutable collection interfaces (\`List\`, \`Set\`, \`Map\`) — not \`MutableList\` in public API
-- Use \`data class\` for DTOs and value objects — no business logic beyond computed properties
-- Use \`sealed class\`/\`sealed interface\` for restricted hierarchies and state machines
-- Prefer \`sealed interface\` over \`sealed class\` when there is no shared state
-- Use \`when\` expressions (exhaustive) over if-else chains for 3+ branches
-- Use \`object\` declarations for singletons
-- Prefer default parameter values over function overloads
-- Use named arguments for calls with multiple same-type or Boolean parameters
-- Prefer expression body (\`= expr\`) for single-expression functions
-- Use extension functions to add behavior without inheritance
-- Use scope functions (\`let\`, \`run\`, \`with\`, \`apply\`, \`also\`) idiomatically — do not nest excessively
-- Use trailing commas in multi-line declarations and calls
-- Use \`typealias\` for complex or frequently used type expressions
-- Prefer higher-order functions (\`filter\`, \`map\`, \`fold\`) over manual loops — use regular \`for\` only when not chaining
-
-### Coroutines
-- Use coroutines for all asynchronous programming — never callbacks
-- Always launch coroutines within a \`CoroutineScope\` — never \`GlobalScope\`
-- Prefer \`viewModelScope\`, \`lifecycleScope\`, or custom scopes with explicit lifecycle
-- Use \`SupervisorJob\` / \`supervisorScope\` when child failures must not cancel siblings
-- Use \`Flow\` for reactive streams; \`StateFlow\` for observable state; \`SharedFlow\` for events
-- Use \`flowOn()\` to change dispatcher for upstream operations — never \`withContext\` inside \`flow { }\`
-- Inject dispatchers for testability — never hardcode \`Dispatchers.IO\` or \`Dispatchers.Main\`
-
-### Documentation (KDoc)
-- Use \`/**\` ... \`*/\` for all public members
-- First line: short summary sentence (shows in IDE tooltips and search)
-- Reference parameters with \`[paramName]\` in prose instead of \`@param\` tags
-- Use \`@throws\` / \`@return\` only when not obvious from the summary
-- Explicitly specify visibility and return types in library code
-
-### Tooling
-- Run \`ktlint\` or \`detekt\` as a formatting/lint gate before commits
-- Run \`./gradlew test\` before pushing
-- Run \`./gradlew detekt\` for static analysis`,
+**Key rules:**
+- Use \`data class\` for DTOs, \`sealed class\`/\`sealed interface\` for sum types
+- Leverage null safety: \`?.\`, \`?:\`, \`let\` — avoid \`!!\` (non-null assertion)
+- Coroutines with structured concurrency — use \`viewModelScope\`/\`lifecycleScope\`
+- Extension functions for utility, scope functions (\`let\`, \`apply\`, \`run\`) judiciously`,
     }],
     settings: {
       permissions: {
@@ -85,6 +39,7 @@ export const kotlinProfile: Profile = {
     rules: [
       {
         path: 'kotlin/style-and-null-safety.md',
+        paths: ['**/*.kt', '**/*.kts'],
         governance: 'mandatory',
         description: 'Kotlin naming conventions, null safety, and idiomatic patterns from official coding conventions',
         content: `# Kotlin Style & Null Safety
@@ -316,6 +271,7 @@ obj.let { a ->
       },
       {
         path: 'kotlin/coroutines-and-flow.md',
+        paths: ['**/*.kt', '**/*.kts'],
         governance: 'mandatory',
         description: 'Kotlin coroutines structured concurrency, Flow patterns, and error handling',
         content: `# Kotlin Coroutines & Flow Best Practices
@@ -609,6 +565,7 @@ searchQuery
       },
       {
         path: 'kotlin/project-structure-and-security.md',
+        paths: ['**/*.kt', '**/*.kts'],
         governance: 'recommended',
         description: 'Kotlin project structure, Gradle conventions, and security patterns',
         content: `# Kotlin Project Structure & Security
@@ -817,6 +774,7 @@ fun createUser(request: CreateUserRequest): User {
       {
         name: 'test-writer',
         type: 'enrich',
+        skills: ['kotlin-gradle-helper', 'kotlin-coroutine-debug'],
         prompt: `## Kotlin Testing Patterns
 
 ### Framework & Assertions
@@ -918,6 +876,7 @@ fun \`should notify user on successful payment\`() = runTest {
       {
         name: 'refactor-assistant',
         type: 'enrich',
+        skills: ['kotlin-gradle-helper'],
         prompt: `## Kotlin-Specific Refactoring Patterns
 
 ### Java to Kotlin Idioms
@@ -1069,7 +1028,7 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nP "\\!\\!(?![=])" "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: Non-null assertion (!!) detected — prefer safe calls (?.), elvis (?:), or requireNotNull()" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "\\!\\!([^=]|$)" "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: Non-null assertion (!!) detected — prefer safe calls (?.), elvis (?:), or requireNotNull()" || true',
             timeout: 10,
           },
         ],
@@ -1081,7 +1040,7 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nP "GlobalScope\\." "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:1:GlobalScope usage detected — use a lifecycle-bound CoroutineScope instead" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "GlobalScope\\." "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:1:GlobalScope usage detected — use a lifecycle-bound CoroutineScope instead" || true',
             timeout: 10,
           },
         ],
@@ -1093,7 +1052,7 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nP "\\bRuntime\\.getRuntime\\(\\)\\.exec\\b|\\bProcessBuilder\\(.*\\$" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: Process execution detected — verify no unsanitized user input reaches the command" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "\\bRuntime\\.getRuntime\\(\\)\\.exec\\b|\\bProcessBuilder\\(.*\\$" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:0:Warning: Process execution detected — verify no unsanitized user input reaches the command" || true',
             timeout: 10,
           },
         ],
@@ -1105,7 +1064,7 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nP "ObjectInputStream|readObject\\(\\)" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:1:Unsafe deserialization detected (ObjectInputStream) — use kotlinx.serialization or Moshi instead" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "ObjectInputStream|readObject\\(\\)" "$CLAUDE_FILE_PATH" | head -3 | grep -q "." && echo "HOOK_EXIT:1:Unsafe deserialization detected (ObjectInputStream) — use kotlinx.serialization or Moshi instead" || true',
             timeout: 10,
           },
         ],

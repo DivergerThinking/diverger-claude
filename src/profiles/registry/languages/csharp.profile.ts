@@ -13,51 +13,15 @@ export const csharpProfile: Profile = {
         order: 10,
         content: `## C# Conventions
 
-### Naming (Microsoft Framework Design Guidelines)
-- Types, records, structs, enums, properties, methods, events: \`PascalCase\`
-- Interfaces: prefix with \`I\` — \`IRepository\`, \`IDisposable\`, \`IAsyncEnumerable<T>\`
-- Local variables, parameters, lambda parameters: \`camelCase\`
-- Private/internal fields: \`_camelCase\` with underscore prefix — \`_userRepository\`, \`_logger\`
-- Constants and static readonly: \`PascalCase\` — \`MaxRetryCount\`, \`DefaultTimeout\`
-- Type parameters: single letter or \`T\`-prefixed descriptor — \`T\`, \`TKey\`, \`TValue\`, \`TResult\`
-- Namespaces: \`PascalCase\` matching folder structure — \`Company.Product.Feature\`
-- Never use Hungarian notation, underscores in public identifiers, or non-standard abbreviations
+Modern C# (10+) with nullable reference types, records, and pattern matching.
 
-### Modern C# Idioms (C# 11–13 / .NET 8+)
-- Enable nullable reference types project-wide: \`<Nullable>enable</Nullable>\`
-- Use file-scoped namespaces: \`namespace MyApp.Services;\` — one namespace per file
-- Use primary constructors (C# 12+) for DI and simple initialization
-- Use \`required\` properties for mandatory initialization without constructors
-- Use raw string literals (\`\"\"\"\`) for multi-line strings, JSON templates, SQL
-- Use collection expressions: \`int[] values = [1, 2, 3];\`
-- Use \`global using\` directives in a central file for common namespaces
-- Use records for immutable value semantics: \`record Person(string Name, int Age);\`
-- Use pattern matching with switch expressions for type-safe branching
-- Use \`using\` declarations (braceless) instead of \`using\` blocks where possible
-- Prefer language keywords over BCL types: \`string\` not \`String\`, \`int\` not \`Int32\`
+**Detailed rules:** see \`.claude/rules/csharp/\` directory.
 
-### Async/Await
-- Use \`async\`/\`await\` for all I/O-bound operations — never block with \`.Result\`, \`.Wait()\`, or \`.GetAwaiter().GetResult()\`
-- Suffix async methods with \`Async\`: \`GetUserAsync\`, \`SaveChangesAsync\`
-- Propagate \`CancellationToken\` in every async method signature
-- Use \`ValueTask<T>\` for hot paths that often complete synchronously
-- Use \`Task.WhenAll\` for independent concurrent operations
-- Use \`ConfigureAwait(false)\` in library code — omit in application/UI code
-- Use \`IAsyncEnumerable<T>\` with \`await foreach\` for streaming async data
-
-### LINQ
-- Use method syntax (\`.Where()\`, \`.Select()\`) for simple queries
-- Use query syntax (\`from x in y where ... select ...\`) for complex joins and grouping
-- Use \`.Any()\` instead of \`.Count() > 0\` for existence checks
-- Use deferred execution — only \`.ToList()\`/\`.ToArray()\` when materialization is needed
-- Use \`.FirstOrDefault()\` with null checks — not \`.First()\` on uncertain sequences
-- Rename anonymous type properties for clarity in projections
-
-### Tooling
-- Run \`dotnet format\` to enforce code style from \`.editorconfig\`
-- Run \`dotnet build /warnaserror\` in CI to enforce zero warnings
-- Enable Roslyn analyzers: \`<AnalysisLevel>latest-recommended</AnalysisLevel>\`
-- Use \`dotnet test --collect "XPlat Code Coverage"\` for coverage reports`,
+**Key rules:**
+- Enable nullable reference types (\`<Nullable>enable</Nullable>\`), use \`record\` for immutable DTOs
+- Async/await throughout — never block with \`.Result\` or \`.Wait()\`
+- Follow .NET naming: PascalCase for public members, \`_camelCase\` for private fields
+- Use LINQ for queries, but keep chains readable — extract complex predicates`,
       },
     ],
     settings: {
@@ -84,6 +48,7 @@ export const csharpProfile: Profile = {
     rules: [
       {
         path: 'csharp/naming-and-style.md',
+        paths: ['**/*.cs'],
         governance: 'mandatory',
         description: 'C# naming conventions and code style aligned with Microsoft Framework Design Guidelines',
         content: `# C# Naming & Code Style
@@ -222,6 +187,7 @@ public async Task<User?> FindByIdAsync(int userId, CancellationToken ct = defaul
       },
       {
         path: 'csharp/nullable-and-errors.md',
+        paths: ['**/*.cs'],
         governance: 'mandatory',
         description: 'C# nullable reference types, error handling, and defensive coding',
         content: `# C# Nullable Reference Types & Error Handling
@@ -379,6 +345,7 @@ await using var reader = await command.ExecuteReaderAsync(ct);
       },
       {
         path: 'csharp/patterns-and-architecture.md',
+        paths: ['**/*.cs'],
         governance: 'recommended',
         description: 'C# patterns, LINQ idioms, dependency injection, async patterns, and project structure',
         content: `# C# Patterns & Architecture
@@ -667,6 +634,7 @@ cmd.CommandText = $"SELECT * FROM Users WHERE Email = '{userEmail}'";  // NEVER
       {
         name: 'test-writer',
         type: 'enrich',
+        skills: ['dotnet-cli'],
         prompt: `## C# Testing Conventions
 
 ### Test Framework & Assertion
@@ -786,6 +754,7 @@ public class OrderServiceTests
       {
         name: 'refactor-assistant',
         type: 'enrich',
+        skills: ['dotnet-scaffold'],
         prompt: `## C#-Specific Refactoring Patterns
 
 ### Modernization (upgrade to C# 12+/.NET 8+)

@@ -10,114 +10,18 @@ export const githubActionsProfile: Profile = {
     claudeMd: [
       {
         heading: 'GitHub Actions Conventions',
-        order: 4010,
+        order: 40,
         content: `## GitHub Actions Conventions
 
-### Workflow Structure & Organization
-- Place all workflows in \`.github/workflows/\` with descriptive kebab-case file names: \`ci.yml\`, \`deploy-production.yml\`, \`release.yml\`
-- Separate CI (lint, test, build) from CD (deploy) workflows — each workflow has a single responsibility
-- Keep individual jobs focused on one concern: one job for linting, one for testing, one for building
-- Use \`name:\` at workflow, job, and step levels for clear visibility in the GitHub Actions UI
-- Use \`workflow_dispatch\` with \`inputs\` for manual triggers that need parameters (environment, version, dry-run flag)
+Workflow automation. Least-privilege permissions, pinned action versions, matrix builds.
 
-### Triggers & Filtering
-- Use path filters to run workflows only when relevant files change: \`paths: ['src/**', 'package.json']\`
-- Use \`paths-ignore\` to skip runs for documentation-only changes: \`paths-ignore: ['docs/**', '*.md']\`
-- Prefer \`pull_request\` over \`pull_request_target\` — the latter runs in the base branch context with write tokens and is a security risk
-- Use \`push\` trigger for main/release branches, \`pull_request\` for feature branches
-- Use \`on.schedule\` with cron syntax for periodic jobs (dependency audits, nightly builds)
+**Detailed rules:** see \`.claude/rules/github-actions/\` directory.
 
-### Caching & Performance
-- Cache package manager dependencies with \`actions/cache\` or built-in caching in \`actions/setup-node\`, \`actions/setup-python\`, etc.
-- Use lock file hashes in cache keys: \`hashFiles('**/package-lock.json')\` to invalidate on dependency changes
-- Use \`restore-keys\` for partial cache fallback when exact match misses
-- Cache build artifacts between jobs with \`actions/upload-artifact\` and \`actions/download-artifact\`
-- Use \`concurrency\` groups to cancel redundant workflow runs on the same branch: \`concurrency: { group: \${{ github.workflow }}-\${{ github.ref }}, cancel-in-progress: true }\`
-- Leverage BuildKit cache mounts for Docker builds in CI
-
-### Matrix Builds
-- Use \`strategy.matrix\` to test across multiple versions (Node 18/20/22, Python 3.10/3.11/3.12) and operating systems
-- Use \`include\`/\`exclude\` to customize specific matrix combinations
-- Set \`fail-fast: false\` to see all matrix failures, not just the first one
-- Use matrix values in step conditions and configurations for environment-specific behavior
-
-### Reusable Workflows & Composite Actions
-- Define reusable workflows with \`workflow_call\` trigger for shared CI/CD logic across repositories
-- Use \`inputs\` and \`secrets\` parameters for flexibility in reusable workflows
-- Use composite actions for reusable step sequences — place in \`.github/actions/<name>/action.yml\`
-- Version reusable workflows and actions with tags for stability across consuming repositories
-- Place organization-wide workflows in a \`.github\` repository for automatic inheritance
-
-### Artifacts & Outputs
-- Use \`actions/upload-artifact\` to share build outputs, test results, and coverage reports between jobs
-- Set appropriate artifact retention with \`retention-days\` — default 90 days may be excessive for CI artifacts
-- Use job outputs (\`outputs:\`) for passing small data (version strings, flags) between jobs in the same workflow
-- Use \`$GITHUB_OUTPUT\` (not deprecated \`set-output\`) for setting step outputs: \`echo "key=value" >> $GITHUB_OUTPUT\`
-- Use \`$GITHUB_ENV\` for setting environment variables for subsequent steps: \`echo "VAR=value" >> $GITHUB_ENV\`
-
-### Secrets & Environment Variables
-- Store all sensitive values (tokens, keys, passwords) in GitHub Secrets — never hardcode in workflow files
-- Use environment-level secrets for deployment credentials scoped to specific environments (staging, production)
-- Use \`vars\` context (\`\${{ vars.MY_VAR }}\`) for non-sensitive configuration that varies between environments
-- Use \`GITHUB_TOKEN\` (automatically provided) for GitHub API operations — avoid creating Personal Access Tokens when possible
-- Mask sensitive runtime values with \`::add-mask::VALUE\` to prevent accidental exposure in logs`,
-      },
-      {
-        heading: 'GitHub Actions Security',
-        order: 4011,
-        content: `## GitHub Actions Security
-
-### Supply Chain Hardening
-- Pin ALL third-party actions to full commit SHA — never use mutable tags (\`@v4\`, \`@main\`, \`@latest\`)
-  - Correct: \`uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11\`
-  - Wrong: \`uses: actions/checkout@v4\`
-- Review action source code before adding to workflows — even popular actions have been compromised (tj-actions/changed-files, March 2025)
-- Prefer official GitHub actions (\`actions/*\`) and verified creators from the Marketplace
-- Use Dependabot or Renovate to keep action SHAs up to date with security patches
-- Consider using \`actions/dependency-review-action\` on pull requests to catch vulnerable dependencies
-
-### Permissions (Least Privilege)
-- Set \`permissions: {}\` at workflow level as default (deny all), then grant specific permissions per job
-- Use \`permissions: read-all\` only when you explicitly need read access to everything — prefer granular grants
-- Never use \`permissions: write-all\` — grant only the specific write permissions each job requires
-- Common minimal permission sets:
-  - CI (test/lint): \`contents: read\`
-  - PR comments/checks: \`contents: read, pull-requests: write, checks: write\`
-  - Package publish: \`contents: read, packages: write\`
-  - GitHub Pages deploy: \`contents: read, pages: write, id-token: write\`
-  - Release creation: \`contents: write\`
-- Use \`id-token: write\` only for OIDC-based cloud authentication (AWS, Azure, GCP)
-
-### Script Injection Prevention
-- NEVER interpolate untrusted input directly in \`run:\` blocks with \`\${{ }}\` — this is the most common vulnerability
-  - Vulnerable: \`run: echo "\${{ github.event.issue.title }}"\` — attacker can inject shell commands via issue title
-  - Safe: set an environment variable first, then reference it:
-    \`\`\`yaml
-    env:
-      TITLE: \${{ github.event.issue.title }}
-    run: echo "$TITLE"
-    \`\`\`
-- Untrusted contexts include: \`github.event.issue.title\`, \`github.event.issue.body\`, \`github.event.pull_request.title\`, \`github.event.pull_request.body\`, \`github.event.comment.body\`, \`github.event.review.body\`, \`github.event.discussion.title\`, \`github.event.discussion.body\`, \`github.head_ref\`, \`github.event.pages.*.page_name\`
-- For JavaScript actions, pass untrusted data as \`with:\` inputs (arguments), not as interpolated strings
-
-### Environment Protection
-- Use environment protection rules for production deployments — require manual approval from designated reviewers
-- Restrict deployment branches to \`main\`, \`release/*\` — prevent arbitrary branches from deploying to production
-- Use environment-specific secrets so staging credentials are separate from production
-- Set deployment concurrency to prevent parallel deployments to the same environment
-- Use wait timers on environments to allow for rollback decisions after deployment
-
-### OIDC & Cloud Authentication
-- Use OpenID Connect (OIDC) instead of long-lived cloud credentials (AWS access keys, GCP service account keys)
-- Configure trust policies in cloud providers to accept tokens only from specific repositories and branches
-- OIDC provides short-lived, automatically rotated tokens — eliminates the risk of stolen static credentials
-- Use official OIDC actions: \`aws-actions/configure-aws-credentials\`, \`azure/login\`, \`google-github-actions/auth\`
-
-### Self-Hosted Runner Security
-- Never use self-hosted runners for public repositories — any pull request can execute arbitrary code on the runner
-- Harden self-hosted runners: run as non-root, use ephemeral runners, isolate with containers or VMs
-- Restrict self-hosted runner access to specific repositories or organizations
-- Audit runner labels and ensure workflows cannot target unintended runners`,
+**Key rules:**
+- Pin actions to full SHA, not tags — prevent supply chain attacks
+- Set \`permissions:\` at workflow level with minimum required scopes
+- Use matrix strategy for multi-version/multi-OS testing
+- Cache dependencies (\`actions/cache\`) to speed up builds`,
       },
     ],
     settings: {
@@ -136,6 +40,7 @@ export const githubActionsProfile: Profile = {
       {
         path: 'infra/github-actions-conventions.md',
         governance: 'mandatory',
+        paths: ['.github/workflows/**/*.yml', '.github/workflows/**/*.yaml', '.github/actions/**/*'],
         description: 'GitHub Actions workflow structure, triggers, caching, matrix, reusable workflows, and artifacts — mandatory conventions',
         content: `# GitHub Actions Conventions
 
@@ -199,6 +104,7 @@ export const githubActionsProfile: Profile = {
       {
         path: 'infra/github-actions-security.md',
         governance: 'mandatory',
+        paths: ['.github/workflows/**/*.yml', '.github/workflows/**/*.yaml', '.github/actions/**/*'],
         description: 'GitHub Actions security hardening — supply chain, permissions, script injection, environment protection, OIDC',
         content: `# GitHub Actions Security Hardening
 
@@ -277,6 +183,7 @@ export const githubActionsProfile: Profile = {
       {
         path: 'infra/github-actions-workflow-patterns.md',
         governance: 'recommended',
+        paths: ['.github/workflows/**/*.yml', '.github/workflows/**/*.yaml', '.github/actions/**/*'],
         description: 'GitHub Actions recommended workflow patterns and templates for common CI/CD scenarios',
         content: `# GitHub Actions Workflow Patterns
 
@@ -433,6 +340,9 @@ jobs:
         name: 'code-reviewer',
         type: 'enrich',
         prompt: `## GitHub Actions Workflow Review Checklist
+
+**Available skill:** \`github-actions-workflow-creator\` — use when creating new workflows.
+
 - Verify ALL third-party actions are pinned to full 40-character commit SHA — flag any using mutable tags (@v4, @main, @latest)
 - Check that \`permissions\` are set at workflow level (preferably \`permissions: {}\`) and scoped per job to minimum required
 - Verify \`concurrency\` groups are configured to cancel redundant runs on the same branch
@@ -450,6 +360,9 @@ jobs:
         name: 'security-checker',
         type: 'enrich',
         prompt: `## GitHub Actions Security Audit
+
+**Available skill:** \`github-actions-workflow-creator\` — use when creating secure workflows from scratch.
+
 - Verify ALL third-party actions are pinned to full commit SHA — flag tags and branch references as CRITICAL
 - Check for script injection vulnerabilities: \`\${{ github.event.issue.title }}\`, \`\${{ github.event.pull_request.body }}\`, \`\${{ github.event.comment.body }}\`, \`\${{ github.head_ref }}\` in \`run:\` blocks
 - Verify workflow-level \`permissions\` is set to \`{}\` or minimal read — flag \`permissions: write-all\` as CRITICAL
@@ -467,6 +380,9 @@ jobs:
         name: 'doc-writer',
         type: 'enrich',
         prompt: `## GitHub Actions Documentation Guidelines
+
+**Available skill:** \`github-actions-workflow-creator\` — use when scaffolding documented workflows.
+
 - Document every workflow file with a top-level comment block explaining purpose, triggers, and prerequisites
 - Include inline comments for non-obvious steps: complex expressions, conditional logic, environment-specific behavior
 - Document required secrets and environment variables in the repository README or a dedicated WORKFLOWS.md
@@ -480,6 +396,9 @@ jobs:
         name: 'migration-helper',
         type: 'enrich',
         prompt: `## GitHub Actions Migration Guidance
+
+**Available skill:** \`github-actions-workflow-creator\` — use when creating replacement workflows during migration.
+
 - When migrating from Jenkins/CircleCI/Travis CI: map pipeline stages to GitHub Actions jobs, use official setup actions instead of custom Docker images
 - When upgrading action versions: always pin to the new full commit SHA, not just the new tag — check the action's changelog for breaking changes
 - When migrating from \`set-output\` (deprecated): replace \`echo "::set-output name=key::value"\` with \`echo "key=value" >> $GITHUB_OUTPUT\`

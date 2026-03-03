@@ -13,51 +13,15 @@ export const rustProfile: Profile = {
         order: 10,
         content: `## Rust Conventions
 
-### Ownership, Borrowing & Lifetimes
-- Prefer borrowing (\`&T\`, \`&mut T\`) over transferring ownership when the caller retains the value
-- Use \`Cow<'_, T>\` when a function may or may not need to own its data
-- Avoid unnecessary \`.clone()\` — restructure ownership or use references instead
-- Let the compiler infer lifetimes via elision rules; annotate explicitly only when required
-- Name lifetimes descriptively for complex signatures (\`'input\`, \`'conn\`, \`'ctx\`)
-- Use \`'static\` sparingly — prefer bounded lifetimes for flexibility
+Ownership-driven design. Let the compiler guide you — fix warnings, not suppress them.
 
-### Error Handling
-- Use \`Result<T, E>\` for all fallible operations — never panic in library code
-- Use \`thiserror\` for library error types, \`anyhow\` for application-level error handling
-- Propagate errors with the \`?\` operator — avoid manual \`match\` on \`Result\`
-- Never use \`unwrap()\` or \`expect()\` in production code paths — use \`.unwrap_or_default()\`, \`.ok()\`, or \`?\`
-- Chain \`Option<T>\` with \`.map()\`, \`.and_then()\`, \`.unwrap_or_default()\`, \`.ok_or()\`
-- Annotate functions with \`#[must_use]\` when ignoring the return value is likely a bug
+**Detailed rules:** see \`.claude/rules/rust/\` directory.
 
-### Naming (Rust API Guidelines)
-- Types and traits: \`UpperCamelCase\` — \`HttpClient\`, \`ConnectionPool\`
-- Functions, methods, local variables: \`snake_case\` — \`read_to_string\`, \`is_empty\`
-- Constants and statics: \`SCREAMING_SNAKE_CASE\` — \`MAX_RETRIES\`, \`DEFAULT_PORT\`
-- Type conversions follow standard naming: \`as_\` (cheap ref-to-ref), \`to_\` (expensive conversion), \`into_\` (ownership transfer)
-- Getter methods omit \`get_\` prefix: \`.name()\` not \`.get_name()\`
-- Boolean methods/predicates: \`is_\`, \`has_\`, \`can_\`, \`should_\` prefixes
-- Iterator-producing methods: \`iter()\` (borrows), \`iter_mut()\` (mut borrows), \`into_iter()\` (consumes)
-
-### Traits & Generics
-- Derive standard traits: \`Debug\` on all types, \`Clone\`, \`PartialEq\`, \`Eq\`, \`Hash\` as appropriate
-- Implement \`Display\` for user-facing types, \`Debug\` for developer output
-- Use \`From\`/\`TryFrom\` for idiomatic type conversions — implement \`From<T>\` to get \`Into<T>\` free
-- Use \`AsRef<T>\` and \`AsMut<T>\` to accept multiple input types cheaply
-- Prefer \`impl Trait\` in argument position for simple bounds; use \`where\` clauses for complex bounds
-- Use \`#[non_exhaustive]\` on public enums and structs for forward compatibility
-
-### Async Rust
-- Prefer \`tokio\` as the async runtime for production workloads
-- Mark async functions with \`async fn\` — avoid manual \`Future\` implementations unless necessary
-- Use \`tokio::spawn\` for concurrent tasks, \`tokio::select!\` for racing futures
-- Always use cancellation-safe operations inside \`select!\` — consult tokio docs for safety guarantees
-- Prefer \`async-trait\` crate or Rust 1.75+ native async trait methods
-
-### Tooling
-- Run \`cargo fmt\` on every save — never deviate from \`rustfmt\` standard formatting
-- Run \`cargo clippy --all-targets --all-features -- -D warnings\` as a gate before commits
-- Run \`cargo test\` before pushing — include doc tests and integration tests
-- Use \`cargo doc --open\` to verify documentation renders correctly`,
+**Key rules:**
+- Prefer \`&str\` over \`String\` in function parameters, use \`impl Trait\` for flexibility
+- Error handling: \`Result<T, E>\` everywhere, \`thiserror\` for libraries, \`anyhow\` for apps
+- Use \`clippy\` and \`rustfmt\` — address all lints before committing
+- Unsafe blocks require safety comments documenting invariants`,
       },
     ],
     settings: {
@@ -84,6 +48,7 @@ export const rustProfile: Profile = {
     rules: [
       {
         path: 'rust/ownership-and-errors.md',
+        paths: ['**/*.rs'],
         governance: 'mandatory',
         description: 'Rust ownership, borrowing, lifetimes, and error handling conventions',
         content: `# Rust Ownership, Borrowing & Error Handling
@@ -211,6 +176,7 @@ pub fn validate(input: &str) -> ValidationResult {
       },
       {
         path: 'rust/api-design.md',
+        paths: ['**/*.rs'],
         governance: 'mandatory',
         description: 'Rust API design following official API Guidelines (naming, traits, conversions)',
         content: `# Rust API Design (API Guidelines)
@@ -390,6 +356,7 @@ pub fn parse_config(path: &str) -> Result<Config, ConfigError> { /* ... */ }
       },
       {
         path: 'rust/patterns-and-idioms.md',
+        paths: ['**/*.rs'],
         governance: 'recommended',
         description: 'Rust patterns, iterators, async, unsafe, and project structure idioms',
         content: `# Rust Patterns & Idioms
@@ -589,6 +556,7 @@ src/
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['rust-cargo-helper', 'rust-debug-skill'],
         prompt: `## Rust-Specific Review
 
 ### Ownership & Performance
@@ -692,6 +660,7 @@ src/
       {
         name: 'refactor-assistant',
         type: 'enrich',
+        skills: ['rust-cargo-helper', 'rust-debug-skill'],
         prompt: `## Rust-Specific Refactoring
 
 ### Ownership Refactoring
@@ -840,7 +809,7 @@ async fn login(username: &str, password: &str) -> Result<Token> {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nP "\\bunwrap\\(\\)|\\bexpect\\(" "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: unwrap()/expect() detected — verify these are not in production code paths" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "\\bunwrap\\(\\)|\\bexpect\\(" "$CLAUDE_FILE_PATH" | head -5 | grep -q "." && echo "HOOK_EXIT:0:Warning: unwrap()/expect() detected — verify these are not in production code paths" || true',
             timeout: 10,
           },
         ],
@@ -852,7 +821,7 @@ async fn login(username: &str, password: &str) -> Result<Token> {
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nP "^\\s*unsafe\\s*\\{" "$CLAUDE_FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$CLAUDE_FILE_PATH" | grep -q "SAFETY:" || echo "HOOK_EXIT:0:Warning: unsafe block at line $line missing // SAFETY: comment"; done || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "^\\s*unsafe\\s*\\{" "$CLAUDE_FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$CLAUDE_FILE_PATH" | grep -q "SAFETY:" || echo "HOOK_EXIT:0:Warning: unsafe block at line $line missing // SAFETY: comment"; done || true',
             timeout: 10,
           },
         ],

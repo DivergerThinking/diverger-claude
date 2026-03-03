@@ -9,67 +9,19 @@ export const jestProfile: Profile = {
   contributions: {
     claudeMd: [
       {
-        heading: 'Jest Testing Conventions',
-        order: 3000,
-        content: `## Jest Testing Conventions
+        heading: 'Jest Conventions',
+        order: 30,
+        content: `## Jest Conventions
 
-### Test Structure & Organization
-- Place tests in \`__tests__/\` directories or colocate as \`*.test.ts\` / \`*.spec.ts\` — one test file per source module
-- Mirror source directory structure in test directories for discoverability
-- Use \`describe\` blocks to group related tests by function, behavior, or scenario — max 3 levels of nesting
-- Use clear, behavior-focused test names: \`it('should return 404 when user does not exist')\`
-- Follow Arrange-Act-Assert (AAA) pattern in every test — separate setup, execution, and verification
-- Use \`test.todo('description')\` to document planned tests rather than leaving empty blocks
+Full-featured test runner. Built-in mocking, snapshot testing, code coverage.
 
-### Mocking Patterns
-- Use \`jest.fn()\` for creating standalone mock functions with full call tracking
-- Use \`jest.mock()\` at module level (hoisted automatically) to replace entire dependency modules
-- Use \`jest.spyOn(object, 'method')\` to track calls while preserving original implementation — restore with \`spy.mockRestore()\`
-- Use \`jest.requireActual()\` inside \`jest.mock()\` factory to partially mock a module while keeping real implementations
-- Reset mocks in \`afterEach\` — prefer \`jest.restoreAllMocks()\` to undo spyOn, or configure \`restoreMocks: true\` in jest config
-- Type mock return values correctly in TypeScript to catch type mismatches at compile time
+**Detailed rules:** see \`.claude/rules/jest/\` directory.
 
-### Assertions & Matchers
-- Use \`toBe()\` for primitive equality (uses \`Object.is()\`), \`toEqual()\` for deep equality, \`toStrictEqual()\` for deep equality with type checking
-- Use \`toMatchObject()\` for partial object matching — verifies subset of properties
-- Use \`expect.objectContaining()\`, \`expect.arrayContaining()\`, \`expect.any(Constructor)\` for flexible asymmetric matching
-- Use \`toThrow()\` wrapped in \`expect(() => fn())\` — never call the function directly inside expect
-- Use \`resolves\` / \`rejects\` for promise assertions: \`await expect(promise).resolves.toEqual(value)\`
-- Use \`expect.assertions(n)\` or \`expect.hasAssertions()\` in callback-based async tests to ensure assertions run
-
-### Parameterized Tests
-- Use \`test.each\` / \`describe.each\` for data-driven tests instead of duplicating test bodies
-- Prefer array-of-objects format with destructuring for readability: \`test.each([{input, expected}])\`
-- Use template literal syntax for concise tabular data: \`test.each\\\`a | b | expected\\\`\`
-- Provide meaningful test names using printf tokens: \`%s\`, \`%d\`, \`%j\`, \`$propertyName\`
-
-### Snapshot Testing
-- Use snapshots for UI components, serializable output, and error message formats — not for business logic
-- Prefer \`toMatchInlineSnapshot()\` for small, self-contained snapshots visible directly in test code
-- Use property matchers for dynamic values: \`expect(obj).toMatchSnapshot({ id: expect.any(Number), createdAt: expect.any(Date) })\`
-- Review snapshot changes carefully in code reviews — never blindly update with \`--updateSnapshot\`
-- Keep snapshots small and focused — avoid snapshotting entire pages or large data structures
-- Use \`eslint-plugin-jest\` rule \`no-large-snapshots\` to enforce size limits
-
-### Fake Timers
-- Use \`jest.useFakeTimers()\` for testing setTimeout, setInterval, Date.now, and other time-dependent logic
-- Advance time explicitly with \`jest.advanceTimersByTime(ms)\` or \`jest.runAllTimers()\`
-- Always restore real timers in \`afterEach\` with \`jest.useRealTimers()\` to prevent test pollution
-- Use \`jest.setSystemTime(date)\` to control \`Date.now()\` and \`new Date()\` in fake timer mode
-
-### Coverage
-- Enforce coverage thresholds in jest config: \`coverageThreshold: { global: { branches: 80, functions: 80, lines: 80, statements: 80 } }\`
-- Focus on meaningful coverage — cover edge cases, error paths, and boundary conditions, not just line count
-- Use \`collectCoverageFrom\` to explicitly include source files and exclude generated code
-- Use \`/* istanbul ignore next */\` sparingly with a justification comment explaining why
-
-### Common Anti-Patterns to Avoid
-- Testing implementation details (private methods, internal state) instead of observable behavior
-- Tests that depend on execution order or share mutable state — each test must run independently
-- Over-mocking: if you mock everything, you test nothing — mock only external boundaries
-- Using \`test.only\` or \`describe.only\` in committed code — use only for local debugging
-- Empty catch blocks in async tests — always assert the error or use \`rejects\`
-- Calling \`jest.mock()\` inside test functions — it must be at module level to be hoisted correctly`,
+**Key rules:**
+- AAA pattern, \`describe\`/\`it\` blocks with clear behavioral descriptions
+- \`jest.fn()\`/\`jest.spyOn()\` for mocks, \`jest.mock()\` at module level
+- Prefer \`toEqual\`/\`toStrictEqual\` over \`toBe\` for objects
+- Avoid snapshot overuse — use for UI components, not logic`,
       },
     ],
     settings: {
@@ -90,6 +42,7 @@ export const jestProfile: Profile = {
     rules: [
       {
         path: 'testing/jest-conventions.md',
+        paths: ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/*.test.jsx', '**/*.spec.ts', '**/*.spec.tsx'],
         governance: 'mandatory',
         description: 'Jest testing conventions and best practices — mandatory rules for test structure, mocking, assertions, and coverage',
         content: `# Jest Testing Conventions
@@ -151,6 +104,7 @@ export const jestProfile: Profile = {
       },
       {
         path: 'testing/jest-configuration.md',
+        paths: ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/*.test.jsx', '**/*.spec.ts', '**/*.spec.tsx'],
         governance: 'recommended',
         description: 'Jest configuration best practices and recommended settings',
         content: `# Jest Configuration Best Practices
@@ -230,6 +184,7 @@ projects: [
         name: 'code-reviewer',
         type: 'enrich',
         prompt: `## Jest-Specific Review Checklist
+Available skills: jest-test-generator
 - Verify mocks are properly managed: check for \`jest.restoreAllMocks()\` in \`afterEach\` or \`restoreMocks: true\` in config
 - Verify \`jest.mock()\` calls are at module level, not inside test functions (they are hoisted by Jest)
 - Check that \`test.each\` / \`it.each\` is used for parameterized cases instead of duplicated test bodies
@@ -247,6 +202,7 @@ projects: [
         name: 'test-writer',
         type: 'enrich',
         prompt: `## Jest-Specific Test Writing Guidelines
+Available skills: jest-test-generator
 - Structure tests with \`describe\` and \`it\`/\`test\` blocks — group by function or behavior, max 3 nesting levels
 - Use descriptive names: \`it('should throw ValidationError when email is empty')\`
 - Follow AAA pattern: arrange test data and mocks, act by calling the function, assert with expect matchers
@@ -278,6 +234,7 @@ projects: [
         name: 'refactor-assistant',
         type: 'enrich',
         prompt: `## Jest Test Refactoring Guidance
+Available skills: jest-test-generator
 - Replace duplicated test logic with \`test.each\` parameterized tests
 - Extract shared test setup into \`beforeEach\` blocks or shared helper functions
 - Replace manual mock management with config-level \`restoreMocks: true\` / \`clearMocks: true\`

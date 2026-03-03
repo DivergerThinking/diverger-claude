@@ -13,42 +13,15 @@ export const expoProfile: Profile = {
       order: 20,
       content: `## Expo Conventions
 
-### Managed Workflow & SDK
-- Stay in the managed workflow as long as possible — only run \`npx expo prebuild\` when custom native code is unavoidable
-- Use Expo SDK modules (\`expo-camera\`, \`expo-location\`, \`expo-notifications\`, etc.) instead of bare community native modules
-- Check SDK compatibility before adding any third-party native library — verify it supports the current Expo SDK version
-- Use \`expo-dev-client\` for development builds when custom native code is needed — Expo Go is limited to built-in SDK modules
-- Prefer development builds over Expo Go for production-grade projects — they support all native libraries and config plugins
+Managed workflow preferred. Expo Router for file-based navigation, EAS for builds.
 
-### app.config.ts (Dynamic Config)
-- Use \`app.config.ts\` over static \`app.json\` for dynamic configuration (environment-dependent values, computed slugs, conditional plugins)
-- Add \`import 'tsx/cjs'\` at the top of \`app.config.ts\` to enable TypeScript in local config plugin files
-- Never hardcode secrets in \`app.config.ts\` — use environment variables or EAS secrets
-- Keep \`app.config.ts\` deterministic: same inputs must produce the same output for reproducible builds
-- Define the \`runtimeVersion\` policy for OTA update compatibility — prefer \`{ policy: "appVersion" }\` or \`{ policy: "fingerprint" }\`
+**Detailed rules:** see \`.claude/rules/expo/\` directory.
 
-### Expo Router (File-System Routing)
-- Use the \`app/\` directory for file-system based routing — every file becomes a route
-- Use \`_layout.tsx\` files to define navigators (Stack, Tabs) and shared UI for route groups
-- Use typed routes for type-safe navigation — enable with \`experiments.typedRoutes: true\` in \`app.config.ts\`
-- Define \`+api.ts\` files for server-side API routes (GET, POST, PUT, DELETE) — keep secrets server-side
-- Use \`+native-intent.tsx\` for custom deep link handling on native platforms
-- Handle deep links via route configuration from the start — all routes are universally deep-linkable by default
-- Use route groups \`(groupName)\` to organize routes without affecting URL structure
-- Use \`+not-found.tsx\` for unmatched routes
-
-### Environment Variables
-- Prefix client-accessible variables with \`EXPO_PUBLIC_\` — only these are inlined into the JS bundle
-- Reference variables via \`process.env.EXPO_PUBLIC_VARNAME\` using dot notation only — destructuring and bracket access do NOT work
-- Never put secrets (API keys, tokens) in \`EXPO_PUBLIC_\` variables — they are visible in the compiled app
-- Non-prefixed variables are only available at build-time inside \`app.config.ts\`
-- Use \`.env\`, \`.env.local\`, \`.env.production\` files for local development — they are NOT available on EAS Build servers
-- For EAS builds, store secrets as EAS environment variables scoped to development/preview/production
-
-### New Architecture (SDK 53+)
-- The New Architecture (Fabric + TurboModules) is enabled by default in SDK 53 — do not opt out unless absolutely necessary
-- Test third-party libraries for New Architecture compatibility before upgrading
-- Report incompatible libraries to the React Native Directory`,
+**Key rules:**
+- Expo Router for file-based routing in \`app/\` directory
+- Use Expo SDK modules (\`expo-camera\`, \`expo-notifications\`) over bare RN equivalents
+- EAS Build for CI/CD, EAS Update for OTA updates
+- Config plugins for native customization without ejecting`,
     }],
     settings: {
       permissions: {
@@ -72,6 +45,7 @@ export const expoProfile: Profile = {
     rules: [
       {
         path: 'expo/config-plugins.md',
+        paths: ['**/*.tsx', '**/*.ts', 'app/**/*'],
         governance: 'mandatory',
         description: 'Expo config plugins: creation, idempotency, and native modification patterns',
         content: `# Expo Config Plugins
@@ -166,6 +140,7 @@ const withBackgroundModes: ConfigPlugin<string[]> = (config, modes) => {
       },
       {
         path: 'expo/eas-deployment.md',
+        paths: ['**/*.tsx', '**/*.ts', 'app/**/*'],
         governance: 'mandatory',
         description: 'EAS Build, Submit, and Update configuration and workflows',
         content: `# EAS Deployment (Build, Submit, Update)
@@ -264,6 +239,7 @@ eas update --branch production --message "Untested fix"
       },
       {
         path: 'expo/expo-modules.md',
+        paths: ['**/*.tsx', '**/*.ts', 'app/**/*'],
         governance: 'recommended',
         description: 'Expo Modules API for custom native Swift and Kotlin modules',
         content: `# Expo Modules API
@@ -328,6 +304,7 @@ modules/my-module/
       },
       {
         path: 'expo/expo-router-patterns.md',
+        paths: ['**/*.tsx', '**/*.ts', 'app/**/*'],
         governance: 'mandatory',
         description: 'Expo Router file-system routing, layouts, typed routes, and API routes',
         content: `# Expo Router Patterns
@@ -471,7 +448,11 @@ export async function GET(request: ExpoRequest): Promise<ExpoResponse> {
 
 ### New Architecture
 - Check third-party libraries for New Architecture compatibility when targeting SDK 53+
-- Verify no deprecated packages are used (expo-av replaced by expo-video/expo-audio)`,
+- Verify no deprecated packages are used (expo-av replaced by expo-video/expo-audio)
+
+### Available Skills
+- \`expo-prebuild-guide\`: Guide for managed-to-bare workflow migration using Expo prebuild
+- \`expo-eas-setup\`: Step-by-step EAS Build, Submit, and Update setup`,
       },
       {
         name: 'test-writer',
@@ -523,7 +504,11 @@ export async function GET(request: ExpoRequest): Promise<ExpoResponse> {
 
 ### Deep Linking
 - Verify deep link handlers validate and sanitize incoming URL parameters
-- Check that sensitive routes (payment, account settings) require authentication after deep link entry`,
+- Check that sensitive routes (payment, account settings) require authentication after deep link entry
+
+### Available Skills
+- \`expo-prebuild-guide\`: Guide for managed-to-bare workflow migration using Expo prebuild
+- \`expo-eas-setup\`: Step-by-step EAS Build, Submit, and Update setup`,
       },
       {
         name: 'migration-helper',
@@ -548,7 +533,11 @@ export async function GET(request: ExpoRequest): Promise<ExpoResponse> {
 - Run \`npx expo-doctor\` to check for known issues
 - Run \`npx expo prebuild --clean\` to regenerate native projects
 - Test on both platforms (iOS + Android) with development builds
-- Verify EAS Build succeeds for all profiles (development, preview, production)`,
+- Verify EAS Build succeeds for all profiles (development, preview, production)
+
+### Available Skills
+- \`expo-prebuild-guide\`: Guide for managed-to-bare workflow migration using Expo prebuild
+- \`expo-eas-setup\`: Step-by-step EAS Build, Submit, and Update setup`,
       },
     ],
     skills: [

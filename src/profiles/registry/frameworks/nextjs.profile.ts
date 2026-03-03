@@ -14,74 +14,16 @@ export const nextjsProfile: Profile = {
         order: 20,
         content: `## Next.js Conventions
 
-### App Router Architecture
-- Use the App Router (\`app/\` directory) for all new routes — Pages Router is legacy
-- Every route segment is a folder; it becomes public only when it contains \`page.tsx\` or \`route.ts\`
-- Use \`layout.tsx\` for shared UI that persists across navigations (header, sidebar, footer)
-- Use \`template.tsx\` instead of \`layout.tsx\` when you need a fresh instance on every navigation (e.g. enter/exit animations)
-- Colocate \`loading.tsx\`, \`error.tsx\`, and \`not-found.tsx\` in every route segment that needs them
-- Use \`global-error.tsx\` at the app root for top-level error boundaries
-- Use route groups \`(groupName)\` to organize routes without affecting URL structure
-- Use private folders \`_folderName\` for non-routable colocated code (helpers, sub-components)
+App Router architecture. Server Components by default — add \`'use client'\` only at leaf-level interactive boundaries.
 
-### Server Components (default)
-- All components in \`app/\` are Server Components by default — do NOT add \`'use client'\` unless required
-- Fetch data directly in Server Components using \`async/await\` — no \`useEffect\` + \`fetch\` pattern
-- Access secrets, databases, and internal APIs safely in Server Components — they never ship to the client
-- Use \`import 'server-only'\` in modules that must never be imported by Client Components
-- Use \`React.cache()\` to deduplicate expensive data fetches across the component tree within a single request
+**Detailed rules:** see \`.claude/rules/nextjs/\` directory.
 
-### Client Components
-- Add \`'use client'\` only when using: \`useState\`, \`useEffect\`, event handlers (\`onClick\`, \`onChange\`), browser APIs, or custom hooks
-- Place \`'use client'\` on the smallest leaf component possible — everything it imports becomes client bundle
-- Pass Server Components as \`children\` to Client Components to keep them server-rendered (interleaving pattern)
-- Props from Server to Client Components must be serializable (no functions, Dates as strings, no class instances)
-- Wrap third-party components that lack \`'use client'\` in a thin Client Component re-export
-
-### Context Providers
-- Context (\`createContext\`) is not available in Server Components — create a Client Component provider that accepts \`children\`
-- Render providers as deep in the tree as possible to let Next.js optimize static parts above them
-- Share data between Server and Client Components via \`React.cache()\` + context + \`use()\` API
-
-### Server Actions & Server Functions
-- Use \`'use server'\` directive for server-side mutations — place at function level or at top of a dedicated \`actions.ts\` file
-- Server Actions are public API endpoints — validate ALL input with a schema library (Zod, Valibot)
-- Always call \`revalidatePath()\` or \`revalidateTag()\` after mutations to refresh cached data
-- Use \`redirect()\` after successful mutations — call \`revalidatePath/revalidateTag\` BEFORE \`redirect\`
-- Handle errors gracefully and return typed response objects to the client
-- Server Actions support progressive enhancement — forms work even before JavaScript hydrates
-
-### Data Fetching & Caching
-- Default behavior: static routes are cached at build time, dynamic routes render per request
-- A route becomes dynamic when it uses \`cookies()\`, \`headers()\`, \`searchParams\`, or \`connection()\`
-- Use \`fetch\` with \`{ next: { revalidate: N } }\` for time-based ISR (Incremental Static Regeneration)
-- Use \`fetch\` with \`{ next: { tags: ['tag'] } }\` + \`revalidateTag('tag')\` for on-demand revalidation
-- Use \`{ cache: 'no-store' }\` or \`force-dynamic\` only when freshness truly requires it
-- Prefer \`generateStaticParams()\` for static generation of dynamic route segments at build time
-- Use parallel data fetching with \`Promise.all()\` when requests are independent
-
-### Navigation & Linking
-- Use \`next/link\` for all internal navigation — never use raw \`<a>\` tags for internal routes
-- \`<Link>\` prefetches routes automatically; set \`prefetch={false}\` only for rarely visited links
-- Use \`useRouter()\` for programmatic navigation in Client Components only
-- Use \`redirect()\` from \`next/navigation\` for server-side redirects in Server Components and Server Actions
-
-### Images, Fonts & Metadata
-- Use \`next/image\` for all images — never use raw \`<img>\` tags (automatic optimization, lazy loading, responsive sizing)
-- Set \`priority\` on above-the-fold images (LCP candidates); specify \`width\`/\`height\` or use \`fill\` to prevent CLS
-- Use \`next/font/google\` or \`next/font/local\` for zero-layout-shift font loading; apply via CSS variable
-- Export \`metadata\` object or \`generateMetadata()\` function from every page and layout for SEO
-- Use file-based metadata conventions: \`opengraph-image.tsx\`, \`icon.tsx\`, \`robots.ts\`, \`sitemap.ts\`
-
-### Middleware
-- Define \`middleware.ts\` at the project root (or \`src/\`) for cross-cutting concerns (auth, redirects, i18n, headers)
-- Middleware runs on the Edge — keep it lightweight, no heavy computation or database queries
-- Use \`matcher\` config to limit middleware to specific routes instead of running on every request
-
-### Environment Variables
-- Only variables prefixed with \`NEXT_PUBLIC_\` are exposed to the client bundle — all others are server-only
-- Never put secrets in \`NEXT_PUBLIC_\` variables
-- Use \`.env.local\` for local overrides; never commit \`.env.local\` or \`.env\` with real secrets`,
+**Key rules:**
+- Follow route segment conventions: layout → template → error → loading → not-found → page
+- Server Actions are public endpoints — validate ALL inputs with Zod, check auth+authorization
+- Understand the 4 caching layers: request memoization, data cache, full route cache, router cache
+- Use \`next/image\`, \`next/font\`, \`next/link\` — never raw \`<img>\`, \`<a>\` for internal links
+- Environment secrets: never prefix with \`NEXT_PUBLIC_\`, guard with \`import 'server-only'\``,
       },
     ],
     settings: {
@@ -99,6 +41,7 @@ export const nextjsProfile: Profile = {
     rules: [
       {
         path: 'nextjs/app-router-architecture.md',
+        paths: ['app/**/*', 'src/app/**/*'],
         governance: 'mandatory',
         description: 'Next.js App Router architecture, routing, and rendering patterns',
         content: `# Next.js App Router Architecture
@@ -301,6 +244,7 @@ export default async function BlogPost({
       },
       {
         path: 'nextjs/server-actions-and-mutations.md',
+        paths: ['**/*action*.*', 'app/**/*.ts'],
         governance: 'mandatory',
         description: 'Server Actions security, validation, and mutation patterns',
         content: `# Server Actions & Mutations
@@ -414,6 +358,7 @@ export default function CreatePostForm() {
       },
       {
         path: 'nextjs/caching-strategy.md',
+        paths: ['app/**/*', 'src/app/**/*'],
         governance: 'mandatory',
         description: 'Next.js caching layers, revalidation, and performance optimization',
         content: `# Next.js Caching Strategy
@@ -522,6 +467,7 @@ export const getUser = cache(async (userId: string) => {
       },
       {
         path: 'nextjs/performance.md',
+        paths: ['**/*.tsx', 'next.config.*'],
         governance: 'recommended',
         description: 'Next.js performance optimization, images, fonts, and bundle size',
         content: `# Next.js Performance Optimization
@@ -692,6 +638,7 @@ export async function generateMetadata({
       },
       {
         path: 'nextjs/security.md',
+        paths: ['middleware.*', 'app/**/*.ts', 'src/app/**/*.ts'],
         governance: 'mandatory',
         description: 'Next.js-specific security patterns and environment variable safety',
         content: `# Next.js Security
@@ -750,6 +697,7 @@ const API_KEY = process.env.NEXT_PUBLIC_API_KEY // anyone can read this in brows
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['nextjs-route-generator'],
         prompt: `## Next.js-Specific Review
 
 ### Server / Client Component Boundary
@@ -825,6 +773,7 @@ const API_KEY = process.env.NEXT_PUBLIC_API_KEY // anyone can read this in brows
       {
         name: 'security-checker',
         type: 'enrich',
+        skills: ['nextjs-migration-helper'],
         prompt: `## Next.js Security Review
 
 ### Environment & Secrets

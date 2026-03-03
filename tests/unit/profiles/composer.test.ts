@@ -728,6 +728,151 @@ describe('ProfileComposer', () => {
     });
   });
 
+  // ── compose: ESLint config merging ──────────────────────────────────
+
+  describe('compose - ESLint config merging', () => {
+    it('should merge multiple ESLint configs into a single .eslintrc.json', () => {
+      const profiles: Profile[] = [
+        makeProfile({
+          id: 'languages/typescript',
+          layer: 10 as ProfileLayer,
+          technologyIds: ['typescript'],
+          contributions: {
+            externalTools: [
+              {
+                type: 'eslint',
+                filePath: '.eslintrc.json',
+                mergeStrategy: 'create-only',
+                config: {
+                  extends: ['eslint:recommended', 'plugin:@typescript-eslint/strict'],
+                  rules: { 'no-explicit-any': 'error' },
+                },
+              },
+            ],
+          },
+        }),
+        makeProfile({
+          id: 'frameworks/react',
+          layer: 20 as ProfileLayer,
+          technologyIds: ['react'],
+          contributions: {
+            externalTools: [
+              {
+                type: 'eslint',
+                filePath: '.eslintrc.json',
+                mergeStrategy: 'create-only',
+                config: {
+                  extends: ['plugin:react/recommended', 'plugin:react-hooks/recommended'],
+                  plugins: ['react', 'react-hooks'],
+                  rules: { 'react/prop-types': 'off' },
+                  settings: { react: { version: 'detect' } },
+                },
+              },
+            ],
+          },
+        }),
+      ];
+
+      const detection = makeDetection([
+        makeTech('typescript', ['languages/typescript']),
+        makeTech('react', ['frameworks/react']),
+      ]);
+      const result = composer.compose(profiles, detection);
+
+      // Should produce a single ESLint config
+      const eslintConfigs = result.externalTools.filter((t) => t.type === 'eslint');
+      expect(eslintConfigs).toHaveLength(1);
+
+      const merged = eslintConfigs[0]!;
+      expect(merged.filePath).toBe('.eslintrc.json');
+      expect(merged.config.extends).toContain('eslint:recommended');
+      expect(merged.config.extends).toContain('plugin:react/recommended');
+      expect(merged.config.plugins).toContain('react');
+      expect((merged.config.rules as Record<string, unknown>)['no-explicit-any']).toBe('error');
+      expect((merged.config.rules as Record<string, unknown>)['react/prop-types']).toBe('off');
+      expect((merged.config.settings as Record<string, unknown>).react).toBeDefined();
+    });
+
+    it('should pass through single ESLint config unchanged', () => {
+      const profiles: Profile[] = [
+        makeProfile({
+          id: 'languages/typescript',
+          layer: 10 as ProfileLayer,
+          technologyIds: ['typescript'],
+          contributions: {
+            externalTools: [
+              {
+                type: 'eslint',
+                filePath: '.eslintrc.json',
+                mergeStrategy: 'create-only',
+                config: { extends: ['eslint:recommended'] },
+              },
+            ],
+          },
+        }),
+      ];
+
+      const detection = makeDetection([makeTech('typescript', ['languages/typescript'])]);
+      const result = composer.compose(profiles, detection);
+
+      const eslintConfigs = result.externalTools.filter((t) => t.type === 'eslint');
+      expect(eslintConfigs).toHaveLength(1);
+      expect(eslintConfigs[0]!.config.extends).toEqual(['eslint:recommended']);
+    });
+
+    it('should not affect non-ESLint external tools', () => {
+      const profiles: Profile[] = [
+        makeProfile({
+          id: 'languages/typescript',
+          layer: 10 as ProfileLayer,
+          technologyIds: ['typescript'],
+          contributions: {
+            externalTools: [
+              {
+                type: 'tsconfig',
+                filePath: 'tsconfig.json',
+                mergeStrategy: 'align',
+                config: { compilerOptions: { strict: true } },
+              },
+              {
+                type: 'eslint',
+                filePath: '.eslintrc.json',
+                mergeStrategy: 'create-only',
+                config: { extends: ['eslint:recommended'] },
+              },
+            ],
+          },
+        }),
+        makeProfile({
+          id: 'frameworks/react',
+          layer: 20 as ProfileLayer,
+          technologyIds: ['react'],
+          contributions: {
+            externalTools: [
+              {
+                type: 'eslint',
+                filePath: '.eslintrc.json',
+                mergeStrategy: 'create-only',
+                config: { extends: ['plugin:react/recommended'] },
+              },
+            ],
+          },
+        }),
+      ];
+
+      const detection = makeDetection([
+        makeTech('typescript', ['languages/typescript']),
+        makeTech('react', ['frameworks/react']),
+      ]);
+      const result = composer.compose(profiles, detection);
+
+      const tsconfigs = result.externalTools.filter((t) => t.type === 'tsconfig');
+      const eslintConfigs = result.externalTools.filter((t) => t.type === 'eslint');
+      expect(tsconfigs).toHaveLength(1);
+      expect(eslintConfigs).toHaveLength(1);
+    });
+  });
+
   // ── compose: layer ordering ───────────────────────────────────────────
 
   describe('compose - layer ordering', () => {

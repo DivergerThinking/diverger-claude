@@ -13,45 +13,15 @@ export const actixWebProfile: Profile = {
         order: 20,
         content: `## Actix Web Conventions
 
-### Handlers & Extractors
-- Handlers are async functions returning \`impl Responder\` or \`HttpResponse\`
-- Use typed extractors for ALL request data — never parse manually from HttpRequest
-- Built-in extractors: \`web::Json<T>\`, \`web::Path<T>\`, \`web::Query<T>\`, \`web::Form<T>\`, \`web::Data<T>\`, \`web::Header<T>\`
-- Up to 12 extractors per handler function; keep handlers focused — split if approaching limit
-- Configure extractor limits via \`JsonConfig\`, \`FormConfig\`, \`PayloadConfig\` on \`app_data()\`
-- Implement \`FromRequest\` for custom extractors (auth tokens, pagination, tenant context)
+Actor-based async web framework. Extractors for request data, middleware for cross-cutting.
 
-### Application State
-- Wrap shared state in \`web::Data<T>\` and register with \`App::app_data()\`
-- \`web::Data<T>\` internally uses \`Arc<T>\` — safe across workers without extra wrapping
-- For mutable shared state use \`web::Data<Mutex<T>>\` or \`web::Data<RwLock<T>>\` (prefer \`tokio::sync\` variants)
-- Database pools: pass as \`web::Data<Pool>\` — works with sqlx, diesel r2d2, deadpool
+**Detailed rules:** see \`.claude/rules/actix-web/\` directory.
 
-### Route Organization
-- Use \`web::scope()\` for path prefixes with shared middleware per group
-- Use \`web::resource()\` for multiple HTTP methods on the same path
-- Extract route configuration into \`pub fn configure(cfg: &mut web::ServiceConfig)\` for testability
-- Use \`#[actix_web::main]\` for the entry point with \`HttpServer::new()\`
-
-### Middleware
-- Apply middleware with \`.wrap()\` on App, Scope, or Resource
-- Order: first added = outermost (runs first on request, last on response)
-- Built-in: \`Logger\`, \`Compress\`, \`DefaultHeaders\`, \`NormalizePath\`, \`ErrorHandlers\`
-- CORS via \`actix-cors\` crate — configure per-scope, auto-handles OPTIONS preflight
-- Custom: use \`actix_web::middleware::from_fn()\` for simple async middleware
-- Complex middleware: implement \`Transform\` and \`Service\` traits
-
-### Error Handling
-- Implement \`ResponseError\` trait on custom error types for automatic HTTP mapping
-- Use \`thiserror\` to define error enums with \`#[from]\` for conversion chains
-- Return structured JSON errors: \`{ "error": "code", "message": "description" }\`
-- Use \`ErrorHandlers\` middleware for catch-all error response formatting
-- Map domain errors to HTTP: NotFound->404, Unauthorized->401, Validation->422, Internal->500
-
-### Serialization
-- Derive \`serde::Serialize\` and \`serde::Deserialize\` on all request/response structs
-- Use \`#[serde(rename_all = "camelCase")]\` for JSON API consistency
-- Use \`#[serde(deny_unknown_fields)]\` on input DTOs to reject unexpected payloads`,
+**Key rules:**
+- Extractors (\`Path\`, \`Query\`, \`Json\`, \`Data\`) for type-safe request handling
+- \`web::Data<T>\` for shared app state, \`Arc\` for thread-safe concurrent access
+- Middleware via \`Transform\` trait or \`wrap_fn\` for simpler cases
+- Error handling: implement \`ResponseError\` for custom error types with status codes`,
       },
     ],
     settings: {
@@ -71,6 +41,7 @@ export const actixWebProfile: Profile = {
     rules: [
       {
         path: 'actix-web/architecture.md',
+        paths: ['**/*.rs'],
         governance: 'mandatory',
         description: 'Actix Web architecture: handlers, extractors, state, routes, and error handling',
         content: `# Actix Web Architecture
@@ -303,6 +274,7 @@ async fn get_user(id: web::Path<i64>) -> Result<HttpResponse, actix_web::Error> 
       },
       {
         path: 'actix-web/middleware-and-security.md',
+        paths: ['**/*.rs'],
         governance: 'mandatory',
         description: 'Actix Web middleware patterns, CORS, auth, and security hardening',
         content: `# Actix Web Middleware & Security
@@ -444,6 +416,7 @@ web::scope("/api")
       },
       {
         path: 'actix-web/performance-and-deployment.md',
+        paths: ['**/*.rs'],
         governance: 'recommended',
         description: 'Actix Web performance tuning, async patterns, and production deployment',
         content: `# Actix Web Performance & Deployment
@@ -576,6 +549,7 @@ server.await
       },
       {
         path: 'actix-web/testing.md',
+        paths: ['**/*.rs'],
         governance: 'recommended',
         description: 'Actix Web testing patterns: unit tests, integration tests, and TestServer',
         content: `# Actix Web Testing
@@ -746,6 +720,8 @@ async fn test_cors_middleware_allows_valid_origin() {
         type: 'enrich',
         prompt: `## Actix Web Review
 
+**Available skills:** actix-web-handler-generator, actix-web-middleware-generator
+
 ### Handler Quality
 - Verify handlers use typed extractors — flag any manual parsing from HttpRequest body
 - Check that handlers are thin: HTTP wiring only, business logic in service modules
@@ -783,6 +759,8 @@ async fn test_cors_middleware_allows_valid_origin() {
         type: 'enrich',
         prompt: `## Actix Web Testing
 
+**Available skills:** actix-web-handler-generator, actix-web-middleware-generator
+
 ### Integration Tests
 - Build test apps with \`test::init_service(App::new().app_data(...).configure(routes))\`
 - Use \`test::TestRequest::get/post/put/delete()\` with \`.set_json()\`, \`.set_form()\`, etc.
@@ -813,6 +791,8 @@ async fn test_cors_middleware_allows_valid_origin() {
         name: 'security-checker',
         type: 'enrich',
         prompt: `## Actix Web Security Review
+
+**Available skills:** actix-web-handler-generator, actix-web-middleware-generator
 
 ### Input Validation
 - Verify JsonConfig and PayloadConfig limits are set to prevent oversized payloads
@@ -907,7 +887,7 @@ Generate Actix-Web middleware using from_fn or Transform+Service traits:
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nP "Cors::permissive" "$CLAUDE_FILE_PATH" | grep -q "." && echo "HOOK_EXIT:0:Warning: Cors::permissive() detected — must NOT be used in production. Use explicit allowed_origin()." || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "Cors::permissive" "$CLAUDE_FILE_PATH" | grep -q "." && echo "HOOK_EXIT:0:Warning: Cors::permissive() detected — must NOT be used in production. Use explicit allowed_origin()." || true',
             timeout: 10,
           },
         ],
@@ -919,7 +899,7 @@ Generate Actix-Web middleware using from_fn or Transform+Service traits:
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nP "static\\s+mut\\s+" "$CLAUDE_FILE_PATH" | grep -q "." && echo "HOOK_EXIT:0:Warning: mutable static detected — use web::Data<T> with interior mutability instead" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "static\\s+mut\\s+" "$CLAUDE_FILE_PATH" | grep -q "." && echo "HOOK_EXIT:0:Warning: mutable static detected — use web::Data<T> with interior mutability instead" || true',
             timeout: 10,
           },
         ],
@@ -931,7 +911,7 @@ Generate Actix-Web middleware using from_fn or Transform+Service traits:
           {
             type: 'command',
             command:
-              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nP "std::sync::(Mutex|RwLock)" "$CLAUDE_FILE_PATH" | grep -q "." && echo "HOOK_EXIT:0:Warning: std::sync::Mutex/RwLock detected in Actix handler — use tokio::sync variants to avoid blocking the async runtime" || true',
+              'echo "$CLAUDE_FILE_PATH" | grep -q "\\.rs$" && grep -nE "std::sync::(Mutex|RwLock)" "$CLAUDE_FILE_PATH" | grep -q "." && echo "HOOK_EXIT:0:Warning: std::sync::Mutex/RwLock detected in Actix handler — use tokio::sync variants to avoid blocking the async runtime" || true',
             timeout: 10,
           },
         ],

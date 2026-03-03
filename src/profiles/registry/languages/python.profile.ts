@@ -13,58 +13,15 @@ export const pythonProfile: Profile = {
         order: 10,
         content: `## Python Conventions
 
-### Style & Formatting (PEP 8)
-- Maximum line length: 88 characters (Black default) — use 79 for docstrings/comments
-- 4 spaces per indentation level — never tabs
-- Two blank lines before top-level definitions, one blank line between methods
-- Use trailing commas in multi-line data structures and function signatures
-- Use Ruff for linting and formatting (replaces flake8, isort, Black)
+PEP 8 style, type hints mandatory (PEP 484/604). Prefer pathlib, f-strings, dataclasses.
 
-### Import Organization (PEP 8 / isort)
-- Group imports in order: stdlib -> third-party -> local application
-- Separate each group with a blank line
-- Prefer absolute imports over relative imports
-- Avoid wildcard imports (\`from module import *\`) — always import explicitly
-- Use \`from __future__ import annotations\` at the top of every module for modern type syntax
+**Detailed rules:** see \`.claude/rules/python/\` directory.
 
-### Type Hints (PEP 484 / PEP 604 / PEP 695)
-- Annotate all function parameters and return types — no exceptions
-- Use union syntax \`X | Y\` instead of \`Union[X, Y]\` (Python 3.10+)
-- Use \`X | None\` instead of \`Optional[X]\`
-- Use built-in generics: \`list[str]\`, \`dict[str, int]\`, \`tuple[int, ...]\` (Python 3.9+)
-- Use \`TypeAlias\` for complex or reused type definitions
-- Use \`Protocol\` for structural subtyping (duck typing with type safety)
-- Enable strict mode in mypy or pyright — fix all type errors, no bare \`# type: ignore\`
-
-### Data Structures
-- Use \`@dataclass\` for plain data containers — enable \`slots=True\` and \`frozen=True\` when appropriate
-- Use Pydantic \`BaseModel\` for validated/serialized data (API boundaries, config, external input)
-- Use \`enum.Enum\` or \`enum.StrEnum\` for enumerated values — not magic strings
-- Use \`TypedDict\` for typed dictionary schemas (JSON-like data with known keys)
-- Use \`NamedTuple\` for lightweight immutable records
-
-### File & Path Operations
-- Use \`pathlib.Path\` for all file path operations — not \`os.path\`
-- Use context managers (\`with\` statements) for files, connections, locks, and any resource with cleanup
-- Use \`Path.read_text()\` / \`Path.write_text()\` for simple read/write operations
-
-### String Formatting
-- Use f-strings for interpolation: \`f"Hello {name}"\`
-- Use \`.format()\` only when the template is dynamic or stored externally
-- Never use \`%\` formatting or \`+\` concatenation for building strings
-
-### Iteration & Comprehensions
-- Prefer list/dict/set comprehensions over \`map()\`/\`filter()\` for readability
-- Use generator expressions for large sequences to avoid materializing full lists
-- Use \`enumerate()\` instead of manual index tracking
-- Use \`zip()\` with \`strict=True\` (Python 3.10+) for parallel iteration
-- Use \`itertools\` for advanced iteration patterns
-
-### Async Programming
-- Use \`async\`/\`await\` with \`asyncio\` for I/O-bound concurrent operations
-- Use \`asyncio.TaskGroup\` (Python 3.11+) for structured concurrency
-- Never mix sync and async code without proper bridging (\`asyncio.to_thread\`, \`run_in_executor\`)
-- Use \`aiohttp\` or \`httpx\` for async HTTP — not synchronous \`requests\` in async contexts`,
+**Key rules:**
+- Type hints on all public functions, \`from __future__ import annotations\` for forward refs
+- Use \`@dataclass\` or Pydantic for structured data, \`Enum\` for fixed sets
+- Async with \`asyncio\` — never block the event loop, use \`async for\`/\`async with\`
+- Organize imports: stdlib → third-party → local, use \`isort\` and \`ruff\``,
       },
     ],
     settings: {
@@ -88,6 +45,7 @@ export const pythonProfile: Profile = {
     rules: [
       {
         path: 'python/conventions.md',
+        paths: ['**/*.py'],
         governance: 'mandatory',
         description: 'Python coding conventions aligned with PEP 8, PEP 484, PEP 257',
         content: `# Python Coding Conventions
@@ -342,6 +300,7 @@ token = ''.join(random.choices('abcdef0123456789', k=32))
       },
       {
         path: 'python/typing-and-patterns.md',
+        paths: ['**/*.py'],
         governance: 'recommended',
         description: 'Advanced Python type hints, protocols, and modern patterns',
         content: `# Python Type Hints & Modern Patterns
@@ -600,6 +559,7 @@ def fibonacci(n: int) -> int:
       },
       {
         path: 'python/async-patterns.md',
+        paths: ['**/*.py'],
         governance: 'recommended',
         description: 'Python async/await patterns and structured concurrency',
         content: `# Python Async Patterns
@@ -687,6 +647,7 @@ async def fetch_with_timeout(url: str) -> Response:
       {
         name: 'code-reviewer',
         type: 'enrich',
+        skills: ['python-debug', 'python-project-scaffold'],
         prompt: `## Python-Specific Review Checklist
 - [ ] All functions have complete type annotations (params + return type)
 - [ ] \`from __future__ import annotations\` is present at the top of each module
@@ -749,6 +710,7 @@ async def fetch_with_timeout(url: str) -> Response:
       {
         name: 'refactor-assistant',
         type: 'enrich',
+        skills: ['python-debug', 'python-project-scaffold'],
         prompt: `## Python-Specific Refactoring Patterns
 - Replace manual dict construction with \`@dataclass\` or Pydantic \`BaseModel\`
 - Replace \`os.path\` calls with \`pathlib.Path\` equivalents
