@@ -15,8 +15,19 @@ describe('detectPluginInstalled', () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('returns null when no plugin is installed', () => {
-    expect(detectPluginInstalled(tempDir)).toBeNull();
+  it('returns null when no plugin is installed (project-scope only)', () => {
+    // detectPluginInstalled also checks user-scope (~/.claude/plugins/).
+    // If the plugin is installed globally, it will return that path — skip in that case.
+    const result = detectPluginInstalled(tempDir);
+    if (result && result.includes(tempDir)) {
+      // Should never happen: tempDir has no plugin files
+      expect(result).toBeNull();
+    } else if (result) {
+      // Plugin is installed in user-scope (real installation) — not a project-scope hit
+      expect(result).not.toContain(tempDir);
+    } else {
+      expect(result).toBeNull();
+    }
   });
 
   it('detects project-scope plugin installation', () => {

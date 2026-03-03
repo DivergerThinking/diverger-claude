@@ -14,20 +14,59 @@ const GITHUB_REPO = 'DivergerThinking/diverger-claude';
 const PLUGIN_NAME = 'diverger-claude';
 const PLUGIN_DIR = path.join(os.homedir(), '.claude', 'plugins', PLUGIN_NAME);
 
-/** Get the latest release tag from GitHub API. */
-export async function getLatestReleaseTag(): Promise<{ tag: string | null; error?: string }> {
+/**
+ * Get a GitHub token for API authentication.
+ * Tries `gh auth token` first, then GITHUB_TOKEN env var.
+ * Returns null if neither is available (public repo fallback).
+ */
+function getGitHubToken(): string | null {
+  // 1. Try gh CLI (most common for developers)
   try {
+    const token = execSync('gh auth token', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    if (token) return token;
+  } catch {
+    // gh not installed or not logged in
+  }
+  // 2. Try env var
+  return process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? null;
+}
+
+/** Build standard GitHub API headers, with auth if available. */
+function githubHeaders(token: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'diverger-claude-cli',
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+interface ReleaseInfo {
+  tag: string;
+  assetUrl: string | null;
+  assetName: string;
+}
+
+/** Get the latest release info from GitHub API (tag + asset download URL). */
+export async function getLatestReleaseTag(): Promise<{ tag: string | null; error?: string; assetUrl?: string }> {
+  try {
+    const token = getGitHubToken();
     const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
-    const res = await fetch(url, {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'diverger-claude-cli' },
-    });
+    const res = await fetch(url, { headers: githubHeaders(token) });
     if (!res.ok) {
+      if (res.status === 404 && !token) {
+        return { tag: null, error: 'Repo privado: necesitas `gh auth login` o definir GITHUB_TOKEN.' };
+      }
       if (res.status === 404) return { tag: null, error: 'No se encontraron releases en el repositorio.' };
       if (res.status === 403) return { tag: null, error: 'Rate limit de GitHub excedido. Intenta en unos minutos.' };
       return { tag: null, error: `GitHub API respondió con status ${res.status}` };
     }
-    const data = (await res.json()) as { tag_name?: string };
-    return { tag: data.tag_name ?? null };
+    const data = (await res.json()) as { tag_name?: string; assets?: Array<{ name: string; url: string }> };
+    const tag = data.tag_name ?? null;
+    // Find the plugin tarball asset URL for direct API download (needed for private repos)
+    const assetName = `${PLUGIN_NAME}-plugin-${tag}.tar.gz`;
+    const asset = data.assets?.find((a) => a.name === assetName);
+    return { tag, assetUrl: asset?.url };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('ENOTFOUND') || msg.includes('EAI_AGAIN') || msg.includes('fetch failed')) {
@@ -37,17 +76,37 @@ export async function getLatestReleaseTag(): Promise<{ tag: string | null; error
   }
 }
 
-/** Build the tarball download URL for a given tag. */
+/** Get release info for a specific tag (asset URL for download). */
+async function getReleaseByTag(tag: string): Promise<ReleaseInfo | null> {
+  const token = getGitHubToken();
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/tags/${tag}`;
+  const res = await fetch(url, { headers: githubHeaders(token) });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { tag_name: string; assets?: Array<{ name: string; url: string }> };
+  const assetName = `${PLUGIN_NAME}-plugin-${tag}.tar.gz`;
+  const asset = data.assets?.find((a) => a.name === assetName);
+  return { tag: data.tag_name, assetUrl: asset?.url ?? null, assetName };
+}
+
+/** Build the tarball download URL for a given tag (public repos fallback). */
 export function buildTarballUrl(tag: string): string {
   return `https://github.com/${GITHUB_REPO}/releases/download/${tag}/${PLUGIN_NAME}-plugin-${tag}.tar.gz`;
 }
 
-/** Download a file from URL to a local path using fetch. */
+/**
+ * Download a release asset from GitHub to a local path.
+ * For private repos, uses the GitHub API asset endpoint with octet-stream accept.
+ * For public repos, uses the direct download URL.
+ */
 async function downloadFile(url: string, dest: string): Promise<void> {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'diverger-claude-cli' },
-    redirect: 'follow',
-  });
+  const token = getGitHubToken();
+  const isApiUrl = url.startsWith('https://api.github.com/');
+
+  const headers: Record<string, string> = { 'User-Agent': 'diverger-claude-cli' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (isApiUrl) headers.Accept = 'application/octet-stream';
+
+  const res = await fetch(url, { headers, redirect: 'follow' });
   if (!res.ok) {
     throw new Error(`Descarga fallida: HTTP ${res.status} — ${url}`);
   }
@@ -123,14 +182,18 @@ export function registerPluginCommand(program: Command): void {
           }
         }
 
-        // Resolve tag
+        // Resolve tag and asset download URL
         let tag: string;
+        let downloadUrl: string;
         if (opts.tag) {
           tag = opts.tag.startsWith('v') ? opts.tag : `v${opts.tag}`;
           log.info(`Versión solicitada: ${tag}`);
+          // Fetch release by tag to get the API asset URL (needed for private repos)
+          const releaseInfo = await getReleaseByTag(tag);
+          downloadUrl = releaseInfo?.assetUrl ?? buildTarballUrl(tag);
         } else {
           log.info('Consultando última versión...');
-          const { tag: latestTag, error } = await getLatestReleaseTag();
+          const { tag: latestTag, error, assetUrl } = await getLatestReleaseTag();
           if (!latestTag) {
             log.error('No se pudo obtener la última versión.');
             if (error) log.dim(`  ${error}`);
@@ -138,10 +201,11 @@ export function registerPluginCommand(program: Command): void {
           }
           tag = latestTag;
           log.info(`Última versión: ${tag}`);
+          downloadUrl = assetUrl ?? buildTarballUrl(tag);
         }
 
         // Download
-        const tarballUrl = buildTarballUrl(tag);
+        const tarballUrl = downloadUrl;
         const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'diverger-plugin-'));
         const tarballPath = path.join(tempDir, `${PLUGIN_NAME}-plugin-${tag}.tar.gz`);
 

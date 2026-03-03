@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.1] - 2026-03-03
+
+### Corregido
+- **Autenticación GitHub para repos privados**: `diverger plugin install` ahora usa `gh auth token` o `GITHUB_TOKEN` para autenticar con la API de GitHub y descargar assets de repos privados
+- **Descarga de assets via API**: Usa la API de GitHub (`/releases/assets/{id}`) en vez de URL directas, que no funcionan en repos privados
+
 ## [1.1.0] - 2026-03-03
 
 ### Añadido
