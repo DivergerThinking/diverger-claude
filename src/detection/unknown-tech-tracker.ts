@@ -52,15 +52,16 @@ export async function fileGitHubIssue(
   if (unknowns.length === 0) return null;
 
   try {
-    const { execSync } = await import('child_process');
+    const { execFileSync } = await import('child_process');
 
     // Check for existing open issues
     const depNames = unknowns.map((u) => u.dependency);
     const searchQuery = `New technology detected: ${depNames[0]}`;
-    const existingResult = execSync(
-      `gh issue list --repo "${repoSlug}" --search "${searchQuery}" --state open --json number --limit 1 2>/dev/null`,
-      { encoding: 'utf-8', timeout: 10000 },
-    );
+    const existingResult = execFileSync('gh', [
+      'issue', 'list', '--repo', repoSlug,
+      '--search', searchQuery, '--state', 'open',
+      '--json', 'number', '--limit', '1',
+    ], { encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'] });
     const existing = JSON.parse(existingResult) as Array<{ number: number }>;
     if (existing.length > 0) {
       return null; // Issue already exists
@@ -70,10 +71,11 @@ export async function fileGitHubIssue(
     const title = `New technology detected: ${depNames.join(', ')}`;
     const body = buildIssueBody(unknowns);
 
-    const createResult = execSync(
-      `gh issue create --repo "${repoSlug}" --title "${escapeShell(title)}" --label "technology-request,auto-detected" --body "${escapeShell(body)}" --json number,url 2>/dev/null`,
-      { encoding: 'utf-8', timeout: 15000 },
-    );
+    const createResult = execFileSync('gh', [
+      'issue', 'create', '--repo', repoSlug,
+      '--title', title, '--label', 'technology-request,auto-detected',
+      '--body', body, '--json', 'number,url',
+    ], { encoding: 'utf-8', timeout: 15000, stdio: ['pipe', 'pipe', 'pipe'] });
     const created = JSON.parse(createResult) as { number: number; url: string };
     return { issueNumber: created.number, issueUrl: created.url };
   } catch (err: unknown) {
@@ -110,8 +112,4 @@ Please evaluate whether these technologies should have dedicated profiles with:
 
 ---
 *This issue was automatically created by diverger-claude.*`;
-}
-
-function escapeShell(s: string): string {
-  return s.replace(/"/g, '\\"').replace(/\$/g, '\\$');
 }
