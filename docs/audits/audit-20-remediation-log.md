@@ -46,9 +46,9 @@
 
 ### A-01 — error classes tipadas (P0/HIGH)
 **Decisión**: DONE (selectivo)
-**Razonamiento**: Creadas 3 nuevas clases: ParseError (parsers), ValidationError (path traversal + name validation), PluginError (download). Aplicadas a 10 throw sites donde el manejo programático aporta valor. Skipped greenfield/wizard.ts (error interno, nunca capturado programáticamente) y vue.profile.ts (string content).
-**Archivos modificados**: 8 archivos (errors.ts, parsers.ts, paths.ts, fs.ts, agents.ts, skills.ts, hook-scripts.ts, plugin.ts)
-**Commit**: 81bbbd4
+**Razonamiento**: Creadas 3 nuevas clases: ParseError (parsers), ValidationError (path traversal + name validation), PluginError (download). Aplicadas a 11 throw sites donde el manejo programático aporta valor. vue.profile.ts skipped (string content, not runtime code).
+**Archivos modificados**: 9 archivos (errors.ts, parsers.ts, paths.ts, fs.ts, agents.ts, skills.ts, hook-scripts.ts, plugin.ts, greenfield/wizard.ts)
+**Commits**: 81bbbd4, e35a952
 
 ### S-01 — escapeShell() incompleto (P1/MEDIUM)
 **Decisión**: DONE (solución superior)
