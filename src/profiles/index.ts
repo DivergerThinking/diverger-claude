@@ -19,6 +19,7 @@ import { nextjsProfile } from './registry/frameworks/nextjs.profile.js';
 import { expressProfile } from './registry/frameworks/express.profile.js';
 import { nestjsProfile } from './registry/frameworks/nestjs.profile.js';
 import { fastapiProfile } from './registry/frameworks/fastapi.profile.js';
+import { langchainProfile } from './registry/frameworks/langchain.profile.js';
 import { springBootProfile } from './registry/frameworks/spring-boot.profile.js';
 import { djangoProfile } from './registry/frameworks/django.profile.js';
 import { angularProfile } from './registry/frameworks/angular.profile.js';
@@ -52,6 +53,7 @@ import { dockerProfile } from './registry/infra/docker.profile.js';
 import { kubernetesProfile } from './registry/infra/kubernetes.profile.js';
 import { githubActionsProfile } from './registry/infra/github-actions.profile.js';
 import { awsProfile } from './registry/infra/aws.profile.js';
+import { googleCloudProfile } from './registry/infra/google-cloud.profile.js';
 import { terraformProfile } from './registry/infra/terraform.profile.js';
 import { vercelProfile } from './registry/infra/vercel.profile.js';
 import { fastlaneProfile } from './registry/infra/fastlane.profile.js';
@@ -76,6 +78,7 @@ const ALL_PROFILES: Profile[] = [
   expressProfile,
   nestjsProfile,
   fastapiProfile,
+  langchainProfile,
   springBootProfile,
   djangoProfile,
   angularProfile,
@@ -109,6 +112,7 @@ const ALL_PROFILES: Profile[] = [
   kubernetesProfile,
   githubActionsProfile,
   awsProfile,
+  googleCloudProfile,
   terraformProfile,
   vercelProfile,
   fastlaneProfile,
