@@ -2480,9 +2480,9 @@ var require_validate = __commonJS({
       }
     }
     function returnResults(it) {
-      const { gen, schemaEnv, validateName, ValidationError, opts } = it;
+      const { gen, schemaEnv, validateName, ValidationError: ValidationError2, opts } = it;
       if (schemaEnv.$async) {
-        gen.if((0, codegen_1._)`${names_1.default.errors} === 0`, () => gen.return(names_1.default.data), () => gen.throw((0, codegen_1._)`new ${ValidationError}(${names_1.default.vErrors})`));
+        gen.if((0, codegen_1._)`${names_1.default.errors} === 0`, () => gen.return(names_1.default.data), () => gen.throw((0, codegen_1._)`new ${ValidationError2}(${names_1.default.vErrors})`));
       } else {
         gen.assign((0, codegen_1._)`${validateName}.errors`, names_1.default.vErrors);
         if (opts.unevaluated)
@@ -2834,14 +2834,14 @@ var require_validation_error = __commonJS({
   "node_modules/@modelcontextprotocol/sdk/node_modules/ajv/dist/runtime/validation_error.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    var ValidationError = class extends Error {
+    var ValidationError2 = class extends Error {
       constructor(errors) {
         super("validation failed");
         this.errors = errors;
         this.ajv = this.validation = true;
       }
     };
-    exports2.default = ValidationError;
+    exports2.default = ValidationError2;
   }
 });
 
@@ -9100,9 +9100,9 @@ var require_validate2 = __commonJS({
       }
     }
     function returnResults(it) {
-      const { gen, schemaEnv, validateName, ValidationError, opts } = it;
+      const { gen, schemaEnv, validateName, ValidationError: ValidationError2, opts } = it;
       if (schemaEnv.$async) {
-        gen.if((0, codegen_1._)`${names_1.default.errors} === 0`, () => gen.return(names_1.default.data), () => gen.throw((0, codegen_1._)`new ${ValidationError}(${names_1.default.vErrors})`));
+        gen.if((0, codegen_1._)`${names_1.default.errors} === 0`, () => gen.return(names_1.default.data), () => gen.throw((0, codegen_1._)`new ${ValidationError2}(${names_1.default.vErrors})`));
       } else {
         gen.assign((0, codegen_1._)`${validateName}.errors`, names_1.default.vErrors);
         if (opts.unevaluated)
@@ -9454,14 +9454,14 @@ var require_validation_error2 = __commonJS({
   "node_modules/ajv-formats/node_modules/ajv/dist/runtime/validation_error.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    var ValidationError = class extends Error {
+    var ValidationError2 = class extends Error {
       constructor(errors) {
         super("validation failed");
         this.errors = errors;
         this.ajv = this.validation = true;
       }
     };
-    exports2.default = ValidationError;
+    exports2.default = ValidationError2;
   }
 });
 
@@ -41350,6 +41350,20 @@ var BillingError = class extends DivergerError {
     this.name = "BillingError";
   }
 };
+var ParseError = class extends DivergerError {
+  constructor(message, format, source) {
+    super(message, "PARSE_ERROR");
+    this.format = format;
+    this.source = source;
+    this.name = "ParseError";
+  }
+};
+var ValidationError = class extends DivergerError {
+  constructor(message) {
+    super(message, "VALIDATION_ERROR");
+    this.name = "ValidationError";
+  }
+};
 function extractErrorMessage(err) {
   if (err instanceof Error) return err.message;
   return String(err);
@@ -41442,15 +41456,22 @@ var FileScanner = class {
       dot: true,
       followSymbolicLinks: false,
       ignore: IGNORE_PATTERNS,
-      onlyFiles: true
+      onlyFiles: true,
+      deep: 3
     });
-    for (const relativePath of found) {
-      const absolutePath = path.join(projectRoot, relativePath);
-      try {
-        const content = await fs.readFile(absolutePath, "utf-8");
-        files.set(relativePath, content);
-      } catch {
-      }
+    const readResults = await Promise.all(
+      found.map(async (relativePath) => {
+        const absolutePath = path.join(projectRoot, relativePath);
+        try {
+          const content = await fs.readFile(absolutePath, "utf-8");
+          return { relativePath, content };
+        } catch {
+          return null;
+        }
+      })
+    );
+    for (const result of readResults) {
+      if (result) files.set(result.relativePath, result.content);
     }
     return files;
   }
@@ -41467,13 +41488,19 @@ var FileScanner = class {
       onlyFiles: true,
       deep: 4
     });
-    for (const relativePath of found) {
-      const absolutePath = path.join(projectRoot, relativePath);
-      try {
-        const content = await fs.readFile(absolutePath, "utf-8");
-        files.set(relativePath, content);
-      } catch {
-      }
+    const readResults = await Promise.all(
+      found.map(async (relativePath) => {
+        const absolutePath = path.join(projectRoot, relativePath);
+        try {
+          const content = await fs.readFile(absolutePath, "utf-8");
+          return { relativePath, content };
+        } catch {
+          return null;
+        }
+      })
+    );
+    for (const result of readResults) {
+      if (result) files.set(result.relativePath, result.content);
     }
     return files;
   }
@@ -46486,7 +46513,8 @@ async function writeFileAtomic(filePath, content) {
   } catch (err) {
     try {
       await fs2.unlink(tempPath);
-    } catch {
+    } catch (cleanupErr) {
+      if (process.env.DEBUG) console.error("[diverger] writeFileAtomic cleanup failed:", cleanupErr);
     }
     throw err;
   }
@@ -46495,7 +46523,7 @@ function assertPathWithin(resolvedPath, baseDir) {
   const normalizedResolved = path3.resolve(resolvedPath);
   const normalizedBase = path3.resolve(baseDir);
   if (!normalizedResolved.startsWith(normalizedBase + path3.sep) && normalizedResolved !== normalizedBase) {
-    throw new Error(`Path traversal detectado: "${resolvedPath}" escapa de "${baseDir}"`);
+    throw new ValidationError(`Path traversal detectado: "${resolvedPath}" escapa de "${baseDir}"`);
   }
 }
 
@@ -46505,7 +46533,7 @@ function parseJson(content, source) {
     return JSON.parse(stripBom(content));
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    throw new Error(`Error parsing JSON${source ? ` from ${source}` : ""}: ${msg}`);
+    throw new ParseError(`Error parsing JSON${source ? ` from ${source}` : ""}: ${msg}`, "json", source);
   }
 }
 function parseYaml(content, source) {
@@ -46517,7 +46545,7 @@ function parseYaml(content, source) {
     return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    throw new Error(`Error parsing YAML${source ? ` from ${source}` : ""}: ${msg}`);
+    throw new ParseError(`Error parsing YAML${source ? ` from ${source}` : ""}: ${msg}`, "yaml", source);
   }
 }
 function parseTOML(content, source) {
@@ -46525,7 +46553,7 @@ function parseTOML(content, source) {
     return parse3(stripBom(content));
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    throw new Error(`Error parsing TOML${source ? ` from ${source}` : ""}: ${msg}`);
+    throw new ParseError(`Error parsing TOML${source ? ` from ${source}` : ""}: ${msg}`, "toml", source);
   }
 }
 function parseXml2(content, source) {
@@ -46537,7 +46565,7 @@ function parseXml2(content, source) {
     return parser.parse(stripBom(content));
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    throw new Error(`Error parsing XML${source ? ` from ${source}` : ""}: ${msg}`);
+    throw new ParseError(`Error parsing XML${source ? ` from ${source}` : ""}: ${msg}`, "xml", source);
   }
 }
 
@@ -49491,8 +49519,12 @@ var ProfileComposer = class {
         );
       }
     }
-    const rulePaths = config2.rules.map((r) => r.path);
-    const dups = rulePaths.filter((p, i) => rulePaths.indexOf(p) !== i);
+    const rulePathSet = /* @__PURE__ */ new Set();
+    const dups = [];
+    for (const r of config2.rules) {
+      if (rulePathSet.has(r.path)) dups.push(r.path);
+      else rulePathSet.add(r.path);
+    }
     if (dups.length > 0) {
       throw new CompositionError(
         `Rutas de reglas duplicadas: ${dups.join(", ")}`
@@ -86911,7 +86943,7 @@ function yamlEscape(value) {
 import path14 from "path";
 function validateAgentName(name) {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    throw new Error(`Nombre de agente inv\xE1lido "${name}": solo se permiten alfanum\xE9ricos, guiones y guiones bajos`);
+    throw new ValidationError(`Nombre de agente inv\xE1lido "${name}": solo se permiten alfanum\xE9ricos, guiones y guiones bajos`);
   }
 }
 function injectProjectContext(agent, metadata) {
@@ -86975,7 +87007,7 @@ function formatAgentFile(agent) {
 import path15 from "path";
 function validateSkillName(name) {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    throw new Error(`Nombre de skill inv\xE1lido "${name}": solo se permiten alfanum\xE9ricos, guiones y guiones bajos`);
+    throw new ValidationError(`Nombre de skill inv\xE1lido "${name}": solo se permiten alfanum\xE9ricos, guiones y guiones bajos`);
   }
 }
 function formatSkillFile(skill) {
@@ -87201,7 +87233,7 @@ async function generateToolConfig(tool, projectRoot) {
 import path19 from "path";
 function validateFilename(filename) {
   if (!/^[a-zA-Z0-9_-]+\.sh$/.test(filename)) {
-    throw new Error(
+    throw new ValidationError(
       `Nombre de hook script inv\xE1lido "${filename}": solo se permiten alfanum\xE9ricos, guiones, guiones bajos, y debe terminar en .sh`
     );
   }
@@ -88416,7 +88448,7 @@ function toRelativeMetaKey(filePath, projectRoot) {
   const resolved = path22.isAbsolute(filePath) ? filePath : path22.resolve(projectRoot, filePath);
   const rel = path22.relative(projectRoot, resolved).replace(/\\/g, "/");
   if (rel.startsWith("..")) {
-    throw new Error(`Path escapes projectRoot: "${filePath}" is outside "${projectRoot}"`);
+    throw new ValidationError(`Path escapes projectRoot: "${filePath}" is outside "${projectRoot}"`);
   }
   return rel;
 }
@@ -88730,7 +88762,7 @@ var ThreeWayMerge = class {
 
 // src/governance/history.ts
 import path23 from "path";
-var PACKAGE_VERSION = "3.4.0";
+var PACKAGE_VERSION = "3.5.0";
 async function loadMeta(projectRoot) {
   const content = await readFileOrNull(path23.join(projectRoot, META_FILE));
   if (content === null) return null;
@@ -96434,7 +96466,7 @@ function registerIngestCIErrorsTool(server2) {
 }
 
 // src/mcp/server.ts
-var version2 = "3.4.0";
+var version2 = "3.5.0";
 var server = new McpServer({ name: "diverger-claude", version: version2 });
 registerDetectStackTool(server);
 registerGenerateConfigTool(server);

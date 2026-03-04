@@ -17,7 +17,7 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - **evolution-advisor**: Analiza cambios del proyecto y recomienda actualizaciones de configuración
 - **audit-reviewer**: Revisión exhaustiva de calidad y conformidad
 
-### 22 Skills universales
+### 24 Skills universales
 
 #### Configuración y gestión
 - `/diverger-init` — Detecta stack y genera configuración .claude/
@@ -34,6 +34,7 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 
 #### Workflows de alta calidad
 - `/diverger-audit` — Auditoría integral de calidad, seguridad y conformidad
+- `/diverger-audit-deep` — Auditoría manual multi-perspectiva (Seguridad, Calidad, Rendimiento, Arquitectura) con patrones stack-aware
 - `/diverger-test-suite` — Analiza cobertura y genera tests faltantes
 - `/diverger-pr-review` — Review exhaustivo de PR con checklist adaptado al stack
 - `/diverger-onboard` — Genera documentación de onboarding para nuevos developers
@@ -44,9 +45,10 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - `/diverger-doctor` — Score de salud del proyecto 0-100 con recomendaciones
 - `/diverger-quickstart` — Guía post-init de 5 minutos para sacar partido a la configuración
 
-#### Bienvenida y gestión
+#### Bienvenida y gestión de contribuciones
 - `/diverger-welcome` — Briefing de proyecto: identidad, git status, comandos, directorios clave, salud
 - `/diverger-triage` — Triage de issues de GitHub: clasifica, evalúa y genera planes de implementación
+- `/diverger-develop` — Evalúa e implementa contribuciones triageadas de partners via branch + PR
 
 #### Referencia universal
 - `/architecture-style-guide` — Guía de estilo de arquitectura
@@ -77,7 +79,7 @@ Al detectar tecnologías, el plugin genera skills de referencia específicos. So
 | Kubernetes | `/k8s-security-guide`, `/k8s-debugging-guide` |
 | GitHub Actions | `/github-actions-guide` |
 
-### 7 Hooks de protección (cross-platform, sin dependencia de jq)
+### 8 Hooks de protección (cross-platform, sin dependencia de jq)
 
 Los hooks se activan automáticamente via eventos de Claude Code:
 - **PreToolUse/Write**: Secret scanner — detecta credenciales antes de escribir archivos
@@ -86,6 +88,7 @@ Los hooks se activan automáticamente via eventos de Claude Code:
 - **PostToolUse/Write**: Long lines checker — verifica que no se generen líneas excesivamente largas
 - **PostToolUse/Write**: Trailing newline checker — asegura que los archivos terminen con newline
 - **PostToolUse/Write, Edit, Bash**: Error tracker — captura errores para el sistema de aprendizaje
+- **SessionStart**: Issue triage checker — detecta issues de GitHub sin triagear al iniciar sesión
 - **SessionEnd**: Session learner — señaliza errores pendientes para procesamiento
 
 ### Servidor MCP (14 tools)

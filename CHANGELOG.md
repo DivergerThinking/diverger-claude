@@ -1,5 +1,46 @@
 # Changelog
 
+## [3.5.0] - 2026-03-04
+
+### Añadido — Auditoría profunda y remediación
+- **Skill `/diverger-audit-deep`**: Auditoría manual multi-perspectiva desde 4 ángulos de ingeniería (Seguridad, Calidad, Rendimiento, Arquitectura). Stack-aware con patrones Grep adaptados a TypeScript, Python, Go y Rust. Genera reporte en `docs/audits/` con tabla consolidada y priorización P0-P3. Modo "fix" opcional para implementar correcciones automáticas (→ 24 skills universales)
+- **Skill `/diverger-develop`**: Evaluación e implementación de contribuciones triageadas de partners. Lee planes de `docs/plans/partners_contributions/`, evalúa viabilidad honestamente, implementa via branch + PR, y notifica al autor con labels apropiados
+- **3 nuevas error classes**: `ParseError` (parsers JSON/YAML/TOML/XML), `ValidationError` (paths, filenames, schemas), `PluginError` (download, install). Extienden `DivergerError` para manejo programático de errores en CLI/MCP
+
+### Corregido
+- **Shell injection eliminado**: `escapeShell()` en unknown-tech-tracker reemplazado por `execFileSync` con args array — elimina toda superficie de inyección de comandos
+- **Catch blocks tipados**: 45 catch blocks ahora tienen anotación explícita `: unknown` en todo el codebase
+- **`throw new Error()` genérico eliminado**: 11 throw sites reemplazados por error classes tipadas (ParseError, ValidationError, PluginError)
+- **Empty catch en fs.ts**: Añadido debug logging condicional (`process.env.DEBUG`) para diagnosticar fallos silenciosos de cleanup en `writeFileAtomic`
+
+### Mejorado (Performance)
+- **FileScanner paralelo**: Lectura de archivos de manifiesto ahora usa `Promise.all()` en lugar de loop secuencial — mejora estimada 50-70% en fase de detección
+- **Pre-commit hook optimizado**: 2 invocaciones de `node -e` combinadas en 1 para lectura de versiones (ahorro ~150ms por commit)
+- **Deep limit defensivo**: `scan()` principal ahora limita profundidad a 3 niveles para prevenir escaneos en repos profundamente anidados
+- **Dedup algorítmico**: Detección de duplicados en composer usa `Set` (O(n)) en lugar de `indexOf` (O(n²))
+
+### Documentación
+- **Auditoría #20 completa**: Reporte de 4 perspectivas en `docs/audits/audit-20-four-perspectives.md` (22 hallazgos, 0 critical)
+- **Log de remediación**: `docs/audits/audit-20-remediation-log.md` con decisiones DONE/SKIPPED y razonamiento para cada hallazgo
+
+### Cifras
+- 1417 tests, 105 test files, 0 errores TypeScript, 0 ESLint warnings
+- 24 skills universales (era 22), 8 hooks (era 7), 8 agents, 14 MCP tools
+- 59 profiles (sin cambio), 10 analyzers (sin cambio)
+
+## [3.4.0] - 2026-03-04
+
+### Añadido — Triage inteligente de contribuciones
+- **SessionStart hook `issue-triage-checker`**: Detecta issues de GitHub sin label `planned`/`already-implemented` al iniciar sesión y avisa a Claude para que ejecute triage
+- **Skill `/diverger-triage` reescrito**: Análisis profundo del codebase antes de responder a issues — identifica archivos relevantes, evalúa complejidad real, genera plan en `docs/plans/partners_contributions/issue-{N}-{slug}.md`, publica comment inteligente en GitHub
+- **Generación de `eslint.config.js`**: Flat config (ESLint 10) en lugar de legacy `.eslintrc.json`
+- **8 hooks** en plugin (era 7): nuevo `issue-triage-checker` en SessionStart
+
+### Cambiado
+- **19 dependencias actualizadas**: @anthropic-ai/sdk, commander, inquirer, ora, chalk, fast-glob, js-yaml, smol-toml, fast-xml-parser, deepmerge-ts, diff, @modelcontextprotocol/sdk, zod, vitest, tsup, typescript, eslint, globals, @vitest/coverage-v8
+- **ESLint 10 migration**: Configuración migrada de `.eslintrc.json` a `eslint.config.js` (flat config)
+- 22 skills universales (era 21), 1411 tests (era 1380)
+
 ## [3.3.0] - 2026-03-04
 
 ### Añadido — Profiles adaptables a tecnología ("Neoprene System")
