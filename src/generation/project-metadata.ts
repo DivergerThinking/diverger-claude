@@ -1,6 +1,6 @@
 import type { DetectionResult, ProjectMetadata } from '../core/types.js';
 import path from 'path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 
 /** Useful npm script keys to include in metadata (others are noise) */
 const USEFUL_SCRIPT_KEYS = [
@@ -32,23 +32,38 @@ export function extractProjectMetadata(
   // 4. Cargo.toml (fallback for name/description)
   extractFromCargo(projectRoot, metadata);
 
-  // 5. README summary
+  // 4b. go.mod (fallback for name)
+  extractFromGoMod(projectRoot, metadata);
+
+  // 5. Subdirectory fallback: if no name/description found, scan one level deep
+  if (!metadata.name && !metadata.description) {
+    const subdirRoot = findSubdirectoryWithManifest(projectRoot, detection);
+    if (subdirRoot) {
+      extractFromPackageJson(subdirRoot, metadata);
+      extractFromPubspec(subdirRoot, metadata);
+      extractFromPyproject(subdirRoot, metadata);
+      extractFromCargo(subdirRoot, metadata);
+      extractFromGoMod(subdirRoot, metadata);
+    }
+  }
+
+  // 6. README summary
   metadata.readmeSummary = extractReadmeSummary(projectRoot);
 
-  // 6. Key directories
+  // 7. Key directories
   metadata.keyDirectories = detectKeyDirectories(projectRoot);
 
-  // 7. Architecture from detection
+  // 8. Architecture from detection
   if (detection?.architecture) {
     metadata.architecture = detection.architecture;
   }
 
-  // 8. Package manager detection
+  // 9. Package manager detection
   if (!metadata.packageManager) {
     metadata.packageManager = detectPackageManager(projectRoot);
   }
 
-  // 9. Makefile targets
+  // 10. Makefile targets
   extractMakeTargets(projectRoot, metadata);
 
   return metadata;
@@ -259,6 +274,106 @@ function detectPackageManager(projectRoot: string): ProjectMetadata['packageMana
   if (existsSync(path.join(projectRoot, 'yarn.lock'))) return 'yarn';
   if (existsSync(path.join(projectRoot, 'package-lock.json'))) return 'npm';
   return undefined;
+}
+
+function extractFromGoMod(dir: string, metadata: ProjectMetadata): void {
+  const goModPath = path.join(dir, 'go.mod');
+  if (!existsSync(goModPath)) return;
+
+  try {
+    const content = readFileSync(goModPath, 'utf-8');
+    if (!metadata.name) {
+      const moduleMatch = content.match(/^module\s+(.+)$/m);
+      if (moduleMatch?.[1]) {
+        const modulePath = moduleMatch[1].trim();
+        const segments = modulePath.split('/');
+        metadata.name = segments[segments.length - 1];
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/** Manifest files to search for in subdirectories */
+const SUBDIRECTORY_MANIFESTS = [
+  'package.json', 'pubspec.yaml', 'pyproject.toml', 'Cargo.toml',
+  'go.mod', 'build.gradle', 'build.gradle.kts', 'pom.xml',
+] as const;
+
+/** Directories to skip when scanning one level deep */
+const SKIP_DIRS = new Set([
+  'node_modules', 'dist', 'build', '.git', 'vendor', '.next',
+  '.nuxt', 'target', 'out', '.turbo', '__pycache__', '.claude',
+  '.diverger-backup', '.diverger-cache', 'coverage',
+]);
+
+/**
+ * Scan one level of subdirectories for manifest files.
+ * Returns the subdirectory path containing a recognized manifest,
+ * prioritizing the manifest type matching the detected primary language.
+ */
+function findSubdirectoryWithManifest(
+  projectRoot: string,
+  detection?: DetectionResult,
+): string | undefined {
+  let entries: string[];
+  try {
+    entries = readdirSync(projectRoot);
+  } catch {
+    return undefined;
+  }
+
+  const subdirs = entries.filter((entry) => {
+    if (SKIP_DIRS.has(entry) || entry.startsWith('.')) return false;
+    try {
+      return statSync(path.join(projectRoot, entry)).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+
+  if (subdirs.length === 0) return undefined;
+
+  // Prioritize manifest matching detected language
+  const prioritized = prioritizeManifests(detection);
+
+  for (const manifest of prioritized) {
+    for (const subdir of subdirs) {
+      if (existsSync(path.join(projectRoot, subdir, manifest))) {
+        return path.join(projectRoot, subdir);
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/** Order manifest files by priority based on detected primary language */
+function prioritizeManifests(detection?: DetectionResult): readonly string[] {
+  if (!detection?.technologies.length) return SUBDIRECTORY_MANIFESTS;
+
+  const primaryLang = detection.technologies
+    .filter((t) => t.category === 'language')
+    .sort((a, b) => b.confidence - a.confidence)[0];
+
+  const manifestMap: Record<string, string> = {
+    typescript: 'package.json',
+    javascript: 'package.json',
+    python: 'pyproject.toml',
+    dart: 'pubspec.yaml',
+    rust: 'Cargo.toml',
+    go: 'go.mod',
+    java: 'pom.xml',
+    kotlin: 'build.gradle.kts',
+  };
+
+  const primaryManifest = primaryLang ? manifestMap[primaryLang.id] : undefined;
+  if (primaryManifest) {
+    return [primaryManifest, ...SUBDIRECTORY_MANIFESTS.filter((m) => m !== primaryManifest)];
+  }
+
+  return SUBDIRECTORY_MANIFESTS;
 }
 
 /** Extract Makefile targets */

@@ -67,7 +67,7 @@ Pipeline automation. Stage-based execution, include/extends composition, secure 
 - Use \`$CI_PIPELINE_SOURCE\` to distinguish merge request pipelines from push pipelines
 
 ## Caching
-- Cache dependencies using a key that includes the lock file hash: \`key: { files: [package-lock.json] }\`
+- Cache dependencies using a key that includes the lock file hash: \`key: { files: [{{lang.lockFile}}] }\`
 - Set \`policy: pull\` on jobs that only read the cache; \`policy: push\` on jobs that update it
 - Use \`cache:paths\` to specify exactly which directories to cache (e.g., \`node_modules/\`, \`.pip/\`)
 - Define fallback keys with \`key:prefix\` and \`fallback_keys\` for partial cache hits
@@ -256,7 +256,7 @@ lint:
   extends: .merge_request_rules
   stage: test
   script:
-    - npm run lint
+    - {{lang.lintCmd}}
 \`\`\`
 
 ### 4. Configure Caching
@@ -265,9 +265,9 @@ lint:
   cache:
     key:
       files:
-        - package-lock.json
+        - {{lang.lockFile}}
     paths:
-      - node_modules/
+      - {{lang.depsDir}}/
     policy: pull
 
 build:
@@ -275,8 +275,8 @@ build:
   cache:
     policy: pull-push
   script:
-    - npm ci
-    - npm run build
+    - {{lang.installCmd}}
+    - {{lang.buildCmd}}
 \`\`\`
 
 ### 5. Configure Artifacts

@@ -1,4 +1,4 @@
-# Guia de Flujos — diverger-claude v2.4.0
+# Guia de Flujos — diverger-claude v3.3.0
 
 Referencia completa de todos los flujos del sistema, como activarlos y que hacen.
 
@@ -40,6 +40,9 @@ Referencia completa de todos los flujos del sistema, como activarlos y que hacen
 | 32 | /architecture-style-guide | Manual (skill) | Skill | Guia de estilo de arquitectura |
 | 33 | /git-workflow-guide | Manual (skill) | Skill | Guia de flujo Git |
 | 34 | /security-guide | Manual (skill) | Skill | Guia de seguridad OWASP |
+| 35a | /diverger-doctor | Manual (skill) | Skill | Score de salud 0-100 con recomendaciones |
+| 35b | /diverger-quickstart | Manual (skill) | Skill | Guia post-init de 5 minutos |
+| 35c | /diverger-welcome | Manual (skill) | Skill | Briefing de proyecto (<40 lineas) |
 | 35 | Aprendizaje de errores | Automatico (SessionStart) | Inteligencia | Clasifica errores y genera reglas |
 | 36 | Ingesta de CI | Semi-auto (notifica + skill) | Inteligencia | Parsea logs CI y alimenta aprendizaje |
 | 37 | Auto-reparacion | Automatico (SessionStart) | Inteligencia | Repara .claude/ segun modelo de confianza |
@@ -50,6 +53,9 @@ Referencia completa de todos los flujos del sistema, como activarlos y que hacen
 | 42 | Three-way merge | Automatico (durante sync) | Gobernanza | Merge inteligente BASE vs THEIRS vs OURS |
 | 43 | Enforcement de reglas | Automatico (durante generacion) | Gobernanza | Fuerza reglas mandatory/recommended |
 | 44 | Consolidacion de memoria | Automatico (cada 7 dias) | Inteligencia | Pruning y merge de memoria |
+| 45 | /diverger-welcome | Manual (skill) | Skill | Briefing de proyecto (<40 lineas) |
+| 46 | Interpolacion de templates | Automatico (durante composicion) | Generacion | Resuelve {{lang.*}}, {{ci.*}}, {{docker.*}} segun lenguaje detectado |
+| 47 | Validacion de hooks | Automatico (durante generacion) | Generacion | Detecta scripts huerfanos y referencias a scripts faltantes |
 
 ---
 
@@ -817,7 +823,7 @@ Los agentes se activan **automaticamente** cuando Claude Code delega tareas espe
 | Componente | Cantidad | Activacion |
 |-----------|----------|------------|
 | Profiles | 59 | Automatico (basado en deteccion) |
-| Skills | 18 | Manual (`/nombre`) |
+| Skills | 21 | Manual (`/nombre`) |
 | Agents | 8 | Automatico (delegacion por Claude) |
 | Hooks | 7 | Automatico (eventos de Claude Code) |
 | MCP Tools | 14 | Programatico (via MCP server) |

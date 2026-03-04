@@ -17,7 +17,7 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - **evolution-advisor**: Analiza cambios del proyecto y recomienda actualizaciones de configuración
 - **audit-reviewer**: Revisión exhaustiva de calidad y conformidad
 
-### 20 Skills universales
+### 21 Skills universales
 
 #### Configuración y gestión
 - `/diverger-init` — Detecta stack y genera configuración .claude/
@@ -43,6 +43,9 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 #### Diagnóstico de proyecto
 - `/diverger-doctor` — Score de salud del proyecto 0-100 con recomendaciones
 - `/diverger-quickstart` — Guía post-init de 5 minutos para sacar partido a la configuración
+
+#### Bienvenida
+- `/diverger-welcome` — Briefing de proyecto: identidad, git status, comandos, directorios clave, salud
 
 #### Referencia universal
 - `/architecture-style-guide` — Guía de estilo de arquitectura
@@ -190,7 +193,15 @@ diverger cleanup         # Elimina componentes duplicados de .claude/
 
 Detecta automáticamente tu stack (TypeScript, React, Docker, etc.) y genera una configuración `.claude/` con reglas, agentes, skills y hooks adaptados.
 
-### 2. Tour guiado (nuevo en v3.0)
+### 2. Briefing de proyecto (nuevo en v3.3)
+
+```
+/diverger-welcome
+```
+
+Briefing compacto (<40 líneas): identidad del proyecto, estado de git, comandos disponibles, directorios clave e indicadores de salud. Ideal como primer comando en cada sesión.
+
+### 3. Tour guiado (nuevo en v3.0)
 
 ```
 /diverger-quickstart
@@ -198,7 +209,7 @@ Detecta automáticamente tu stack (TypeScript, React, Docker, etc.) y genera una
 
 Guía post-init de 5 minutos: verificar configuración, explorar reglas generadas, listar skills disponibles para tu stack, probar un code review.
 
-### 3. Score de salud del proyecto (nuevo en v3.0)
+### 4. Score de salud del proyecto (nuevo en v3.0)
 
 ```
 /diverger-doctor
@@ -206,7 +217,7 @@ Guía post-init de 5 minutos: verificar configuración, explorar reglas generada
 
 Evalúa tu proyecto con score 0-100 en 6 categorías: Config Health, Plugin Health, Dependencies, Test Coverage, Security, Code Quality. Muestra recomendaciones accionables por categoría.
 
-### 4. Verificar estado
+### 5. Verificar estado
 
 ```
 /diverger-status
@@ -214,7 +225,7 @@ Evalúa tu proyecto con score 0-100 en 6 categorías: Config Health, Plugin Heal
 
 Muestra las tecnologías detectadas, detecta stack drift y valida que la configuración esté actualizada.
 
-### 5. Sincronizar tras cambios
+### 6. Sincronizar tras cambios
 
 ```
 /diverger-sync
@@ -222,7 +233,7 @@ Muestra las tecnologías detectadas, detecta stack drift y valida que la configu
 
 Si agregaste una nueva dependencia (ej: instalaste Prisma), sync actualiza la configuración para incluir los profiles correspondientes.
 
-### 6. Consultar guías de referencia
+### 7. Consultar guías de referencia
 
 ```
 /go-concurrency-guide     # Si tu proyecto usa Go

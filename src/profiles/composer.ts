@@ -10,6 +10,8 @@ import type {
 } from '../core/types.js';
 import { CompositionError } from '../core/errors.js';
 import { deepmerge } from 'deepmerge-ts';
+import { buildTemplateContext } from './template-context.js';
+import { interpolateTemplate } from './template-interpolation.js';
 
 /**
  * Composes multiple profiles into a single unified configuration.
@@ -48,6 +50,9 @@ export class ProfileComposer {
 
     // Merge external tool configs (e.g. multiple ESLint configs → single file)
     config.externalTools = this.mergeExternalToolConfigs(config.externalTools);
+
+    // Interpolate technology-adaptive template tokens
+    this.interpolateConfig(config, detection);
 
     // Validate no conflicts
     this.validate(config);
@@ -293,6 +298,24 @@ export class ProfileComposer {
     }
 
     return [...nonEslint, merged];
+  }
+
+  /** Apply template interpolation to all string content in the config */
+  private interpolateConfig(config: ComposedConfig, detection: DetectionResult): void {
+    const ctx = buildTemplateContext(detection);
+
+    for (const section of config.claudeMdSections) {
+      section.content = interpolateTemplate(section.content, ctx);
+    }
+    for (const rule of config.rules) {
+      rule.content = interpolateTemplate(rule.content, ctx);
+    }
+    for (const skill of config.skills) {
+      skill.content = interpolateTemplate(skill.content, ctx);
+    }
+    for (const agent of config.agents) {
+      agent.prompt = interpolateTemplate(agent.prompt, ctx);
+    }
   }
 
   /** Validate the composed config for conflicts */

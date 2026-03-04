@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.3.0] - 2026-03-04
+
+### Añadido — Profiles adaptables a tecnología ("Neoprene System")
+- **Motor de interpolación de templates**: Sistema `{{namespace.key}}` con 3 namespaces (`lang`, `ci`, `docker`) que resuelve tokens en tiempo de composición. Los 6 profiles de infraestructura (GitHub Actions, Docker, Jenkins, GitLab CI, CircleCI, Azure Pipelines) ahora generan ejemplos adaptados al lenguaje detectado en lugar de hardcodear Node.js/npm
+- **11 mappings de lenguaje**: TypeScript, JavaScript, Python, Go, Rust, Java, C#, Dart, Kotlin, Swift, Ruby — cada uno con contexto completo de lang (installCmd, testCmd, buildCmd, packageManager, lockFile, versionMatrix), ci (setupAction, cacheInput, publishCmd) y docker (buildImage, runtimeImage, entrypoint, port)
+- **Overrides de package manager**: Detecta bun/deno/pnpm/yarn desde las evidencias de detección y sobrescribe installCmd, lockFile y cacheInput automáticamente
+- **Extracción de metadata en subdirectorios**: Si el directorio raíz no tiene manifiestos (package.json, pubspec.yaml, etc.), escanea subdirectorios inmediatos para extraer nombre y descripción del proyecto. Prioriza manifiestos que coincidan con el lenguaje detectado
+- **Soporte para `go.mod`**: Extrae nombre del proyecto desde la directiva `module` de go.mod
+- **Skill `/diverger-welcome`**: Briefing de proyecto en <40 líneas — identidad, estado git, comandos disponibles, directorios clave y indicadores de salud. Valor visible desde la primera sesión (→ 21 skills universales)
+- **Validación de consistencia de hooks**: `validateHookConsistency()` cruza scripts en hookScripts contra referencias en settings hooks. Detecta scripts huérfanos (existen pero no están wired) y scripts faltantes (wired pero sin archivo)
+
+### Cambiado
+- **6 profiles de infraestructura migrados**: ~67 tokens reemplazados en total. Los ejemplos educativos multi-lenguaje en Docker se preservan intactos
+- **ProfileComposer**: Nuevo paso `interpolateConfig()` antes de `validate()` que resuelve tokens `{{lang.*}}`, `{{ci.*}}`, `{{docker.*}}` en claudeMdSections, rules, skills y agent prompts
+- **GenerationEngine**: Ejecuta validación de hooks post-generación y emite warnings via `onProgress` para scripts huérfanos o faltantes
+- 21 skills universales (era 20), ~1380 tests, 0 errores TypeScript
+
+### Incluye cambios de v3.1.0, v3.2.0, v3.2.1
+- **v3.1.0**: CLAUDE.md project-aware, reglas genéricas de proceso, conocimiento embebido
+- **v3.2.0**: Generación project-aware, smart rules, deduplicación
+- **v3.2.1**: 10 fixes de dogfood en 3 proyectos (cross-ref paths, Makefile regex, pubspec.yaml, Swift suppression, YAML serializer, agent guard, fallback text)
+
 ## [3.0.0] - 2026-03-03
 
 ### Añadido — Conocimiento embebido en 15 tecnologías
@@ -34,7 +56,7 @@
 - **Health check post-instalación**: Tras `diverger plugin install`, se ejecuta automáticamente un diagnóstico del plugin
 - **Cross-platform**: Reemplazado `jq` por `node -e` en todos los hook scripts (60+ archivos) — funciona en Windows sin dependencias adicionales
 - **Skills utilitarios enriquecidos**: `/diverger-init`, `/diverger-status`, `/diverger-sync` ampliados con edge cases, error recovery y sugerencias contextuales
-- 20 skills universales (era 18), 30+ reference skills por tecnología, 1334 tests (era 1070)
+- 20 skills universales (era 18), 30+ reference skills por tecnología, ~1340 tests (era 1070)
 
 ## [2.4.0] - 2026-03-03
 

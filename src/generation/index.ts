@@ -8,6 +8,7 @@ import { generateMcp } from './generators/mcp.js';
 import { generateSecurityConfig } from './generators/security.js';
 import { generateExternalTools } from './generators/external-tools.js';
 import { generateHookScripts } from './generators/hook-scripts.js';
+import { validateHookConsistency } from './generators/hooks.js';
 import { generateReactNativeTemplate } from './templates/react-native-template.js';
 import { generateExpoTemplate } from './templates/expo-template.js';
 import { generateFlutterTemplate } from './templates/flutter-template.js';
@@ -90,6 +91,15 @@ export class GenerationEngine {
     // 6b. Hook scripts (.claude/hooks/*.sh)
     onProgress?.('Generando hook scripts...');
     files.push(...generateHookScripts(mergedConfig, projectRoot));
+
+    // 6c. Validate hook consistency
+    const hookIssues = validateHookConsistency(mergedConfig);
+    if (hookIssues.orphanScripts.length > 0) {
+      onProgress?.(`⚠ Hook scripts sin entrada en settings: ${hookIssues.orphanScripts.join(', ')}`);
+    }
+    if (hookIssues.missingScripts.length > 0) {
+      onProgress?.(`⚠ Settings referencian scripts inexistentes: ${hookIssues.missingScripts.join(', ')}`);
+    }
 
     // 7. MCP
     onProgress?.('Generando configuración MCP...');

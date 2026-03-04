@@ -250,7 +250,7 @@ trigger:
   paths:
     include:
       - src/**
-      - package.json
+      - {{lang.manifestFile}}
 
 pr:
   branches:
@@ -286,11 +286,11 @@ stages:
           - task: NodeTool@0
             inputs:
               versionSpec: '20.x'
-          - script: npm ci
+          - script: {{lang.installCmd}}
             displayName: 'Install dependencies'
-          - script: npm run build
+          - script: {{lang.buildCmd}}
             displayName: 'Build'
-          - script: npm test
+          - script: {{lang.testCmd}}
             displayName: 'Run tests'
           - publish: $(System.DefaultWorkingDirectory)/dist
             artifact: build-output
@@ -332,7 +332,7 @@ stages:
   - template: stages/build.yml@templates
     parameters:
       nodeVersion: '20.x'
-      buildCommand: 'npm run build'
+      buildCommand: '{{lang.buildCmd}}'
 \`\`\`
 
 ### 7. Configure Matrix Strategy

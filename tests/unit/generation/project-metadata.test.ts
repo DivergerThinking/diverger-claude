@@ -258,4 +258,112 @@ description = "Python description"
     expect(meta.name).toBe('js-name');
     expect(meta.description).toBe('JS description');
   });
+
+  it('extracts name from go.mod module path', () => {
+    writeFileSync(path.join(tmpDir, 'go.mod'), `module github.com/myorg/my-api
+
+go 1.21
+`);
+
+    const meta = extractProjectMetadata(tmpDir);
+    expect(meta.name).toBe('my-api');
+  });
+
+  // ── Subdirectory metadata extraction ──────────────────────────────────
+
+  describe('subdirectory fallback', () => {
+    it('extracts metadata from subdirectory when root has no manifests', () => {
+      mkdirSync(path.join(tmpDir, 'my-app'));
+      writeFileSync(path.join(tmpDir, 'my-app', 'package.json'), JSON.stringify({
+        name: 'my-app',
+        description: 'An app in a subdirectory',
+      }));
+
+      const meta = extractProjectMetadata(tmpDir);
+      expect(meta.name).toBe('my-app');
+      expect(meta.description).toBe('An app in a subdirectory');
+    });
+
+    it('prefers root manifest over subdirectory manifest', () => {
+      writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({
+        name: 'root-app',
+      }));
+      mkdirSync(path.join(tmpDir, 'subdir'));
+      writeFileSync(path.join(tmpDir, 'subdir', 'package.json'), JSON.stringify({
+        name: 'sub-app',
+      }));
+
+      const meta = extractProjectMetadata(tmpDir);
+      expect(meta.name).toBe('root-app');
+    });
+
+    it('extracts metadata from subdirectory pubspec.yaml', () => {
+      mkdirSync(path.join(tmpDir, 'iMBx-Front'));
+      writeFileSync(path.join(tmpDir, 'iMBx-Front', 'pubspec.yaml'), `name: imbx_front
+description: Flutter app for iMBx
+`);
+
+      const meta = extractProjectMetadata(tmpDir);
+      expect(meta.name).toBe('imbx_front');
+      expect(meta.description).toBe('Flutter app for iMBx');
+    });
+
+    it('extracts go.mod name from subdirectory', () => {
+      mkdirSync(path.join(tmpDir, 'api'));
+      writeFileSync(path.join(tmpDir, 'api', 'go.mod'), `module github.com/myorg/my-api
+
+go 1.21
+`);
+
+      const meta = extractProjectMetadata(tmpDir);
+      expect(meta.name).toBe('my-api');
+    });
+
+    it('skips node_modules and hidden directories when scanning', () => {
+      mkdirSync(path.join(tmpDir, 'node_modules', 'some-pkg'), { recursive: true });
+      writeFileSync(path.join(tmpDir, 'node_modules', 'some-pkg', 'package.json'), JSON.stringify({
+        name: 'some-pkg',
+        description: 'Should not be picked up',
+      }));
+
+      const meta = extractProjectMetadata(tmpDir);
+      expect(meta.name).toBeUndefined();
+    });
+
+    it('skips .git and other dotfiles when scanning', () => {
+      mkdirSync(path.join(tmpDir, '.hidden'));
+      writeFileSync(path.join(tmpDir, '.hidden', 'package.json'), JSON.stringify({
+        name: 'hidden-pkg',
+      }));
+
+      const meta = extractProjectMetadata(tmpDir);
+      expect(meta.name).toBeUndefined();
+    });
+
+    it('prioritizes manifest matching detected language', () => {
+      // Create two subdirs with different manifests
+      mkdirSync(path.join(tmpDir, 'backend'));
+      writeFileSync(path.join(tmpDir, 'backend', 'pyproject.toml'), `[project]\nname = "backend"\ndescription = "Python backend"\n`);
+      mkdirSync(path.join(tmpDir, 'frontend'));
+      writeFileSync(path.join(tmpDir, 'frontend', 'package.json'), JSON.stringify({
+        name: 'frontend',
+        description: 'JS frontend',
+      }));
+
+      // With Python detection, should pick pyproject.toml subdirectory
+      const meta = extractProjectMetadata(tmpDir, {
+        technologies: [{
+          id: 'python',
+          name: 'Python',
+          category: 'language',
+          confidence: 90,
+          evidence: [],
+          profileIds: [],
+        }],
+        rootDir: tmpDir,
+        detectedAt: new Date().toISOString(),
+      });
+      expect(meta.name).toBe('backend');
+    });
+  });
 });

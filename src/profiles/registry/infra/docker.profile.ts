@@ -258,7 +258,7 @@ Dockerfile and switch to it before copying application code.
 
 ### Correct Pattern
 \\\`\\\`\\\`dockerfile
-FROM node:20-alpine AS runtime
+FROM {{docker.runtimeImage}} AS runtime
 WORKDIR /app
 
 # Create non-root user before copying app code
@@ -266,21 +266,21 @@ RUN addgroup -S app && adduser -S app -G app
 
 # Copy artifacts owned by the app user
 COPY --from=builder --chown=app:app /app/dist ./dist
-COPY --from=builder --chown=app:app /app/node_modules ./node_modules
+COPY --from=builder --chown=app:app /app/{{lang.depsDir}} ./{{lang.depsDir}}
 
 USER app
-EXPOSE 3000
-CMD ["node", "dist/index.js"]
+EXPOSE {{docker.port}}
+{{docker.entrypoint}}
 \\\`\\\`\\\`
 
 ### Anti-Pattern
 \\\`\\\`\\\`dockerfile
 # BAD: No USER directive — container runs as root
-FROM node:20
+FROM {{docker.buildImage}}
 WORKDIR /app
 COPY . .
-RUN npm install
-CMD ["node", "index.js"]
+RUN {{lang.installCmd}}
+{{docker.entrypoint}}
 \\\`\\\`\\\`
 
 ## Multi-Stage Builds for Minimal Images
@@ -300,13 +300,13 @@ extracted with \`docker history\` or by inspecting the image filesystem.
 ### Correct: BuildKit Secrets
 \\\`\\\`\\\`dockerfile
 # syntax=docker/dockerfile:1
-FROM node:20-alpine AS builder
+FROM {{docker.buildImage}} AS builder
 WORKDIR /app
-COPY package*.json ./
+{{docker.copyManifest}}
 # Secret is mounted at build time, never stored in a layer
-RUN --mount=type=secret,id=npmrc,target=/root/.npmrc npm ci
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc {{lang.installCmd}}
 COPY . .
-RUN npm run build
+{{docker.buildStep}}
 \\\`\\\`\\\`
 
 Build command: \`DOCKER_BUILDKIT=1 docker build --secret id=npmrc,src=.npmrc .\`
@@ -443,30 +443,30 @@ instructions from least-changing to most-changing maximizes cache hits.
 
 ### Correct Order
 \\\`\\\`\\\`dockerfile
-FROM node:20-alpine AS builder
+FROM {{docker.buildImage}} AS builder
 WORKDIR /app
 
 # 1. Copy dependency manifests FIRST (rarely change)
-COPY package.json package-lock.json ./
+{{docker.copyManifest}}
 
 # 2. Install dependencies (cached unless manifests change)
-RUN npm ci --production=false
+{{docker.installDeps}}
 
 # 3. Copy source code LAST (changes frequently)
 COPY . .
 
 # 4. Build
-RUN npm run build
+{{docker.buildStep}}
 \\\`\\\`\\\`
 
 ### Anti-Pattern
 \\\`\\\`\\\`dockerfile
-# BAD: COPY . . before npm install — every source change busts dependency cache
-FROM node:20-alpine
+# BAD: COPY . . before install — every source change busts dependency cache
+FROM {{docker.buildImage}}
 WORKDIR /app
 COPY . .
-RUN npm install
-RUN npm run build
+RUN {{lang.installCmd}}
+{{docker.buildStep}}
 \\\`\\\`\\\`
 
 ## COPY vs ADD
@@ -475,14 +475,14 @@ RUN npm run build
 
 ### Correct
 \\\`\\\`\\\`dockerfile
-COPY package.json package-lock.json ./
+{{docker.copyManifest}}
 COPY src/ ./src/
 \\\`\\\`\\\`
 
 ### Anti-Pattern
 \\\`\\\`\\\`dockerfile
 # BAD: ADD for local files — use COPY instead
-ADD package.json ./
+ADD {{lang.manifestFile}} ./
 ADD src/ ./src/
 \\\`\\\`\\\`
 
@@ -547,7 +547,7 @@ determine container readiness and trigger restarts on failure.
 ### Correct
 \\\`\\\`\\\`dockerfile
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \\
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:{{docker.port}}/health || exit 1
 \\\`\\\`\\\`
 
 - \`--interval\`: Time between checks (30s is a good default)
@@ -567,15 +567,15 @@ an additional package. For distroless or scratch, use a compiled health check bi
 ### Correct: Exec Form
 \\\`\\\`\\\`dockerfile
 # Exec form: signals are forwarded correctly to PID 1
-ENTRYPOINT ["node", "dist/server.js"]
-CMD ["--port", "3000"]
+{{docker.entrypoint}}
+CMD ["--port", "{{docker.port}}"]
 \\\`\\\`\\\`
 
 ### Anti-Pattern: Shell Form
 \\\`\\\`\\\`dockerfile
 # BAD: Shell form wraps in /bin/sh -c — signals not forwarded, PID 1 is shell
 ENTRYPOINT node dist/server.js
-CMD --port 3000
+CMD --port {{docker.port}}
 \\\`\\\`\\\`
 
 ## BuildKit Features
@@ -595,7 +595,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build go build ./...
 Access secrets at build time without storing them in layers:
 
 \\\`\\\`\\\`dockerfile
-RUN --mount=type=secret,id=npmrc,target=/root/.npmrc npm ci
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc {{lang.installCmd}}
 \\\`\\\`\\\`
 
 ### Bind Mounts
@@ -668,7 +668,7 @@ FROM ubuntu:latest     # BAD: latest is a moving target
 
 For critical deployments, pin by digest:
 \\\`\\\`\\\`dockerfile
-FROM node:20.11-alpine3.19@sha256:1a2b3c4d...
+FROM {{docker.buildImage}}@sha256:1a2b3c4d...
 \\\`\\\`\\\`
 `,
       },

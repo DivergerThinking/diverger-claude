@@ -49,6 +49,35 @@ Ejemplo para `code-reviewer`:
 - Representan buenas prácticas sugeridas
 - `diverger sync` respeta los cambios del equipo
 
+## Interpolación adaptativa de templates (v3.3.0)
+
+Los profiles de infraestructura usan tokens `{{namespace.key}}` que se resuelven automáticamente según el lenguaje detectado. Esto elimina hardcoding de Node.js/npm en ejemplos de CI y Docker.
+
+### Namespaces disponibles
+
+| Namespace | Keys principales | Ejemplo (Python) |
+|-----------|-----------------|-------------------|
+| `lang` | installCmd, testCmd, buildCmd, packageManager, lockFile, versionMatrix | `pip install -r requirements.txt`, `pytest`, `pip` |
+| `ci` | setupAction, versionInput, cacheInput, publishCmd | `actions/setup-python`, `python-version`, `pip` |
+| `docker` | buildImage, runtimeImage, installDeps, entrypoint, port | `python:3.12`, `python:3.12-slim`, `pip install`, `3000` |
+
+### Lenguajes soportados (11)
+
+TypeScript, JavaScript, Python, Go, Rust, Java, C#, Dart, Kotlin, Swift, Ruby
+
+### Overrides de package manager
+
+Si se detecta bun, deno, pnpm o yarn como package manager, se sobrescriben automáticamente `installCmd`, `lockFile` y `cacheInput` en el contexto de template.
+
+### Cómo funciona
+
+1. Durante detección, se identifica el lenguaje principal (mayor confianza)
+2. `buildTemplateContext()` genera un contexto con los 3 namespaces
+3. `interpolateConfig()` en el composer resuelve todos los tokens `{{lang.*}}`, `{{ci.*}}`, `{{docker.*}}`
+4. Los profiles sin tokens pasan sin cambio (backward compatible)
+
+> **Nota**: Los tokens usan prefijo de namespace (`{{lang.installCmd}}`) para evitar colisiones con `${{ }}` de GitHub Actions y `{{BUILD_COMMANDS}}` existentes.
+
 ## Profiles disponibles (59 total)
 
 ### Base (1)

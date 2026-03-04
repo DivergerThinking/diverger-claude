@@ -70,7 +70,7 @@ Pipeline automation. Workflow orchestration, orb reuse, executor-based isolation
 - Use \`orb:\` inline definitions only for quick prototyping — move to published orbs for production
 
 ## Caching
-- Cache dependencies using lock file checksums: \`key: deps-{{ checksum "package-lock.json" }}\`
+- Cache dependencies using lock file checksums: \`key: deps-{{ checksum "{{lang.lockFile}}" }}\`
 - Use a cache key prefix for easy invalidation: \`v2-deps-{{ checksum "..." }}\` — bump prefix to clear cache
 - Define \`restore_cache:\` with fallback keys: exact match first, then prefix match
 - Cache only dependency directories (\`node_modules/\`, \`.pip/\`) — not build outputs (use workspaces)
@@ -258,13 +258,13 @@ commands:
     steps:
       - restore_cache:
           keys:
-            - v2-deps-{{ checksum "package-lock.json" }}
+            - v2-deps-{{ checksum "{{lang.lockFile}}" }}
             - v2-deps-
-      - run: npm ci
+      - run: {{lang.installCmd}}
       - save_cache:
-          key: v2-deps-{{ checksum "package-lock.json" }}
+          key: v2-deps-{{ checksum "{{lang.lockFile}}" }}
           paths:
-            - node_modules
+            - {{lang.depsDir}}
 \`\`\`
 
 ### 4. Define Jobs
@@ -275,7 +275,7 @@ jobs:
     steps:
       - checkout
       - install-deps
-      - run: npm run build
+      - run: {{lang.buildCmd}}
       - persist_to_workspace:
           root: .
           paths:
@@ -285,7 +285,7 @@ jobs:
     steps:
       - checkout
       - install-deps
-      - run: npm test
+      - run: {{lang.testCmd}}
       - store_test_results:
           path: reports/junit
 \`\`\`

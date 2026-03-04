@@ -205,10 +205,10 @@ For detailed examples and reference, invoke: /github-actions-guide
 on:
   push:
     branches: [main]
-    paths: ['src/**', 'package.json', 'package-lock.json']
+    paths: ['src/**', '{{lang.manifestFile}}', '{{lang.lockFile}}']
   pull_request:
     branches: [main]
-    paths: ['src/**', 'package.json', 'package-lock.json']
+    paths: ['src/**', '{{lang.manifestFile}}', '{{lang.lockFile}}']
 \\\`\\\`\\\`
 
 \\\`\\\`\\\`yaml
@@ -272,14 +272,14 @@ jobs:
 strategy:
   fail-fast: false
   matrix:
-    node-version: [18, 20, 22]
+    {{ci.versionInput}}: {{lang.versionMatrix}}
     os: [ubuntu-latest, macos-latest, windows-latest]
     include:
-      - node-version: 22
+      - {{ci.versionInput}}: 22
         os: ubuntu-latest
         coverage: true
     exclude:
-      - node-version: 18
+      - {{ci.versionInput}}: 18
         os: windows-latest
 \\\`\\\`\\\`
 
@@ -288,7 +288,7 @@ strategy:
 strategy:
   fail-fast: true
   matrix:
-    node-version: [18, 20, 22]
+    {{ci.versionInput}}: {{lang.versionMatrix}}
 \\\`\\\`\\\`
 
 ## Caching
@@ -297,12 +297,12 @@ strategy:
 Most \`actions/setup-*\` actions have a \`cache\` input that handles caching automatically:
 
 \\\`\\\`\\\`yaml
-# Correct — setup-node built-in caching
-- uses: actions/setup-node@<full-sha> # v4
+# Correct — built-in caching via setup action
+- uses: {{ci.setupAction}}@<full-sha> # v4
   with:
-    node-version-file: '.node-version'
-    cache: 'npm'
-- run: npm ci
+    {{ci.versionInput}}-file: '{{ci.versionFile}}'
+    cache: '{{ci.cacheInput}}'
+- run: {{lang.installCmd}}
 \\\`\\\`\\\`
 
 ### Manual Caching with actions/cache
@@ -322,7 +322,7 @@ For custom cache scenarios:
 
 \\\`\\\`\\\`yaml
 # Anti-pattern — no cache, every run re-downloads all dependencies
-- run: npm ci
+- run: {{lang.installCmd}}
 \\\`\\\`\\\`
 
 ## Secrets Management
@@ -384,11 +384,11 @@ jobs:
 on:
   workflow_call:
     inputs:
-      node-version:
+      {{ci.versionInput}}:
         type: string
         default: '20'
     secrets:
-      NPM_TOKEN:
+      {{ci.publishTokenName}}:
         required: false
 
 jobs:
@@ -398,12 +398,12 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@<full-sha>
-      - uses: actions/setup-node@<full-sha>
+      - uses: {{ci.setupAction}}@<full-sha>
         with:
-          node-version: \${{ inputs.node-version }}
-          cache: 'npm'
-      - run: npm ci
-      - run: npm test
+          {{ci.versionInput}}: \${{ inputs.{{ci.versionInput}} }}
+          cache: '{{ci.cacheInput}}'
+      - run: {{lang.installCmd}}
+      - run: {{lang.testCmd}}
 \\\`\\\`\\\`
 
 \\\`\\\`\\\`yaml
@@ -412,7 +412,7 @@ jobs:
   test:
     uses: ./.github/workflows/_reusable-test.yml
     with:
-      node-version: '22'
+      {{ci.versionInput}}: '22'
     secrets: inherit
 \\\`\\\`\\\`
 
@@ -424,19 +424,19 @@ jobs:
 \\\`\\\`\\\`yaml
 # .github/actions/setup-project/action.yml
 name: 'Setup Project'
-description: 'Install Node.js and project dependencies'
+description: 'Install {{lang.name}} and project dependencies'
 inputs:
-  node-version:
-    description: 'Node.js version'
+  {{ci.versionInput}}:
+    description: '{{lang.name}} version'
     default: '20'
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@<full-sha>
+    - uses: {{ci.setupAction}}@<full-sha>
       with:
-        node-version: \${{ inputs.node-version }}
-        cache: 'npm'
-    - run: npm ci
+        {{ci.versionInput}}: \${{ inputs.{{ci.versionInput}} }}
+        cache: '{{ci.cacheInput}}'
+    - run: {{lang.installCmd}}
       shell: bash
 \\\`\\\`\\\`
 
@@ -487,7 +487,7 @@ name: CI
 on:
   push:
     branches: [main]
-    paths: ['src/**', 'tests/**', 'package*.json']
+    paths: ['src/**', 'tests/**', '{{lang.manifestFile}}']
   pull_request:
     branches: [main]
 
@@ -504,10 +504,10 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@<full-sha>
-      - uses: actions/setup-node@<full-sha>
-        with: { node-version-file: '.node-version', cache: 'npm' }
-      - run: npm ci
-      - run: npm run lint
+      - uses: {{ci.setupAction}}@<full-sha>
+        with: { {{ci.versionInput}}-file: '{{ci.versionFile}}', cache: '{{ci.cacheInput}}' }
+      - run: {{lang.installCmd}}
+      - run: {{lang.lintCmd}}
 
   test:
     runs-on: ubuntu-latest
@@ -516,13 +516,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18, 20, 22]
+        {{ci.versionInput}}: {{lang.versionMatrix}}
     steps:
       - uses: actions/checkout@<full-sha>
-      - uses: actions/setup-node@<full-sha>
-        with: { node-version: \${{ matrix.node-version }}, cache: 'npm' }
-      - run: npm ci
-      - run: npm test
+      - uses: {{ci.setupAction}}@<full-sha>
+        with: { {{ci.versionInput}}: \${{ matrix.{{ci.versionInput}} }}, cache: '{{ci.cacheInput}}' }
+      - run: {{lang.installCmd}}
+      - run: {{lang.testCmd}}
 \\\`\\\`\\\`
 
 ### Release (Tag-Based)
@@ -541,9 +541,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@<full-sha>
-      - uses: actions/setup-node@<full-sha>
-        with: { node-version-file: '.node-version', cache: 'npm' }
-      - run: npm ci && npm run build
+      - uses: {{ci.setupAction}}@<full-sha>
+        with: { {{ci.versionInput}}-file: '{{ci.versionFile}}', cache: '{{ci.cacheInput}}' }
+      - run: {{lang.installCmd}} && {{lang.buildCmd}}
       - uses: actions/upload-artifact@<full-sha>
         with: { name: dist, path: dist/, retention-days: 5 }
 
@@ -557,9 +557,9 @@ jobs:
     steps:
       - uses: actions/download-artifact@<full-sha>
         with: { name: dist, path: dist/ }
-      - run: npm publish
+      - run: {{ci.publishCmd}}
         env:
-          NODE_AUTH_TOKEN: \${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: \${{ secrets.{{ci.publishTokenName}} }}
 \\\`\\\`\\\`
 
 ### PR Checks
@@ -579,10 +579,10 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@<full-sha>
-      - uses: actions/setup-node@<full-sha>
-        with: { node-version-file: '.node-version', cache: 'npm' }
-      - run: npm ci
-      - run: npm run lint && npm test && npm run build
+      - uses: {{ci.setupAction}}@<full-sha>
+        with: { {{ci.versionInput}}-file: '{{ci.versionFile}}', cache: '{{ci.cacheInput}}' }
+      - run: {{lang.installCmd}}
+      - run: {{lang.lintCmd}} && {{lang.testCmd}} && {{lang.buildCmd}}
 \\\`\\\`\\\`
 
 ## Security Best Practices Summary
@@ -666,10 +666,10 @@ Identify the workflow purpose:
 on:
   push:
     branches: [main]
-    paths: ['src/**', 'package.json', 'package-lock.json']
+    paths: ['src/**', '{{lang.manifestFile}}', '{{lang.lockFile}}']
   pull_request:
     branches: [main]
-    paths: ['src/**', 'package.json', 'package-lock.json']
+    paths: ['src/**', '{{lang.manifestFile}}', '{{lang.lockFile}}']
 \`\`\`
 
 ### 3. Set Permissions (Deny by Default)
@@ -693,16 +693,16 @@ concurrency:
 \`\`\`yaml
 steps:
   - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-  - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+  - uses: {{ci.setupAction}}@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
 \`\`\`
 
 ### 6. Configure Caching
 \`\`\`yaml
-- uses: actions/setup-node@<sha>
+- uses: {{ci.setupAction}}@<sha>
   with:
-    node-version-file: '.node-version'
-    cache: 'npm'
-- run: npm ci
+    {{ci.versionInput}}-file: '{{ci.versionFile}}'
+    cache: '{{ci.cacheInput}}'
+- run: {{lang.installCmd}}
 \`\`\`
 
 ### 7. Add Matrix Strategy (if needed)
@@ -710,7 +710,7 @@ steps:
 strategy:
   fail-fast: false
   matrix:
-    node-version: [18, 20, 22]
+    {{ci.versionInput}}: {{lang.versionMatrix}}
     os: [ubuntu-latest, macos-latest]
 \`\`\`
 

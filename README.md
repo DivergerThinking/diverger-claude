@@ -120,6 +120,10 @@ diverger-claude usa un sistema de 5 capas composables:
 
 Los profiles se componen automáticamente: las secciones se concatenan, los settings se mergean, y los agentes se enriquecen con conocimiento específico del stack.
 
+### Interpolación adaptativa (v3.3.0)
+
+Los profiles de infraestructura (CI/CD, Docker) usan tokens `{{lang.*}}`, `{{ci.*}}`, `{{docker.*}}` que se resuelven automáticamente según el lenguaje detectado. Un proyecto Python obtiene `pip install`, `python:3.12-slim` y `setup-python`; un proyecto Go obtiene `go build`, `golang:1.22-alpine` y `setup-go` — sin configuración manual.
+
 ## Gobernanza
 
 Las reglas tienen dos niveles de gobernanza:

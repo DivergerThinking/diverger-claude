@@ -49,7 +49,7 @@ Declarative pipeline automation. Stage-based execution, shared libraries, creden
 - Keep Jenkinsfile under 200 lines — extract complex logic into shared library steps
 
 ## Agent Configuration
-- Use \`agent { docker { image 'node:20-slim' } }\` for reproducible, isolated builds
+- Use \`agent { docker { image '{{docker.buildImage}}' } }\` for reproducible, isolated builds
 - Use \`agent { kubernetes { ... } }\` for Kubernetes-based dynamic agents
 - Use \`agent { label 'linux' }\` for node-based execution with specific labels
 - Set \`agent none\` at pipeline level and specify per stage when stages need different environments
@@ -238,7 +238,7 @@ Identify the pipeline purpose:
 pipeline {
     agent {
         docker {
-            image 'node:20-slim'
+            image '{{docker.buildImage}}'
             args '-v /tmp:/tmp'
         }
     }
@@ -250,8 +250,8 @@ pipeline {
 stages {
     stage('Build') {
         steps {
-            sh 'npm ci'
-            sh 'npm run build'
+            sh '{{lang.installCmd}}'
+            sh '{{lang.buildCmd}}'
         }
     }
     stage('Test') {

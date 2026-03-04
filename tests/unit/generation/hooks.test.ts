@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateHooks } from '../../../src/generation/generators/hooks.js';
+import { generateHooks, validateHookConsistency } from '../../../src/generation/generators/hooks.js';
 import type { ComposedConfig } from '../../../src/core/types.js';
 
 function makeConfig(overrides: Partial<ComposedConfig> = {}): ComposedConfig {
@@ -148,5 +148,55 @@ describe('generateHooks', () => {
     const result = generateHooks(config);
 
     expect(result!.PostToolUse![0]!.hooks[0]!.type).toBe('command');
+  });
+});
+
+describe('validateHookConsistency', () => {
+  it('reports no issues when hooks and hookScripts are aligned', () => {
+    const config = makeConfig({
+      hooks: [{
+        event: 'PostToolUse',
+        matcher: 'Write',
+        hooks: [{ type: 'command', command: 'bash .claude/hooks/my-check.sh' }],
+      }],
+      hookScripts: [{ filename: 'my-check.sh', content: '#!/bin/bash\nexit 0', isPreToolUse: false }],
+    });
+
+    const result = validateHookConsistency(config);
+    expect(result.orphanScripts).toEqual([]);
+    expect(result.missingScripts).toEqual([]);
+  });
+
+  it('detects orphan hook scripts (exist but not wired)', () => {
+    const config = makeConfig({
+      hooks: [],
+      hookScripts: [{ filename: 'orphan.sh', content: '#!/bin/bash', isPreToolUse: false }],
+    });
+
+    const result = validateHookConsistency(config);
+    expect(result.orphanScripts).toContain('orphan.sh');
+    expect(result.missingScripts).toEqual([]);
+  });
+
+  it('detects missing hook scripts (wired but no file)', () => {
+    const config = makeConfig({
+      hooks: [{
+        event: 'PostToolUse',
+        matcher: 'Write',
+        hooks: [{ type: 'command', command: 'bash .claude/hooks/missing.sh' }],
+      }],
+      hookScripts: [],
+    });
+
+    const result = validateHookConsistency(config);
+    expect(result.orphanScripts).toEqual([]);
+    expect(result.missingScripts).toContain('missing.sh');
+  });
+
+  it('handles empty config gracefully', () => {
+    const config = makeConfig();
+    const result = validateHookConsistency(config);
+    expect(result.orphanScripts).toEqual([]);
+    expect(result.missingScripts).toEqual([]);
   });
 });
