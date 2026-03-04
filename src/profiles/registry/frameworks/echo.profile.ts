@@ -370,7 +370,7 @@ func Tenant() echo.MiddlewareFunc {
             type: 'command',
             statusMessage: 'Checking for internal error exposure in Echo JSON responses',
             command:
-              'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.go$" && grep -nE "func\\s+\\w+\\(c\\s+(\\*?echo\\.Context|echo\\.Context)\\)\\s+error\\s*\\{" "$FILE_PATH" | while read -r line; do linenum=$(echo "$line" | cut -d: -f1); tail -n +"$linenum" "$FILE_PATH" | head -30 | grep -qE "c\\.JSON\\(.*err\\.Error\\(\\)" && { echo "Warning: handler at line $linenum may expose internal error details via err.Error() in JSON response — use echo.NewHTTPError instead" >&2; exit 2; }; done || exit 0',
+              'FILE_PATH=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.go$" && grep -nE "func\\s+\\w+\\(c\\s+(\\*?echo\\.Context|echo\\.Context)\\)\\s+error\\s*\\{" "$FILE_PATH" | while read -r line; do linenum=$(echo "$line" | cut -d: -f1); tail -n +"$linenum" "$FILE_PATH" | head -30 | grep -qE "c\\.JSON\\(.*err\\.Error\\(\\)" && { echo "Warning: handler at line $linenum may expose internal error details via err.Error() in JSON response — use echo.NewHTTPError instead" >&2; exit 2; }; done || exit 0',
             timeout: 10,
           },
         ],
@@ -383,7 +383,7 @@ func Tenant() echo.MiddlewareFunc {
             type: 'command',
             statusMessage: 'Checking for missing HTTPErrorHandler in Echo setup',
             command:
-              'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.go$" && grep -nE "echo\\.New\\(\\)" "$FILE_PATH" | head -1 | while read -r line; do linenum=$(echo "$line" | cut -d: -f1); tail -n +"$linenum" "$FILE_PATH" | head -50 | grep -qE "HTTPErrorHandler" || { echo "Warning: echo.New() created without setting a custom HTTPErrorHandler — consider configuring e.HTTPErrorHandler for consistent error responses" >&2; exit 2; }; done || exit 0',
+              'FILE_PATH=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.go$" && grep -nE "echo\\.New\\(\\)" "$FILE_PATH" | head -1 | while read -r line; do linenum=$(echo "$line" | cut -d: -f1); tail -n +"$linenum" "$FILE_PATH" | head -50 | grep -qE "HTTPErrorHandler" || { echo "Warning: echo.New() created without setting a custom HTTPErrorHandler — consider configuring e.HTTPErrorHandler for consistent error responses" >&2; exit 2; }; done || exit 0',
             timeout: 10,
           },
         ],

@@ -311,7 +311,7 @@ Cypress.Commands.add('loginAs', (username: string, password: string) => {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -cE "\\b(it\\.only|describe\\.only|context\\.only)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test detected (.only) in Cypress spec — remove before committing to avoid skipping other tests" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -cE "\\b(it\\.only|describe\\.only|context\\.only)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test detected (.only) in Cypress spec — remove before committing to avoid skipping other tests" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for .only in Cypress specs',
           },
@@ -324,7 +324,7 @@ Cypress.Commands.add('loginAs', (username: string, password: string) => {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -nE "cy\\.wait\\(\\s*[0-9]" "$FILE_PATH" | head -1 | grep -q "." && { echo "cy.wait() with numeric timeout detected in Cypress spec — use cy.intercept() aliases or .should() assertions instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -nE "cy\\.wait\\(\\s*[0-9]" "$FILE_PATH" | head -1 | grep -q "." && { echo "cy.wait() with numeric timeout detected in Cypress spec — use cy.intercept() aliases or .should() assertions instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for cy.wait() with numeric timeout',
           },
@@ -337,7 +337,7 @@ Cypress.Commands.add('loginAs', (username: string, password: string) => {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -nE "\\{\\s*force:\\s*true\\s*\\}" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: { force: true } detected in Cypress spec — this masks real visibility issues, consider fixing the UI state instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cy\\.(ts|tsx|js|jsx)$" && grep -nE "\\{\\s*force:\\s*true\\s*\\}" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: { force: true } detected in Cypress spec — this masks real visibility issues, consider fixing the UI state instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for { force: true } in Cypress specs',
           },

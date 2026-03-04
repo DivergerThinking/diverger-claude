@@ -67,7 +67,8 @@ export class KnowledgeError extends DivergerError {
 export class ApiKeyError extends DivergerError {
   constructor() {
     super(
-      'API key no configurada. Define la variable de entorno ANTHROPIC_API_KEY.',
+      'ANTHROPIC_API_KEY no configurada. La búsqueda de best practices online es opcional — los profiles ya incluyen best practices embebidas. ' +
+      'Si deseas el enriquecimiento extra, define ANTHROPIC_API_KEY.',
       'API_KEY_ERROR',
     );
     this.name = 'ApiKeyError';
@@ -78,8 +79,8 @@ export class ApiKeyError extends DivergerError {
 export class BillingError extends DivergerError {
   constructor() {
     super(
-      'Sin créditos en la cuenta de Anthropic API. La suscripción a Claude (Max/Pro) no incluye créditos de API. ' +
-      'Compra créditos en https://console.anthropic.com/settings/plans o usa --force para omitir la búsqueda de best practices.',
+      'Sin créditos en la cuenta de Anthropic API. Continuando sin búsqueda de best practices online (los profiles ya incluyen best practices embebidas). ' +
+      'Para habilitar la búsqueda, compra créditos en https://console.anthropic.com/settings/plans.',
       'BILLING_ERROR',
     );
     this.name = 'BillingError';

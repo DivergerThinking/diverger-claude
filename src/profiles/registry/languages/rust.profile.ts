@@ -183,6 +183,55 @@ Ownership-driven design. Let the compiler guide you — fix warnings, not suppre
 - Group dependencies: workspace, external, dev-dependencies
 `,
       },
+      {
+        path: 'rust/security.md',
+        paths: ['**/*.rs'],
+        governance: 'mandatory',
+        description: 'Rust security rules: memory safety, input validation, dependency auditing, crypto',
+        content: `# Rust Security Rules
+
+## Memory Safety
+
+- Audit every \`unsafe\` block: verify the \`// SAFETY:\` comment is accurate and complete
+- Flag \`unsafe\` blocks that lack \`// SAFETY:\` comments — do not merge without them
+- Verify raw pointer arithmetic is bounds-checked before dereferencing
+- Flag \`std::mem::transmute\` usage — prefer \`bytemuck\`, \`zerocopy\`, or safe alternatives
+- Check FFI boundaries: verify foreign function signatures match C ABI exactly
+- Verify \`Send\` and \`Sync\` bounds are correct for types shared across threads
+- Flag manual \`Drop\` implementations that access freed memory or have use-after-free potential
+
+## Input Validation
+
+- Validate all external input (network, CLI args, file content, environment variables) before use
+- Use \`checked_add\`, \`checked_mul\`, \`saturating_*\` for arithmetic on untrusted input — no silent overflow
+- Verify string parsing handles malformed UTF-8 gracefully (\`from_utf8\` not \`from_utf8_unchecked\`)
+- Flag unbounded allocations from untrusted size values (e.g., \`Vec::with_capacity(user_input)\`)
+- Limit recursion depth for parsers processing untrusted input — prevent stack overflow
+- Validate deserialized data: \`serde\` can construct invalid states — add validation after deserialize
+
+## Dependency Security
+
+- Run \`cargo audit\` in CI to check for known vulnerabilities — fail the build on advisories
+- Commit \`Cargo.lock\` for binary crates — ensures reproducible builds
+- Flag \`[patch]\` or \`[replace]\` sections that override upstream crates — document why
+- Prefer \`rustls\` over \`openssl\` for TLS when possible — fewer C dependencies, memory-safe
+- Review \`build.rs\` scripts — they run at compile time with full system access
+- Pin exact versions for security-critical dependencies
+
+## Cryptography
+
+- Use \`ring\`, \`rustls\`, or \`rust-crypto\` crates — never hand-roll cryptographic primitives
+- Use constant-time comparison for secrets (\`ring::constant_time::verify_slices_are_equal\`)
+- Use \`rand::rngs::OsRng\` for cryptographic randomness — never \`rand::thread_rng\` for secrets
+- Never log, serialize, or display secret keys or tokens — implement custom Debug that redacts
+
+## Concurrency Safety
+
+- Verify \`Mutex\` and \`RwLock\` are not held across \`.await\` points — use \`tokio::sync\` variants
+- Check for data races in \`unsafe\` code that circumvents Rust's ownership model
+- Flag \`Rc<RefCell<T>>\` in async/multi-threaded contexts — use \`Arc<Mutex<T>>\` instead
+`,
+      },
     ],
     agents: [
       {
@@ -314,6 +363,480 @@ Ownership-driven design. Let the compiler guide you — fix warnings, not suppre
     ],
     skills: [
       {
+        name: 'rust-ownership-guide',
+        description: 'Detailed reference for Rust ownership, borrowing, and lifetimes with examples',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Rust Ownership, Borrowing & Lifetimes — Detailed Reference
+
+## Why This Matters
+Ownership is Rust's most distinctive feature — it enables memory safety without garbage
+collection. Misunderstanding ownership leads to fighting the borrow checker, excessive
+cloning, and designs that don't leverage Rust's guarantees. Master these rules to write
+idiomatic, zero-cost-abstraction code.
+
+---
+
+## 1. Ownership Rules
+
+Every value in Rust has exactly one owner. When the owner goes out of scope, the value is dropped.
+
+\\\`\\\`\\\`rust
+// Correct: ownership transfer (move)
+fn process(data: String) {
+    println!("{data}");
+} // data is dropped here
+
+fn main() {
+    let name = String::from("Alice");
+    process(name);
+    // name is no longer valid here — it was moved
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: using a value after move
+fn main() {
+    let name = String::from("Alice");
+    process(name);
+    println!("{name}"); // COMPILE ERROR: value used after move
+}
+\\\`\\\`\\\`
+
+---
+
+## 2. Move Semantics
+
+Types that don't implement Copy are moved on assignment or function call.
+
+\\\`\\\`\\\`rust
+// Correct: clone when you truly need an independent copy
+let original = vec![1, 2, 3];
+let copy = original.clone(); // explicit clone — both are valid
+process(copy);
+println!("{:?}", original); // original still valid
+
+// Anti-Pattern: unnecessary clone to "fix" borrow checker
+let data = get_data();
+let result = compute(&data.clone()); // BAD: just borrow &data instead
+\\\`\\\`\\\`
+
+---
+
+## 3. Borrowing — &T vs &mut T
+
+Shared references (&T) allow multiple readers. Mutable references (&mut T) allow
+exactly one writer. You cannot have both at the same time.
+
+\\\`\\\`\\\`rust
+// Correct: borrow instead of taking ownership
+fn word_count(text: &str) -> usize {
+    text.split_whitespace().count()
+}
+
+fn main() {
+    let article = String::from("Rust is fast and safe");
+    let count = word_count(&article); // borrow — article still valid
+    println!("{article} has {count} words");
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: taking String ownership when &str suffices
+fn word_count(text: String) -> usize { // BAD: consumes the String unnecessarily
+    text.split_whitespace().count()
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Correct: mutable borrow
+fn push_greeting(names: &mut Vec<String>, name: &str) {
+    names.push(format!("Hello, {name}!"));
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: simultaneous shared and mutable borrows
+let mut data = vec![1, 2, 3];
+let first = &data[0]; // shared borrow
+data.push(4);         // COMPILE ERROR: mutable borrow while shared borrow exists
+println!("{first}");
+\\\`\\\`\\\`
+
+---
+
+## 4. Lifetime Annotations
+
+Lifetimes tell the compiler how long references are valid. The compiler infers most
+lifetimes — annotate only when required.
+
+\\\`\\\`\\\`rust
+// Correct: lifetime annotation when returning a reference
+fn longest<'input>(a: &'input str, b: &'input str) -> &'input str {
+    if a.len() >= b.len() { a } else { b }
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: vague lifetime names
+fn longest<'a>(a: &'a str, b: &'a str) -> &'a str { ... }
+// Prefer descriptive: 'input, 'conn, 'query — not 'a, 'b
+\\\`\\\`\\\`
+
+### Common Lifetime Patterns
+
+\\\`\\\`\\\`rust
+// Struct holding a reference — must have a lifetime parameter
+struct Parser<'input> {
+    source: &'input str,
+    position: usize,
+}
+
+// Lifetime elision: single input reference → output lifetime inferred
+fn first_word(s: &str) -> &str {  // compiler infers: fn first_word<'a>(s: &'a str) -> &'a str
+    s.split_whitespace().next().unwrap_or("")
+}
+
+// 'static: data lives for the entire program
+const GREETING: &str = "Hello"; // &'static str
+\\\`\\\`\\\`
+
+---
+
+## 5. Smart Pointers
+
+| Pointer | Use Case | Thread-Safe? |
+|---------|----------|-------------|
+| \`Box<T>\` | Heap allocation, recursive types | N/A (single owner) |
+| \`Rc<T>\` | Shared ownership, single-threaded | No |
+| \`Arc<T>\` | Shared ownership, multi-threaded | Yes |
+| \`RefCell<T>\` | Interior mutability, single-threaded | No |
+| \`Mutex<T>\` | Interior mutability, multi-threaded | Yes |
+| \`RwLock<T>\` | Multiple readers / single writer, multi-threaded | Yes |
+
+\\\`\\\`\\\`rust
+// Correct: Arc + Mutex for shared mutable state across threads
+use std::sync::{Arc, Mutex};
+
+let counter = Arc::new(Mutex::new(0));
+let counter_clone = Arc::clone(&counter);
+
+std::thread::spawn(move || {
+    let mut num = counter_clone.lock().unwrap();
+    *num += 1;
+});
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: Rc in multi-threaded context
+use std::rc::Rc;
+let shared = Rc::new(data);
+std::thread::spawn(move || {
+    println!("{:?}", shared); // COMPILE ERROR: Rc is not Send
+});
+// Use Arc instead for thread-safe shared ownership
+\\\`\\\`\\\`
+
+---
+
+## 6. Interior Mutability
+
+\\\`\\\`\\\`rust
+// Correct: RefCell for single-threaded interior mutability
+use std::cell::RefCell;
+
+struct CachedComputer {
+    cache: RefCell<Option<u64>>,
+}
+
+impl CachedComputer {
+    fn compute(&self) -> u64 { // &self, not &mut self
+        let mut cache = self.cache.borrow_mut();
+        *cache.get_or_insert_with(|| expensive_computation())
+    }
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: RefCell across threads
+// RefCell panics at runtime if borrow rules are violated — no compile-time safety
+// Use Mutex<T> or RwLock<T> for multi-threaded interior mutability
+\\\`\\\`\\\`
+
+---
+
+## 7. Cow (Clone on Write)
+
+\\\`\\\`\\\`rust
+use std::borrow::Cow;
+
+// Correct: avoid allocation when input doesn't need modification
+fn normalize(input: &str) -> Cow<'_, str> {
+    if input.contains('\\t') {
+        Cow::Owned(input.replace('\\t', "    ")) // allocates only when needed
+    } else {
+        Cow::Borrowed(input) // zero-cost — just borrows
+    }
+}
+\\\`\\\`\\\`
+`,
+      },
+      {
+        name: 'rust-error-handling-guide',
+        description: 'Detailed reference for Rust error handling patterns with examples',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Rust Error Handling — Detailed Reference
+
+## Why This Matters
+Rust has no exceptions — errors are values represented by Result<T, E> and Option<T>.
+This makes error handling explicit, composable, and impossible to accidentally ignore.
+Mastering these patterns prevents panics in production, improves error messages for
+users, and makes error flows easy to trace through the codebase.
+
+---
+
+## 1. Result<T, E> — The Foundation
+
+Every fallible operation returns Result. The caller decides how to handle the error.
+
+\\\`\\\`\\\`rust
+use std::fs;
+use std::io;
+
+// Correct: return Result, let the caller decide
+fn read_config(path: &str) -> Result<String, io::Error> {
+    fs::read_to_string(path)
+}
+
+fn main() {
+    match read_config("config.toml") {
+        Ok(content) => println!("Config loaded: {}", content.len()),
+        Err(e) => eprintln!("Failed to load config: {e}"),
+    }
+}
+\\\`\\\`\\\`
+
+---
+
+## 2. Option<T> — Absence Without Error
+
+Use Option when absence is a normal condition, not an error.
+
+\\\`\\\`\\\`rust
+// Correct: Option for lookups that may not find a result
+fn find_user(users: &[User], id: u64) -> Option<&User> {
+    users.iter().find(|u| u.id == id)
+}
+
+// Correct: convert Option to Result with context
+let user = find_user(&users, 42)
+    .ok_or_else(|| anyhow::anyhow!("user 42 not found"))?;
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: using Result where Option is more appropriate
+fn find_user(users: &[User], id: u64) -> Result<&User, String> {
+    // BAD: "not found" is not really an error here — use Option
+    users.iter().find(|u| u.id == id).ok_or("not found".to_string())
+}
+\\\`\\\`\\\`
+
+---
+
+## 3. The ? Operator — Propagation
+
+The ? operator propagates errors up the call stack, converting types via From.
+
+\\\`\\\`\\\`rust
+// Correct: chain fallible operations with ?
+fn load_and_parse(path: &str) -> Result<Config, anyhow::Error> {
+    let content = std::fs::read_to_string(path)?;  // io::Error → anyhow::Error
+    let config: Config = toml::from_str(&content)?; // toml::de::Error → anyhow::Error
+    Ok(config)
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: manual match instead of ?
+fn load_and_parse(path: &str) -> Result<Config, Box<dyn std::error::Error>> {
+    let content = match std::fs::read_to_string(path) { // BAD: verbose
+        Ok(c) => c,
+        Err(e) => return Err(Box::new(e)),
+    };
+    // ... more nested matches
+}
+\\\`\\\`\\\`
+
+---
+
+## 4. Custom Error Types with thiserror (Libraries)
+
+Use thiserror for library crates — it generates Display and From implementations.
+
+\\\`\\\`\\\`rust
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum StorageError {
+    #[error("file not found: {path}")]
+    NotFound { path: String },
+
+    #[error("permission denied: {path}")]
+    PermissionDenied { path: String },
+
+    #[error("corrupt data at offset {offset}: {detail}")]
+    Corrupt { offset: u64, detail: String },
+
+    #[error("I/O error")]
+    Io(#[from] std::io::Error),  // auto-conversion with ?
+
+    #[error("serialization error")]
+    Serialization(#[from] serde_json::Error),
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: stringly-typed errors
+fn read_data(path: &str) -> Result<Data, String> {
+    // BAD: String errors lose structure, type info, and composability
+    std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    // ...
+}
+\\\`\\\`\\\`
+
+---
+
+## 5. anyhow for Applications
+
+Use anyhow in application (binary) crates for ergonomic error handling with context.
+
+\\\`\\\`\\\`rust
+use anyhow::{Context, Result};
+
+fn main() -> Result<()> {
+    let config = load_config("app.toml")
+        .context("failed to load application config")?;
+
+    let db = connect_database(&config.db_url)
+        .with_context(|| format!("failed to connect to {}", config.db_url))?;
+
+    run_server(config, db)?;
+    Ok(())
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: anyhow in a library crate
+// BAD: library consumers can't match on specific error variants
+pub fn parse(input: &str) -> anyhow::Result<Ast> { ... }
+// Use thiserror with a custom enum for libraries instead
+\\\`\\\`\\\`
+
+---
+
+## 6. Error Conversion with From
+
+Implement From to enable automatic conversion with the ? operator.
+
+\\\`\\\`\\\`rust
+// Correct: manual From implementation (when not using thiserror #[from])
+impl From<std::io::Error> for AppError {
+    fn from(err: std::io::Error) -> Self {
+        AppError::Io { source: err, context: String::new() }
+    }
+}
+
+// Now ? converts automatically:
+fn read_file(path: &str) -> Result<String, AppError> {
+    let content = std::fs::read_to_string(path)?; // io::Error → AppError via From
+    Ok(content)
+}
+\\\`\\\`\\\`
+
+---
+
+## 7. panic! vs Result — When to Panic
+
+| Situation | Use |
+|-----------|-----|
+| Recoverable error (file not found, network timeout) | \`Result<T, E>\` |
+| Programming bug (index out of bounds, broken invariant) | \`panic!\` |
+| Prototype / example code | \`unwrap()\` (temporary only) |
+| Tests | \`unwrap()\` / \`expect()\` (acceptable) |
+| Production code | Never \`unwrap()\` / \`expect()\` |
+
+\\\`\\\`\\\`rust
+// Correct: panic for invariant violations (programming bugs)
+fn set_percentage(value: u8) {
+    assert!(value <= 100, "percentage must be 0-100, got {value}");
+    // ...
+}
+\\\`\\\`\\\`
+
+---
+
+## 8. unwrap() Dangers
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: unwrap in production code
+let config: Config = serde_json::from_str(&data).unwrap();
+// If data is malformed → panic! → process crashes
+
+// Correct: handle the error
+let config: Config = serde_json::from_str(&data)
+    .context("failed to parse config JSON")?;
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Anti-Pattern: expect with unhelpful message
+let port = env::var("PORT").expect("failed"); // What failed? No context.
+
+// Correct: expect with descriptive message (only in main/setup)
+let port = env::var("PORT")
+    .expect("PORT environment variable must be set");
+\\\`\\\`\\\`
+
+---
+
+## 9. Collecting Results
+
+\\\`\\\`\\\`rust
+// Correct: collect into Result<Vec<T>, E> — fails fast on first error
+let parsed: Result<Vec<i32>, _> = values.iter()
+    .map(|s| s.parse::<i32>())
+    .collect();
+
+let numbers = parsed.context("failed to parse number list")?;
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`rust
+// Correct: partition into successes and failures
+let (oks, errs): (Vec<_>, Vec<_>) = values.iter()
+    .map(|s| s.parse::<i32>())
+    .partition(Result::is_ok);
+
+let numbers: Vec<i32> = oks.into_iter().map(Result::unwrap).collect();
+let failures: Vec<_> = errs.into_iter().map(Result::unwrap_err).collect();
+\\\`\\\`\\\`
+
+---
+
+## 10. #[must_use] — Prevent Ignored Errors
+
+\\\`\\\`\\\`rust
+// Correct: mark functions where ignoring the return is a bug
+#[must_use]
+fn validate(input: &str) -> Result<(), ValidationError> {
+    // ...
+}
+
+// Compiler warns if caller writes:
+validate(input); // WARNING: unused Result that must be used
+\\\`\\\`\\\`
+`,
+      },
+      {
         name: 'rust-cargo-helper',
         description: 'Cargo commands, Clippy workflows, and dependency management for Rust',
         content: `# Rust Cargo Helper Skill
@@ -429,7 +952,7 @@ async fn login(username: &str, password: &str) -> Result<Token> {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && command -v cargo >/dev/null 2>&1 && cargo fmt -- --check "$FILE_PATH" 2>/dev/null || true',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && command -v cargo >/dev/null 2>&1 && cargo fmt -- --check "$FILE_PATH" 2>/dev/null || true',
             timeout: 15,
             statusMessage: 'Checking Rust formatting with cargo fmt',
           },
@@ -442,7 +965,7 @@ async fn login(username: &str, password: &str) -> Result<Token> {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "\\bunwrap\\(\\)|\\bexpect\\(" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: unwrap()/expect() detected — verify these are not in production code paths" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "\\bunwrap\\(\\)|\\bexpect\\(" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: unwrap()/expect() detected — verify these are not in production code paths" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for unwrap()/expect() usage',
           },
@@ -455,7 +978,7 @@ async fn login(username: &str, password: &str) -> Result<Token> {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "^\\s*unsafe\\s*\\{" "$FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$FILE_PATH" | grep -q "SAFETY:" || { echo "Warning: unsafe block at line $line missing // SAFETY: comment" >&2; exit 2; }; done || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "^\\s*unsafe\\s*\\{" "$FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$FILE_PATH" | grep -q "SAFETY:" || { echo "Warning: unsafe block at line $line missing // SAFETY: comment" >&2; exit 2; }; done || exit 0',
             timeout: 10,
             statusMessage: 'Checking for unsafe blocks without SAFETY comments',
           },

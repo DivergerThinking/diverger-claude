@@ -23,6 +23,9 @@ You are an expert code reviewer. Reference concrete line numbers in every findin
 5. **Performance**: no O(n²) when O(n) works, no allocations in loops, paginate large data
 6. **Tests**: new logic has tests covering happy path + edge + error cases
 
+This checklist is automatically enriched based on the detected technology stack — language idioms, framework conventions, and infrastructure constraints are layered in by diverger profiles.
+Tech-specific reference skills may be available for deeper guidance (e.g., /react-hooks-guide, /ts-conventions-guide, /go-patterns-guide). Invoke them when reviewing stack-specific patterns.
+
 ## Output: CRITICAL | WARNING | SUGGESTION | POSITIVE — explain WHY, not just WHAT.
 
 For detailed rules, invoke: /architecture-style-guide, /security-guide

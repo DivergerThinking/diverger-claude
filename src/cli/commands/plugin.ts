@@ -15,6 +15,55 @@ import { performCleanup } from './cleanup.js';
 const GITHUB_REPO = 'DivergerThinking/diverger-claude';
 const PLUGIN_NAME = 'diverger-claude';
 const PLUGIN_DIR = path.join(os.homedir(), '.claude', 'plugins', PLUGIN_NAME);
+const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
+
+/**
+ * Register the plugin in ~/.claude/settings.json so Claude Code discovers
+ * its skills, hooks, and agents. Without this, the plugin is invisible.
+ * @param settingsPath — override for testing; defaults to ~/.claude/settings.json
+ */
+export async function registerPluginInSettings(settingsPath?: string): Promise<void> {
+  const filePath = settingsPath ?? CLAUDE_SETTINGS_PATH;
+  let settings: Record<string, unknown> = {};
+
+  try {
+    const raw = await fs.readFile(filePath, 'utf-8');
+    settings = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    // File doesn't exist or is invalid — start fresh
+  }
+
+  if (typeof settings.enabledPlugins !== 'object' || settings.enabledPlugins === null) {
+    settings.enabledPlugins = {};
+  }
+
+  (settings.enabledPlugins as Record<string, boolean>)[PLUGIN_NAME] = true;
+
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
+}
+
+/**
+ * Remove the plugin from ~/.claude/settings.json enabledPlugins.
+ * @param settingsPath — override for testing; defaults to ~/.claude/settings.json
+ */
+export async function unregisterPluginFromSettings(settingsPath?: string): Promise<void> {
+  const filePath = settingsPath ?? CLAUDE_SETTINGS_PATH;
+  let settings: Record<string, unknown>;
+
+  try {
+    const raw = await fs.readFile(filePath, 'utf-8');
+    settings = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return; // No settings file — nothing to unregister
+  }
+
+  if (typeof settings.enabledPlugins === 'object' && settings.enabledPlugins !== null) {
+    delete (settings.enabledPlugins as Record<string, boolean>)[PLUGIN_NAME];
+  }
+
+  await fs.writeFile(filePath, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
+}
 
 /**
  * Get a GitHub token for API authentication.
@@ -268,9 +317,38 @@ export function registerPluginCommand(program: Command): void {
           process.exit(1);
         }
 
+        // Register plugin in ~/.claude/settings.json so Claude Code discovers it
+        await registerPluginInSettings();
+
         const installedVersion = readPluginVersion(result.path);
         log.blank();
         log.success(`Plugin diverger-claude ${installedVersion ? `v${installedVersion}` : result.tag} instalado correctamente.`);
+
+        // Post-install health check
+        try {
+          const { checkPluginHealth } = await import('../../plugin-health/monitor.js');
+          const cliVersion = getVersion();
+          const healthReport = await checkPluginHealth(result.path, cliVersion);
+          if (healthReport.status === 'healthy') {
+            log.success('Health check: todos los checks pasaron correctamente.');
+          } else {
+            const issues = healthReport.checks.filter((c) => c.status !== 'healthy');
+            log.warn(`Health check: ${issues.length} problema(s) detectado(s):`);
+            for (const issue of issues) {
+              const prefix = issue.status === 'unhealthy' ? '  [ERROR]' : '  [WARN]';
+              log.dim(`${prefix} ${issue.check}: ${issue.message}`);
+              if (issue.autoFixable) {
+                log.dim(`         (auto-reparable con /diverger-health)`);
+              }
+            }
+            if (healthReport.autoFixableCount > 0) {
+              log.dim(`  Ejecuta /diverger-health en Claude Code para reparar automáticamente.`);
+            }
+          }
+        } catch {
+          // Health check is non-critical — don't fail the install
+          log.dim('  Tip: ejecuta /diverger-health en Claude Code para verificar la instalación.');
+        }
 
         const outputMode = log.getOutputMode();
 
@@ -399,6 +477,9 @@ export function registerPluginCommand(program: Command): void {
             return;
           }
         }
+
+        // Unregister from ~/.claude/settings.json before removing files
+        await unregisterPluginFromSettings();
 
         await fs.rm(pluginPath, { recursive: true });
 

@@ -355,7 +355,7 @@ fun logout_removesUserProfileView() {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "androidTest/.*\\.kt$" && grep -cE "\\bThread\\.sleep\\(|SystemClock\\.sleep\\(" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Thread.sleep() or SystemClock.sleep() detected in Espresso test — use IdlingResource for async synchronization instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "androidTest/.*\\.kt$" && grep -cE "\\bThread\\.sleep\\(|SystemClock\\.sleep\\(" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Thread.sleep() or SystemClock.sleep() detected in Espresso test — use IdlingResource for async synchronization instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for Thread.sleep() in Espresso tests',
           },
@@ -368,7 +368,7 @@ fun logout_removesUserProfileView() {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "androidTest/.*\\.kt$" && grep -cE "ActivityTestRule\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Warning: ActivityTestRule is deprecated — use ActivityScenarioRule from androidx.test.ext.junit.rules instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "androidTest/.*\\.kt$" && grep -cE "ActivityTestRule\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Warning: ActivityTestRule is deprecated — use ActivityScenarioRule from androidx.test.ext.junit.rules instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for deprecated ActivityTestRule',
           },

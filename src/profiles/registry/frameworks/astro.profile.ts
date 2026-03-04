@@ -500,7 +500,7 @@ export const POST: APIRoute = async ({ request }) => {
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.astro$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -530,7 +530,7 @@ for (const imp of componentImports) {
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.astro$/.test(f) && !/\\.ts$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');

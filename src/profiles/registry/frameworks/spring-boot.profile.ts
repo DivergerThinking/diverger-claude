@@ -137,6 +137,15 @@ Convention over configuration. Layered architecture with dependency injection.
 - Configure CORS at the security level via \`CorsConfigurationSource\` bean
 - Use explicit allowed origins — never wildcard \`"*"\` in production
 - Set explicit allowed methods, headers, and \`maxAge\` for preflight caching
+
+## Input Validation & SQL Injection Prevention
+- Use \`@Valid @RequestBody\` on all DTO parameters — never accept raw \`Map<String, Object>\`
+- Apply Jakarta Bean Validation annotations (\`@NotBlank\`, \`@Size\`, \`@Email\`, \`@Min\`) on DTO fields
+- Use \`@Validated\` at controller class level for constraint annotations on \`@PathVariable\` and \`@RequestParam\`
+- In custom \`@Query\` annotations, always use named parameters (\`:paramName\`) — never string concatenation
+- Use parameterized queries in JdbcTemplate: \`jdbcTemplate.query(sql, params)\` — never build SQL with \`+\`
+- Sanitize user input that goes into log statements to prevent log injection
+- Reject unexpected fields with \`spring.jackson.deserialization.fail-on-unknown-properties: true\` in sensitive APIs
 `,
       },
       {
@@ -302,6 +311,589 @@ Convention over configuration. Layered architecture with dependency injection.
     ],
     skills: [
       {
+        name: 'spring-di-guide',
+        description: 'Detailed reference for Spring dependency injection: constructor injection, qualifiers, scopes, profiles, and configuration',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Spring Dependency Injection — Detailed Reference
+
+## Constructor Injection (Preferred)
+- Use constructor injection for all required dependencies — Spring auto-wires when there is a single constructor
+- Declare fields as \`private final\` for immutability — no setter needed
+- Lombok \`@RequiredArgsConstructor\` can generate the constructor from final fields
+- For optional dependencies, use \`@Autowired(required = false)\` on a setter or \`Optional<T>\` constructor parameter
+
+### Correct
+\\\`\\\`\\\`java
+@Service
+public class OrderService {
+
+    private final OrderRepository orderRepository;
+    private final PaymentGateway paymentGateway;
+    private final ApplicationEventPublisher eventPublisher;
+
+    // Single constructor — Spring auto-wires, no @Autowired needed
+    public OrderService(OrderRepository orderRepository,
+                        PaymentGateway paymentGateway,
+                        ApplicationEventPublisher eventPublisher) {
+        this.orderRepository = orderRepository;
+        this.paymentGateway = paymentGateway;
+        this.eventPublisher = eventPublisher;
+    }
+
+    @Transactional
+    public Order placeOrder(CreateOrderRequest request) {
+        Order order = orderRepository.save(Order.from(request));
+        paymentGateway.charge(order.getTotal());
+        eventPublisher.publishEvent(new OrderPlacedEvent(order.getId()));
+        return order;
+    }
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`java
+@Service
+public class OrderService {
+
+    // WRONG: field injection — not testable without reflection, hides dependencies
+    @Autowired
+    private OrderRepository orderRepository;
+
+    // WRONG: field injection with no final — mutable, can be reassigned
+    @Autowired
+    private PaymentGateway paymentGateway;
+
+    // WRONG: no way to construct this object in a unit test without Spring context
+}
+\\\`\\\`\\\`
+
+## @Qualifier and @Primary
+- Use \`@Qualifier("beanName")\` when multiple beans of the same type exist
+- Use \`@Primary\` on the default implementation — other beans are selected with \`@Qualifier\`
+- Prefer custom qualifier annotations over string-based qualifiers for type safety
+
+### Correct
+\\\`\\\`\\\`java
+// Define two implementations
+@Service
+@Primary
+public class StripePaymentGateway implements PaymentGateway { /* ... */ }
+
+@Service
+@Qualifier("paypal")
+public class PayPalPaymentGateway implements PaymentGateway { /* ... */ }
+
+// Inject the primary (Stripe) by default
+@Service
+public class CheckoutService {
+    private final PaymentGateway gateway; // gets StripePaymentGateway
+
+    public CheckoutService(PaymentGateway gateway) {
+        this.gateway = gateway;
+    }
+}
+
+// Inject a specific implementation when needed
+@Service
+public class RefundService {
+    private final PaymentGateway gateway;
+
+    public RefundService(@Qualifier("paypal") PaymentGateway gateway) {
+        this.gateway = gateway;
+    }
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`java
+// WRONG: no @Qualifier or @Primary — Spring fails at startup with ambiguous bean
+@Service
+public class CheckoutService {
+    private final PaymentGateway gateway;
+    // NoUniqueBeanDefinitionException: expected single bean but found 2
+    public CheckoutService(PaymentGateway gateway) {
+        this.gateway = gateway;
+    }
+}
+\\\`\\\`\\\`
+
+## @Profile and @Conditional
+- Use \`@Profile("dev")\` to activate beans only in specific environments
+- Use \`@ConditionalOnProperty\` for feature flags: \`@ConditionalOnProperty(name = "feature.x.enabled", havingValue = "true")\`
+- Use \`@ConditionalOnMissingBean\` for default implementations that can be overridden
+- Use \`@ConditionalOnClass\` for optional integrations that depend on classpath availability
+
+### Correct
+\\\`\\\`\\\`java
+@Configuration
+public class CacheConfig {
+
+    @Bean
+    @Profile("prod")
+    @ConditionalOnClass(name = "io.lettuce.core.RedisClient")
+    public CacheManager redisCacheManager(RedisConnectionFactory factory) {
+        return RedisCacheManager.builder(factory)
+            .cacheDefaults(RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(Duration.ofMinutes(10)))
+            .build();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(CacheManager.class)
+    public CacheManager inMemoryCacheManager() {
+        return new ConcurrentMapCacheManager("default");
+    }
+}
+\\\`\\\`\\\`
+
+## Bean Scope
+- \`singleton\` (default): One instance per application context — use for stateless services
+- \`prototype\`: New instance per injection point and per \`getBean()\` call — use for stateful short-lived objects
+- \`request\`: One instance per HTTP request — use for request-scoped data holders
+- \`session\`: One instance per HTTP session — use for user session state
+
+### Correct
+\\\`\\\`\\\`java
+@Configuration
+public class ScopeConfig {
+
+    // Prototype: each injection gets a fresh instance
+    @Bean
+    @Scope("prototype")
+    public ReportBuilder reportBuilder() {
+        return new ReportBuilder();
+    }
+
+    // Request scope: one per HTTP request, inject via proxy
+    @Bean
+    @Scope(value = WebApplicationContext.SCOPE_REQUEST, proxyMode = ScopedProxyMode.TARGET_CLASS)
+    public RequestAuditContext auditContext() {
+        return new RequestAuditContext();
+    }
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`java
+// WRONG: mutable state in a singleton — shared across all requests, thread-unsafe
+@Service
+public class ReportService {
+    private List<String> currentRows = new ArrayList<>(); // shared mutable state!
+
+    public void addRow(String row) {
+        currentRows.add(row); // race condition in concurrent requests
+    }
+}
+\\\`\\\`\\\`
+
+## @Configuration and @Bean
+- Use \`@Configuration\` classes to group related bean definitions
+- \`@Bean\` methods define beans that Spring cannot auto-detect (third-party classes, complex setup)
+- Use \`proxyBeanMethods = false\` on \`@Configuration\` for lite mode (no CGLIB proxy, faster startup)
+- Separate configuration by concern: \`SecurityConfig\`, \`CacheConfig\`, \`AsyncConfig\`
+
+### Correct
+\\\`\\\`\\\`java
+@Configuration(proxyBeanMethods = false)
+public class HttpClientConfig {
+
+    @Bean
+    public RestClient restClient(RestClient.Builder builder) {
+        return builder
+            .baseUrl("https://api.example.com")
+            .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+            .requestInterceptor(new LoggingInterceptor())
+            .build();
+    }
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        return JsonMapper.builder()
+            .addModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+            .build();
+    }
+}
+\\\`\\\`\\\`
+
+## Component Scanning
+- \`@SpringBootApplication\` scans the package it is in and all sub-packages
+- Place the main class in the root package (e.g., \`com.example.myapp\`)
+- Feature packages underneath: \`com.example.myapp.order\`, \`com.example.myapp.user\`
+- Use \`@ComponentScan(basePackages = ...)\` only when scanning outside the root package
+
+## Testing with @MockBean and @SpyBean
+- \`@MockBean\` replaces a bean in the Spring context with a Mockito mock — use in \`@WebMvcTest\` to mock service layer
+- \`@SpyBean\` wraps the real bean with a spy — use when you need real behavior with selective stubbing
+- Prefer \`@MockBean\` for controller tests, \`@SpyBean\` for integration tests needing partial mocking
+- In Spring Boot 3.4+, consider \`@MockitoBean\` and \`@MockitoSpyBean\` as the newer alternatives
+
+### Correct
+\\\`\\\`\\\`java
+@WebMvcTest(OrderController.class)
+class OrderControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private OrderService orderService; // mock replaces real bean in context
+
+    @Test
+    @DisplayName("GET /api/v1/orders/{id} — returns order when found")
+    void getOrder_returnsOrder() throws Exception {
+        given(orderService.findById(1L)).willReturn(Optional.of(sampleOrder()));
+
+        mockMvc.perform(get("/api/v1/orders/1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(1));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/orders/{id} — returns 404 when not found")
+    void getOrder_notFound() throws Exception {
+        given(orderService.findById(99L)).willReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/v1/orders/99"))
+            .andExpect(status().isNotFound());
+    }
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`java
+// WRONG: using @SpringBootTest to test a single controller — loads entire context unnecessarily
+@SpringBootTest
+@AutoConfigureMockMvc
+class OrderControllerTest {
+    @Autowired
+    private MockMvc mockMvc;
+    // Full app context loaded for a simple controller test — slow, brittle
+}
+\\\`\\\`\\\`
+`,
+      },
+      {
+        name: 'spring-testing-guide',
+        description: 'Detailed reference for Spring Boot testing: test slices, MockMvc, TestContainers, security tests, and integration patterns',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Spring Boot Testing — Detailed Reference
+
+## Test Slices — Use the Narrowest Context
+- \`@WebMvcTest(Controller.class)\`: Loads only the web layer — controller, filters, advice, converters
+- \`@DataJpaTest\`: Loads JPA components — entities, repositories, Hibernate, embedded DB
+- \`@WebFluxTest(Controller.class)\`: Loads WebFlux layer — reactive controllers, WebTestClient
+- \`@RestClientTest(Client.class)\`: Loads RestTemplate/WebClient with MockRestServiceServer
+- \`@JsonTest\`: Loads Jackson ObjectMapper for serialization tests
+- \`@SpringBootTest\`: Loads the full application context — use ONLY for end-to-end integration tests
+
+## MockMvc Patterns
+
+### Correct — Testing a REST endpoint
+\\\`\\\`\\\`java
+@WebMvcTest(ProductController.class)
+class ProductControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private ProductService productService;
+
+    @Test
+    @DisplayName("POST /api/v1/products — creates product and returns 201")
+    void createProduct_returnsCreated() throws Exception {
+        var request = new CreateProductRequest("Widget", new BigDecimal("29.99"), "Tools");
+        var response = new ProductResponse(1L, "Widget", new BigDecimal("29.99"), "Tools");
+        given(productService.create(any())).willReturn(response);
+
+        mockMvc.perform(post("/api/v1/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name": "Widget", "price": 29.99, "category": "Tools"}
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(header().exists("Location"))
+            .andExpect(jsonPath("$.name").value("Widget"))
+            .andExpect(jsonPath("$.price").value(29.99));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/products — returns 400 for invalid request body")
+    void createProduct_invalidRequest_returns400() throws Exception {
+        mockMvc.perform(post("/api/v1/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name": "", "price": -1}
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.detail").exists())
+            .andExpect(jsonPath("$.errors").isArray());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/products — returns paginated list")
+    void listProducts_returnsPaginatedResults() throws Exception {
+        var page = new PageImpl<>(List.of(sampleProduct()), PageRequest.of(0, 20), 1);
+        given(productService.findAll(any(Pageable.class))).willReturn(page);
+
+        mockMvc.perform(get("/api/v1/products")
+                .param("page", "0")
+                .param("size", "20"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content").isArray())
+            .andExpect(jsonPath("$.totalElements").value(1));
+    }
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`java
+// WRONG: using @SpringBootTest for controller unit tests — loads entire context, slow
+@SpringBootTest
+@AutoConfigureMockMvc
+class ProductControllerTest {
+    @Autowired
+    private MockMvc mockMvc;
+    // No @MockBean — hits real service and database, making this an integration test
+}
+
+// WRONG: testing service logic through MockMvc — test services directly with unit tests
+@WebMvcTest(ProductController.class)
+class ProductControllerTest {
+    @Test
+    void createProduct_verifiesBusinessRules() {
+        // Controller tests should verify HTTP behavior, not business logic
+    }
+}
+\\\`\\\`\\\`
+
+## @DataJpaTest — Repository Testing
+
+### Correct
+\\\`\\\`\\\`java
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = Replace.NONE)
+@Testcontainers
+class ProductRepositoryTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private TestEntityManager entityManager;
+
+    @Test
+    @DisplayName("findByCategory — returns only products in the given category")
+    void findByCategory_returnsMatchingProducts() {
+        entityManager.persist(new Product("Widget", new BigDecimal("10.00"), "Tools"));
+        entityManager.persist(new Product("Gadget", new BigDecimal("20.00"), "Electronics"));
+        entityManager.persist(new Product("Wrench", new BigDecimal("15.00"), "Tools"));
+        entityManager.flush();
+
+        List<Product> tools = productRepository.findByCategory("Tools");
+
+        assertThat(tools).hasSize(2)
+            .extracting(Product::getName)
+            .containsExactlyInAnyOrder("Widget", "Wrench");
+    }
+
+    @Test
+    @DisplayName("custom JPQL query — fetches product with reviews eagerly")
+    void findWithReviews_usesJoinFetch() {
+        var product = entityManager.persist(new Product("Widget", new BigDecimal("10.00"), "Tools"));
+        entityManager.persist(new Review(product, 5, "Great product"));
+        entityManager.flush();
+        entityManager.clear(); // clear persistence context to force DB fetch
+
+        Product result = productRepository.findWithReviewsById(product.getId()).orElseThrow();
+
+        assertThat(result.getReviews()).hasSize(1);
+        // No LazyInitializationException — JOIN FETCH loaded reviews
+    }
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`java
+// WRONG: using H2 when production uses PostgreSQL — behavior differences in queries
+@DataJpaTest // default replaces DB with H2
+class ProductRepositoryTest {
+    // H2 may accept queries that PostgreSQL rejects (different SQL dialects)
+    // Use TestContainers with @AutoConfigureTestDatabase(replace = NONE) instead
+}
+
+// WRONG: not clearing persistence context — test passes due to first-level cache, not DB query
+@Test
+void findById_returnsProduct() {
+    entityManager.persist(product);
+    // entityManager.flush() and entityManager.clear() missing!
+    Product found = repository.findById(product.getId()).orElseThrow();
+    // This reads from the persistence context cache, not the database
+}
+\\\`\\\`\\\`
+
+## @WebFluxTest — Reactive Controller Testing
+
+### Correct
+\\\`\\\`\\\`java
+@WebFluxTest(ProductController.class)
+class ProductControllerWebFluxTest {
+
+    @Autowired
+    private WebTestClient webTestClient;
+
+    @MockBean
+    private ProductService productService;
+
+    @Test
+    @DisplayName("GET /api/v1/products/{id} — returns product as reactive response")
+    void getProduct_returnsProduct() {
+        given(productService.findById(1L)).willReturn(Mono.just(sampleProduct()));
+
+        webTestClient.get().uri("/api/v1/products/1")
+            .accept(MediaType.APPLICATION_JSON)
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.name").isEqualTo("Widget");
+    }
+}
+\\\`\\\`\\\`
+
+## TestRestTemplate — Full Integration Tests
+
+### Correct
+\\\`\\\`\\\`java
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Testcontainers
+class ProductIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @Test
+    @DisplayName("Full CRUD lifecycle — create, read, update, delete")
+    void productLifecycle() {
+        // Create
+        var createRequest = new CreateProductRequest("Widget", new BigDecimal("29.99"), "Tools");
+        ResponseEntity<ProductResponse> createResponse =
+            restTemplate.postForEntity("/api/v1/products", createRequest, ProductResponse.class);
+        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        Long productId = createResponse.getBody().id();
+
+        // Read
+        ResponseEntity<ProductResponse> getResponse =
+            restTemplate.getForEntity("/api/v1/products/" + productId, ProductResponse.class);
+        assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(getResponse.getBody().name()).isEqualTo("Widget");
+
+        // Update
+        var updateRequest = new UpdateProductRequest("Updated Widget", new BigDecimal("39.99"));
+        restTemplate.put("/api/v1/products/" + productId, updateRequest);
+
+        // Delete
+        restTemplate.delete("/api/v1/products/" + productId);
+        ResponseEntity<ProductResponse> deletedResponse =
+            restTemplate.getForEntity("/api/v1/products/" + productId, ProductResponse.class);
+        assertThat(deletedResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+}
+\\\`\\\`\\\`
+
+## Security Testing
+
+### Correct
+\\\`\\\`\\\`java
+@WebMvcTest(AdminController.class)
+@Import(SecurityConfig.class)
+class AdminControllerSecurityTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private AdminService adminService;
+
+    @Test
+    @DisplayName("GET /api/v1/admin/users — returns 401 without authentication")
+    void listUsers_unauthenticated_returns401() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/users"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("GET /api/v1/admin/users — returns 403 for non-admin user")
+    void listUsers_regularUser_returns403() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/users"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /api/v1/admin/users — returns 200 for admin user")
+    void listUsers_admin_returns200() throws Exception {
+        given(adminService.listUsers()).willReturn(List.of(sampleUser()));
+
+        mockMvc.perform(get("/api/v1/admin/users"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray());
+    }
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`java
+// WRONG: testing security without importing SecurityConfig — security filters not loaded
+@WebMvcTest(AdminController.class)
+class AdminControllerSecurityTest {
+    // No @Import(SecurityConfig.class) — all requests pass through without auth checks
+    // Tests pass but security is not actually tested
+}
+
+// WRONG: disabling security in integration tests instead of testing with proper auth
+@SpringBootTest
+@AutoConfigureMockMvc(addFilters = false) // disables security filters entirely
+class AdminControllerTest {
+    // Security is skipped — no assurance that protected endpoints are secure
+}
+\\\`\\\`\\\`
+
+## H2 for Fast Unit Tests vs TestContainers for Integration
+- Use H2 for quick feedback in \`@DataJpaTest\` during development (default behavior)
+- Use TestContainers with real database for CI and pre-merge validation
+- Use \`@ActiveProfiles("test")\` with \`application-test.yml\` to switch between H2 and TestContainers
+- Always validate with the real database before merging — H2 has different SQL dialect behavior
+
+## AssertJ Best Practices
+\\\`\\\`\\\`java
+// Prefer AssertJ fluent assertions over JUnit assertEquals
+assertThat(result).isNotNull();
+assertThat(result.getName()).isEqualTo("Widget");
+assertThat(products).hasSize(3)
+    .extracting(Product::getName)
+    .containsExactlyInAnyOrder("A", "B", "C");
+assertThat(result.getPrice()).isCloseTo(new BigDecimal("29.99"), within(new BigDecimal("0.01")));
+
+// Use assertThatThrownBy for exception testing
+assertThatThrownBy(() -> service.findById(999L))
+    .isInstanceOf(ResourceNotFoundException.class)
+    .hasMessageContaining("Product not found");
+\\\`\\\`\\\`
+`,
+      },
+      {
         name: 'spring-boot-starter',
         description: 'Scaffold Spring Boot components with layered architecture and full test coverage',
         context: 'fork',
@@ -390,7 +982,7 @@ Given a domain entity name (e.g., "Product"), generate:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/@Autowired\\s+(?:private|protected|public)\\s/.test(c))issues.push(\'@Autowired field injection detected — use constructor injection for testability and immutability\');if(/extends\\s+WebSecurityConfigurerAdapter/.test(c))issues.push(\'WebSecurityConfigurerAdapter is removed in Spring Security 6 — use SecurityFilterChain @Bean\');if(/ddl-auto\\s*[:=]\\s*(update|create|create-drop)/.test(c)&&!/test|dev/.test(f))issues.push(\'hibernate.ddl-auto is not safe for production — use Flyway or Liquibase migrations\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
+          command: 'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/@Autowired\\s+(?:private|protected|public)\\s/.test(c))issues.push(\'@Autowired field injection detected — use constructor injection for testability and immutability\');if(/extends\\s+WebSecurityConfigurerAdapter/.test(c))issues.push(\'WebSecurityConfigurerAdapter is removed in Spring Security 6 — use SecurityFilterChain @Bean\');if(/ddl-auto\\s*[:=]\\s*(update|create|create-drop)/.test(c)&&!/test|dev/.test(f))issues.push(\'hibernate.ddl-auto is not safe for production — use Flyway or Liquibase migrations\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -399,7 +991,25 @@ Given a domain entity name (e.g., "Product"), generate:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/@Entity/.test(c)&&/@RestController/.test(c))issues.push(\'Entity and Controller in the same file — separate into distinct files per layer\');if(/@Entity/.test(c)&&/FetchType\\.EAGER/.test(c))issues.push(\'FetchType.EAGER on entity relationship — use LAZY and JOIN FETCH in queries to avoid N+1\');if(/@RequestBody/.test(c)&&!/@Valid/.test(c)&&!/Map</.test(c))issues.push(\'@RequestBody without @Valid — add @Valid to trigger Bean Validation on request DTOs\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
+          command: 'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/@Entity/.test(c)&&/@RestController/.test(c))issues.push(\'Entity and Controller in the same file — separate into distinct files per layer\');if(/@Entity/.test(c)&&/FetchType\\.EAGER/.test(c))issues.push(\'FetchType.EAGER on entity relationship — use LAZY and JOIN FETCH in queries to avoid N+1\');if(/@RequestBody/.test(c)&&!/@Valid/.test(c)&&!/Map</.test(c))issues.push(\'@RequestBody without @Valid — add @Valid to trigger Bean Validation on request DTOs\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
+          timeout: 5,
+        }],
+      },
+      {
+        event: 'PostToolUse' as const,
+        matcher: 'Write',
+        hooks: [{
+          type: 'command' as const,
+          command: 'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f)&&!/\\.yml$/.test(f)&&!/\\.yaml$/.test(f)&&!/\\.properties$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/\\.java$/.test(f)){if(/CascadeType\\.ALL/.test(c)&&/@ManyToOne/.test(c))issues.push(\'CascadeType.ALL on @ManyToOne — parent deletion will cascade to child; use CascadeType.ALL only on @OneToMany owning side\');if(/\"[^\"]*\"\\s*\\+\\s*\\w/.test(c)&&/(createQuery|nativeQuery|jdbcTemplate|JdbcTemplate)/.test(c))issues.push(\'String concatenation in SQL query — use named parameters (:param) or ? placeholders to prevent SQL injection\');if(/(password|secret|apiKey|api_key|token)\\s*=\\s*\"[^\"]+\"/.test(c))issues.push(\'Hardcoded secret detected — externalize to environment variables or Spring Vault\');if(/@Transactional/.test(c)&&/@Controller|@RestController/.test(c))issues.push(\'@Transactional on controller — move transaction management to the service layer\')}if(/\\.(yml|yaml|properties)$/.test(f)){if(/cors\\.allowed-origins\\s*[:=]\\s*\\*/.test(c))issues.push(\'CORS wildcard * allowed origin — use explicit origins in production\');if(/management\\.endpoints\\.web\\.exposure\\.include\\s*[:=]\\s*\\*/.test(c))issues.push(\'All Actuator endpoints exposed — restrict to health, info, metrics, prometheus\')}if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
+          timeout: 5,
+        }],
+      },
+      {
+        event: 'PostToolUse' as const,
+        matcher: 'Edit',
+        hooks: [{
+          type: 'command' as const,
+          command: 'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/@Autowired\\s+(?:private|protected|public)\\s/.test(c))issues.push(\'@Autowired field injection detected — use constructor injection\');if(/@RequestBody/.test(c)&&!/@Valid/.test(c)&&!/Map</.test(c))issues.push(\'@RequestBody without @Valid — add @Valid for Bean Validation\');if(/@Entity/.test(c)&&/FetchType\\.EAGER/.test(c))issues.push(\'FetchType.EAGER detected — use LAZY and JOIN FETCH to avoid N+1\');if(/extends\\s+WebSecurityConfigurerAdapter/.test(c))issues.push(\'WebSecurityConfigurerAdapter removed in Spring Security 6 — use SecurityFilterChain @Bean\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },

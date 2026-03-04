@@ -276,7 +276,7 @@ it('should debounce calls', () => {
           {
             type: 'command' as const,
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(test|spec)\\.(ts|tsx|js|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/\\.(only|skip)\\s*\\(/.test(c)&&!/\\/\\/.*\\.(only|skip)/.test(c))console.log(\'WARNING: .only or .skip detected in test file — remove before committing to avoid skipping tests in CI\')" -- "$FILE_PATH"',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(test|spec)\\.(ts|tsx|js|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/\\.(only|skip)\\s*\\(/.test(c)&&!/\\/\\/.*\\.(only|skip)/.test(c))console.log(\'WARNING: .only or .skip detected in test file — remove before committing to avoid skipping tests in CI\')" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -288,7 +288,7 @@ it('should debounce calls', () => {
           {
             type: 'command' as const,
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(test|spec)\\.(ts|tsx|js|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/vi\\.mock\\s*\\(/.test(c)&&!/vi\\.restoreAllMocks|vi\\.clearAllMocks|vi\\.resetAllMocks/.test(c))console.log(\'WARNING: vi.mock() used without vi.restoreAllMocks()/vi.clearAllMocks() in afterEach — mocks may leak between tests\')" -- "$FILE_PATH"',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(test|spec)\\.(ts|tsx|js|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/vi\\.mock\\s*\\(/.test(c)&&!/vi\\.restoreAllMocks|vi\\.clearAllMocks|vi\\.resetAllMocks/.test(c))console.log(\'WARNING: vi.mock() used without vi.restoreAllMocks()/vi.clearAllMocks() in afterEach — mocks may leak between tests\')" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

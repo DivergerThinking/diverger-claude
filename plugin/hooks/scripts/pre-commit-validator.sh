@@ -1,9 +1,10 @@
 #!/bin/bash
 # PreToolUse blocker: Validate commit prerequisites before allowing git commit
 # Blocks commits when plugin build is stale or TypeScript has errors
+# Uses Node.js instead of jq for cross-platform compatibility (Windows)
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+COMMAND=$(echo "$INPUT" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);const v=j[\"tool_input\"][\"command\"];console.log(v||'')}catch{console.log('')}})")
 
 # Only intercept git commit commands
 if ! echo "$COMMAND" | grep -qE '^\s*git\s+commit'; then
@@ -14,8 +15,8 @@ ERRORS=""
 
 # Check 1: Plugin version consistency (package.json must match plugin.json)
 if [ -f "package.json" ] && [ -f "plugin/.claude-plugin/plugin.json" ]; then
-  PKG_VERSION=$(jq -r '.version' package.json 2>/dev/null || echo "")
-  PLUGIN_VERSION=$(jq -r '.version' plugin/.claude-plugin/plugin.json 2>/dev/null || echo "")
+  PKG_VERSION=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).version||'')}catch{console.log('')}")
+  PLUGIN_VERSION=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('plugin/.claude-plugin/plugin.json','utf8')).version||'')}catch{console.log('')}")
   if [ -n "$PKG_VERSION" ] && [ -n "$PLUGIN_VERSION" ] && [ "$PKG_VERSION" != "$PLUGIN_VERSION" ]; then
     ERRORS="${ERRORS}Plugin build stale: package.json=${PKG_VERSION} but plugin.json=${PLUGIN_VERSION}. Run npm run build:plugin first. "
   fi
@@ -33,13 +34,7 @@ fi
 
 # If errors found, deny the commit
 if [ -n "$ERRORS" ]; then
-  jq -n --arg reason "Pre-commit validation failed: ${ERRORS}" '{
-    hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "deny",
-      permissionDecisionReason: $reason
-    }
-  }'
+  node -e "console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:'Pre-commit validation failed: '+process.argv[1]}}))" -- "$ERRORS"
   exit 0
 fi
 

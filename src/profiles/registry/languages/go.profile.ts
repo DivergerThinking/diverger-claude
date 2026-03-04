@@ -647,6 +647,424 @@ srv := &http.Server{
 `,
       },
       {
+        name: 'go-concurrency-guide',
+        description: 'Detailed reference for Go concurrency patterns: goroutines, channels, errgroup, sync primitives',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Go Concurrency — Detailed Reference
+
+## Why This Matters
+Concurrency is Go's defining feature. Misusing goroutines and channels causes data races,
+goroutine leaks, and deadlocks — bugs that are subtle and hard to reproduce.
+These patterns follow Effective Go, the Go Blog, and the Go Concurrency Patterns talks.
+
+---
+
+## Goroutine Lifecycle Management
+
+Every goroutine MUST have a clear exit path. A leaked goroutine runs forever, consuming memory.
+
+### Correct: goroutine with cancellation
+\\\`\\\`\\\`go
+func processEvents(ctx context.Context, ch <-chan Event) {
+    for {
+        select {
+        case <-ctx.Done():
+            return // Clean exit on cancellation
+        case event, ok := <-ch:
+            if !ok {
+                return // Channel closed
+            }
+            handle(event)
+        }
+    }
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern: goroutine leak
+\\\`\\\`\\\`go
+func processEvents(ch <-chan Event) {
+    for event := range ch {
+        handle(event) // If nobody closes ch, this goroutine runs forever
+    }
+}
+// No way to stop this goroutine — leaked if the channel is abandoned
+\\\`\\\`\\\`
+
+---
+
+## Channel Patterns
+
+### Fan-Out / Fan-In
+\\\`\\\`\\\`go
+func fanOut(ctx context.Context, input <-chan Job, workers int) <-chan Result {
+    results := make(chan Result)
+    var wg sync.WaitGroup
+
+    for range workers {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            for job := range input {
+                select {
+                case <-ctx.Done():
+                    return
+                case results <- process(job):
+                }
+            }
+        }()
+    }
+
+    go func() {
+        wg.Wait()
+        close(results)
+    }()
+
+    return results
+}
+\\\`\\\`\\\`
+
+### Pipeline Pattern
+\\\`\\\`\\\`go
+func pipeline(ctx context.Context, nums <-chan int) <-chan int {
+    doubled := make(chan int)
+    go func() {
+        defer close(doubled)
+        for n := range nums {
+            select {
+            case <-ctx.Done():
+                return
+            case doubled <- n * 2:
+            }
+        }
+    }()
+    return doubled
+}
+\\\`\\\`\\\`
+
+### Channel Direction — always restrict in function signatures
+\\\`\\\`\\\`go
+// Correct: receive-only and send-only channel types enforce direction
+func producer(ctx context.Context) <-chan Event    { /* ... */ }
+func consumer(events <-chan Event)                 { /* ... */ }
+func relay(in <-chan Event, out chan<- Event)       { /* ... */ }
+\\\`\\\`\\\`
+
+---
+
+## errgroup — Structured Concurrency
+
+errgroup is the preferred pattern for concurrent goroutines that return errors.
+
+\\\`\\\`\\\`go
+func fetchAll(ctx context.Context, urls []string) ([]Response, error) {
+    g, ctx := errgroup.WithContext(ctx)
+    responses := make([]Response, len(urls))
+
+    for i, url := range urls {
+        g.Go(func() error {
+            resp, err := httpGet(ctx, url)
+            if err != nil {
+                return fmt.Errorf("fetch %q: %w", url, err)
+            }
+            responses[i] = resp
+            return nil
+        })
+    }
+
+    if err := g.Wait(); err != nil {
+        return nil, err
+    }
+    return responses, nil
+}
+\\\`\\\`\\\`
+
+### With concurrency limit
+\\\`\\\`\\\`go
+g, ctx := errgroup.WithContext(ctx)
+g.SetLimit(10) // Max 10 concurrent goroutines
+\\\`\\\`\\\`
+
+---
+
+## sync Primitives
+
+### sync.Mutex — protect shared state
+\\\`\\\`\\\`go
+type Counter struct {
+    mu    sync.Mutex
+    count int
+}
+
+func (c *Counter) Increment() {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    c.count++
+}
+
+func (c *Counter) Value() int {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    return c.count
+}
+\\\`\\\`\\\`
+
+### sync.RWMutex — when reads vastly outnumber writes
+\\\`\\\`\\\`go
+type Cache struct {
+    mu   sync.RWMutex
+    data map[string]string
+}
+
+func (c *Cache) Get(key string) (string, bool) {
+    c.mu.RLock()
+    defer c.mu.RUnlock()
+    val, ok := c.data[key]
+    return val, ok
+}
+
+func (c *Cache) Set(key, val string) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    c.data[key] = val
+}
+\\\`\\\`\\\`
+
+### sync.Once — lazy initialization
+\\\`\\\`\\\`go
+var (
+    instance *Database
+    once     sync.Once
+)
+
+func GetDB() *Database {
+    once.Do(func() {
+        instance = connectToDatabase()
+    })
+    return instance
+}
+\\\`\\\`\\\`
+
+---
+
+## Context Patterns
+
+### Always pass context as first parameter
+\\\`\\\`\\\`go
+func (s *service) Process(ctx context.Context, req Request) (Response, error) {
+    ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+    defer cancel()
+
+    result, err := s.repo.Query(ctx, req.ID)
+    if err != nil {
+        return Response{}, fmt.Errorf("process: %w", err)
+    }
+    return Response{Data: result}, nil
+}
+\\\`\\\`\\\`
+
+### Anti-Patterns
+- Never store context in a struct field — pass explicitly
+- Never use \\\`context.TODO()\\\` in production code — it indicates an unfinished decision
+- Never use \\\`context.WithValue\\\` for function parameters — only for request-scoped metadata (trace IDs)
+
+---
+
+## Race Detection
+
+- Always run \\\`go test -race ./...\\\` in CI — catches data races at runtime
+- Build with \\\`go build -race\\\` for staging environments
+- Common race causes: shared slice/map without mutex, goroutine capturing loop variable (pre-1.22)
+`,
+      },
+      {
+        name: 'go-error-handling-guide',
+        description: 'Detailed reference for Go error handling: wrapping, sentinel errors, custom types, errors.Is/As',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Go Error Handling — Detailed Reference
+
+## Why This Matters
+Go's explicit error handling is a strength, but only when used correctly.
+Discarded errors, missing context, and improper wrapping cause silent failures
+and debugging nightmares. These patterns follow the Go Blog and standard library conventions.
+
+---
+
+## Error Wrapping with Context
+
+Always wrap errors with context about what operation failed:
+
+### Correct
+\\\`\\\`\\\`go
+func (s *service) CreateOrder(ctx context.Context, req OrderRequest) (*Order, error) {
+    user, err := s.users.FindByID(ctx, req.UserID)
+    if err != nil {
+        return nil, fmt.Errorf("create order: find user %q: %w", req.UserID, err)
+    }
+
+    order, err := s.orders.Insert(ctx, user, req.Items)
+    if err != nil {
+        return nil, fmt.Errorf("create order: insert: %w", err)
+    }
+
+    return order, nil
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`go
+func (s *service) CreateOrder(ctx context.Context, req OrderRequest) (*Order, error) {
+    user, err := s.users.FindByID(ctx, req.UserID)
+    if err != nil {
+        return nil, err // No context — caller can't tell WHERE the error came from
+    }
+
+    order, err := s.orders.Insert(ctx, user, req.Items)
+    if err != nil {
+        return nil, fmt.Errorf("failed: %v", err) // %v breaks the error chain (not %w)
+    }
+
+    return order, nil
+}
+\\\`\\\`\\\`
+
+---
+
+## Sentinel Errors
+
+Define sentinel errors for conditions that callers need to check programmatically:
+
+\\\`\\\`\\\`go
+// Package-level sentinel errors — lowercase messages, no punctuation
+var (
+    ErrNotFound     = errors.New("not found")
+    ErrUnauthorized = errors.New("unauthorized")
+    ErrConflict     = errors.New("conflict")
+)
+\\\`\\\`\\\`
+
+### Checking with errors.Is
+\\\`\\\`\\\`go
+order, err := service.GetOrder(ctx, orderID)
+if err != nil {
+    if errors.Is(err, ErrNotFound) {
+        // Handle known "not found" case
+        return http.StatusNotFound, nil
+    }
+    // Unknown error — propagate
+    return 0, fmt.Errorf("get order: %w", err)
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`go
+// WRONG: direct comparison breaks when errors are wrapped
+if err == ErrNotFound { // Fails if err was wrapped with fmt.Errorf("%w", ErrNotFound)
+    // ...
+}
+
+// WRONG: string comparison is fragile
+if err.Error() == "not found" {
+    // ...
+}
+\\\`\\\`\\\`
+
+---
+
+## Custom Error Types
+
+Use custom error types when callers need structured data from the error:
+
+\\\`\\\`\\\`go
+type ValidationError struct {
+    Field   string
+    Message string
+}
+
+func (e *ValidationError) Error() string {
+    return fmt.Sprintf("validation: %s: %s", e.Field, e.Message)
+}
+
+// Check with errors.As
+var valErr *ValidationError
+if errors.As(err, &valErr) {
+    // Access structured fields
+    log.Printf("field %s: %s", valErr.Field, valErr.Message)
+}
+\\\`\\\`\\\`
+
+### With wrapping support
+\\\`\\\`\\\`go
+type OpError struct {
+    Op   string
+    Err  error
+}
+
+func (e *OpError) Error() string { return fmt.Sprintf("%s: %s", e.Op, e.Err) }
+func (e *OpError) Unwrap() error { return e.Err }
+
+// Now errors.Is(opErr, ErrNotFound) works if Err wraps ErrNotFound
+\\\`\\\`\\\`
+
+---
+
+## Error Handling Patterns
+
+### Early return (happy path unindented)
+\\\`\\\`\\\`go
+func process(data []byte) (*Result, error) {
+    if len(data) == 0 {
+        return nil, fmt.Errorf("process: empty data")
+    }
+
+    parsed, err := parse(data)
+    if err != nil {
+        return nil, fmt.Errorf("process: %w", err)
+    }
+
+    validated, err := validate(parsed)
+    if err != nil {
+        return nil, fmt.Errorf("process: %w", err)
+    }
+
+    return transform(validated), nil
+}
+\\\`\\\`\\\`
+
+### Error strings convention
+- Lowercase, no trailing punctuation
+- Include the operation name as prefix
+- Chain naturally when wrapped: \\\`create order: find user "abc": not found\\\`
+
+### Never discard errors
+\\\`\\\`\\\`go
+// WRONG: error silently discarded
+result, _ := riskyOperation()
+
+// CORRECT: handle or propagate
+result, err := riskyOperation()
+if err != nil {
+    return fmt.Errorf("...: %w", err)
+}
+\\\`\\\`\\\`
+
+---
+
+## Multi-Error Handling (Go 1.20+)
+
+\\\`\\\`\\\`go
+// Join multiple errors
+err := errors.Join(err1, err2, err3)
+
+// errors.Is checks each error in the chain
+if errors.Is(err, ErrNotFound) {
+    // True if ANY of err1, err2, err3 wraps ErrNotFound
+}
+\\\`\\\`\\\`
+`,
+      },
+      {
         name: 'go-debug-profile',
         description: 'Go debugging with delve and performance profiling with pprof',
         content: `# Go Debug & Profile Skill

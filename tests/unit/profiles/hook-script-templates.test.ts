@@ -16,17 +16,22 @@ describe('makeFilePatternCheckScript', () => {
     expect(script).toContain('#!/bin/bash');
   });
 
-  it('should read file_path from stdin JSON', () => {
+  it('should read file_path from stdin JSON using node (cross-platform)', () => {
     const script = makeFilePatternCheckScript({
       filename: 'test.sh',
       pattern: 'TODO',
       message: 'Found TODOs',
     });
     expect(script).toContain('INPUT=$(cat)');
-    expect(script).toContain("jq -r '.tool_input.file_path // empty'");
+    // Uses Node.js instead of jq for cross-platform compatibility
+    expect(script).toContain('node -e');
+    expect(script).toContain('tool_input');
+    expect(script).toContain('file_path');
     expect(script).toContain('$FILE_PATH');
     // Should NOT reference non-existent env vars
     expect(script).not.toContain('$CLAUDE_FILE_PATH');
+    // Should NOT use jq (not available on Windows by default)
+    expect(script).not.toMatch(/\bjq\b/);
   });
 
   it('should include the grep pattern', () => {
@@ -123,7 +128,7 @@ describe('makePreToolUseBlockerScript', () => {
     expect(script).not.toContain('"decision":"allow"');
   });
 
-  it('should read from stdin using jq', () => {
+  it('should read from stdin using node (cross-platform)', () => {
     const script = makePreToolUseBlockerScript({
       filename: 'blocker.sh',
       pattern: 'secret',
@@ -131,10 +136,15 @@ describe('makePreToolUseBlockerScript', () => {
       inputField: '.tool_input.content',
     });
     expect(script).toContain('INPUT=$(cat)');
-    expect(script).toContain("jq -r '.tool_input.content // empty'");
+    // Uses Node.js instead of jq for cross-platform compatibility
+    expect(script).toContain('node -e');
+    expect(script).toContain('tool_input');
+    expect(script).toContain('content');
     // Should NOT reference non-existent env vars
     expect(script).not.toContain('$CLAUDE_TOOL_INPUT');
     expect(script).not.toContain('$CLAUDE_FILE_PATH');
+    // Should NOT use jq
+    expect(script).not.toMatch(/\bjq\b/);
   });
 
   it('should use custom inputField for command checking', () => {
@@ -144,7 +154,10 @@ describe('makePreToolUseBlockerScript', () => {
       reason: 'Destructive command',
       inputField: '.tool_input.command',
     });
-    expect(script).toContain("jq -r '.tool_input.command // empty'");
+    // Uses Node.js instead of jq — verify the field name is present
+    expect(script).toContain('node -e');
+    expect(script).toContain('tool_input');
+    expect(script).toContain('command');
   });
 
   it('should include the reason in JSON output', () => {
@@ -170,16 +183,17 @@ describe('makePreToolUseBlockerScript', () => {
     expect(exits!.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('should use jq -n to build JSON output', () => {
+  it('should use node to build JSON deny output', () => {
     const script = makePreToolUseBlockerScript({
       filename: 'blocker.sh',
       pattern: 'test',
       reason: 'Test reason',
       inputField: '.tool_input.content',
     });
-    expect(script).toContain('jq -n');
+    // Uses Node.js instead of jq -n
+    expect(script).toContain('node -e');
     expect(script).toContain('hookEventName');
-    expect(script).toContain('"PreToolUse"');
+    expect(script).toContain('PreToolUse');
   });
 });
 
@@ -193,17 +207,22 @@ describe('makeNodeCheckScript', () => {
     expect(script).toContain('node -e');
   });
 
-  it('should read file_path from stdin JSON', () => {
+  it('should read file_path from stdin JSON using node (cross-platform)', () => {
     const script = makeNodeCheckScript({
       filename: 'check.sh',
       nodeScript: 'console.log(process.argv[1])',
       message: 'Check failed',
     });
     expect(script).toContain('INPUT=$(cat)');
-    expect(script).toContain("jq -r '.tool_input.file_path // empty'");
+    // Uses Node.js instead of jq for cross-platform compatibility
+    expect(script).toContain('node -e');
+    expect(script).toContain('tool_input');
+    expect(script).toContain('file_path');
     expect(script).toContain('$FILE_PATH');
     // Should NOT reference non-existent env vars
     expect(script).not.toContain('$CLAUDE_FILE_PATH');
+    // Should NOT use jq
+    expect(script).not.toMatch(/\bjq\b/);
   });
 
   it('should default exit code to 2', () => {

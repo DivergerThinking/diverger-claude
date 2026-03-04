@@ -183,14 +183,41 @@ user-invocable: true
 
 Use the MCP tools provided by the diverger-claude server to initialize the project configuration.
 
+## Pre-flight checks
+
+Before starting, verify these conditions:
+- You are in the root directory of the target project (look for package.json, go.mod, Cargo.toml, etc.)
+- If a \`.claude/\` directory already exists, warn the user that it will be overwritten unless they use sync instead.
+
 ## Steps
 
 1. Call the \`detect_stack\` MCP tool with the current project root directory.
-2. Present the detected technologies to the user in a clear table format.
+2. Present the detected technologies to the user in a clear table format:
+   - Technology name, version, confidence score, category
+   - Highlight any low-confidence detections (<90%) with a warning.
 3. Ask the user to confirm proceeding with generation.
 4. If confirmed, call the \`generate_config\` MCP tool with \`pluginMode: true\`.
 5. Show a summary of the generated files and applied profiles.
 6. If any issues arise, suggest running \`/diverger-status\` to validate.
+
+## Edge cases
+
+- **\`.claude/\` already exists**: Ask user if they want to overwrite or use \`/diverger-sync\` instead.
+- **No technologies detected**: Suggest checking if manifest files exist (package.json, go.mod, etc.) or if the working directory is correct.
+- **Low confidence detections**: Explain that detections below 90% confidence may be inaccurate and ask user to confirm.
+
+## Error recovery
+
+- If \`detect_stack\` fails: Check that the MCP server is running (\`/diverger-health\`).
+- If \`generate_config\` fails: Show the error, suggest running detection again, and check file permissions.
+
+## Follow-up suggestions
+
+After successful init, suggest:
+1. Run \`/diverger-quickstart\` for a guided tour of the generated configuration.
+2. Run \`/diverger-doctor\` to get a health score for the project.
+3. Explore \`.claude/rules/\` to see the generated coding rules.
+4. Try \`/commands\` to see all available skills for the detected stack.
 `,
   },
   {
@@ -205,15 +232,35 @@ user-invocable: true
 
 Use the MCP tools provided by the diverger-claude server to show project status.
 
+## Prerequisites
+
+- The project must have been initialized with \`/diverger-init\` (a \`.claude/\` directory must exist).
+- If no \`.claude/\` directory exists, suggest running \`/diverger-init\` first.
+
 ## Steps
 
 1. Call the \`detect_stack\` MCP tool with the current project root directory.
 2. Call the \`check_config\` MCP tool with the same directory.
 3. Present a combined status report:
-   - Detected technologies (name, version, confidence)
-   - Configuration validation result (valid/invalid)
-   - Any issues found (severity, file, message)
-4. If issues are found, suggest running \`/diverger-sync\` to fix them.
+   - **Detected technologies**: name, version, confidence, category
+   - **Configuration health**: valid/invalid, number of files, last modified
+   - **Issues found**: severity (error/warning), file path, message
+   - **Stack drift**: technologies detected now vs. what was configured
+
+## Stack drift detection
+
+Compare the currently detected technologies with what the configuration was generated for:
+- **New technologies**: Detected now but not in config → suggest \`/diverger-sync\`
+- **Removed technologies**: In config but no longer detected → may need cleanup
+- **Version changes**: Major version changes that may require config update
+
+## Context-sensitive suggestions
+
+Based on the status report, provide targeted suggestions:
+- If issues are found → suggest \`/diverger-sync\` to fix configuration drift
+- If stack has changed → suggest \`/diverger-sync\` to update profiles
+- If config is healthy → confirm everything is up to date
+- If health is degraded → suggest \`/diverger-doctor\` for a detailed health analysis
 `,
   },
   {
@@ -228,15 +275,41 @@ user-invocable: true
 
 Use the MCP tools provided by the diverger-claude server to sync configuration.
 
+## Pre-sync checks
+
+Before syncing:
+- Verify that \`.claude/\` directory exists. If not, suggest \`/diverger-init\` instead.
+- Check if there are uncommitted changes to \`.claude/\` files. If so, warn the user that sync may overwrite manual edits.
+
 ## Steps
 
 1. Call the \`sync_config\` MCP tool with the current project root directory.
-2. Report the results:
-   - Files updated automatically
-   - Conflicts that were auto-resolved
-   - Files skipped (no changes)
-3. Optionally call \`check_config\` to verify the configuration is healthy after sync.
+2. Report the results clearly:
+   - **Updated files**: list each file that was changed, with a brief description of what changed
+   - **Conflicts resolved**: files where the three-way merge resolved differences automatically
+   - **Files skipped**: files that were already up to date
+3. Call \`check_config\` to verify the configuration is healthy after sync.
 4. Show summary counts (updated, conflicts, skipped).
+
+## Merge conflict handling
+
+If the sync reports merge conflicts that couldn't be auto-resolved:
+- Show the conflicting sections with context
+- Ask the user to choose: keep their version, accept the new version, or merge manually
+- After resolution, re-run \`check_config\` to verify
+
+## Post-sync validation
+
+After a successful sync:
+1. Run \`check_config\` to verify the configuration is healthy.
+2. If new technologies were detected, list the new rules and skills that were added.
+3. If technologies were removed, list the rules and skills that were cleaned up.
+4. Suggest running \`/diverger-doctor\` to verify overall project health.
+
+## Error recovery
+
+- If \`sync_config\` fails: Check MCP server health with \`/diverger-health\`, verify file permissions.
+- If config is invalid after sync: Suggest running \`/diverger-init\` with force mode to regenerate from scratch.
 `,
   },
   {
@@ -871,9 +944,10 @@ const intelligenceHookScripts = [
     content: `#!/bin/bash
 # PreToolUse blocker: Validate commit prerequisites before allowing git commit
 # Blocks commits when plugin build is stale or TypeScript has errors
+# Uses Node.js instead of jq for cross-platform compatibility (Windows)
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+COMMAND=$(echo "$INPUT" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);const v=j[\\"tool_input\\"][\\"command\\"];console.log(v||'')}catch{console.log('')}})")
 
 # Only intercept git commit commands
 if ! echo "$COMMAND" | grep -qE '^\\s*git\\s+commit'; then
@@ -884,8 +958,8 @@ ERRORS=""
 
 # Check 1: Plugin version consistency (package.json must match plugin.json)
 if [ -f "package.json" ] && [ -f "plugin/.claude-plugin/plugin.json" ]; then
-  PKG_VERSION=$(jq -r '.version' package.json 2>/dev/null || echo "")
-  PLUGIN_VERSION=$(jq -r '.version' plugin/.claude-plugin/plugin.json 2>/dev/null || echo "")
+  PKG_VERSION=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).version||'')}catch{console.log('')}")
+  PLUGIN_VERSION=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('plugin/.claude-plugin/plugin.json','utf8')).version||'')}catch{console.log('')}")
   if [ -n "$PKG_VERSION" ] && [ -n "$PLUGIN_VERSION" ] && [ "$PKG_VERSION" != "$PLUGIN_VERSION" ]; then
     ERRORS="\${ERRORS}Plugin build stale: package.json=\${PKG_VERSION} but plugin.json=\${PLUGIN_VERSION}. Run npm run build:plugin first. "
   fi
@@ -903,13 +977,7 @@ fi
 
 # If errors found, deny the commit
 if [ -n "$ERRORS" ]; then
-  jq -n --arg reason "Pre-commit validation failed: \${ERRORS}" '{
-    hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "deny",
-      permissionDecisionReason: $reason
-    }
-  }'
+  node -e "console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:'Pre-commit validation failed: '+process.argv[1]}}))" -- "$ERRORS"
   exit 0
 fi
 
@@ -922,35 +990,32 @@ exit 0
     content: `#!/bin/bash
 # PostToolUse hook: Capture tool errors to session error log
 # Reads from stdin (Claude Code hook protocol) and appends failures to .claude/session-errors.local.json
+# Uses Node.js instead of jq for cross-platform compatibility (Windows)
 
 set -euo pipefail
 
 # Read hook input from stdin
 INPUT=$(cat)
 
-# Check if the tool execution failed
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)
-ERROR=$(echo "$INPUT" | jq -r '.error // empty' 2>/dev/null || true)
+# Check if the tool execution failed — extract tool_name and error using Node.js
+TOOL_NAME=$(echo "$INPUT" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log(j.tool_name||'')}catch{console.log('')}})" || true)
+ERROR=$(echo "$INPUT" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log(j.error||'')}catch{console.log('')}})" || true)
 
 if [ -z "$ERROR" ]; then
   exit 0
 fi
 
-# Append error to session log
+# Append error to session log using Node.js
 SESSION_LOG=".claude/session-errors.local.json"
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-# Create file if it doesn't exist
-if [ ! -f "$SESSION_LOG" ]; then
-  echo "[]" > "$SESSION_LOG"
-fi
-
-# Append the error entry
-ENTRY=$(jq -n --arg msg "$ERROR" --arg tool "$TOOL_NAME" --arg ts "$TIMESTAMP" \\
-  '{message: $msg, tool: $tool, timestamp: $ts}')
-
-UPDATED=$(jq --argjson entry "$ENTRY" '. + [$entry]' "$SESSION_LOG" 2>/dev/null || echo "[$ENTRY]")
-echo "$UPDATED" > "$SESSION_LOG"
+node -e "
+const fs = require('fs');
+const log = '$SESSION_LOG';
+const entry = { message: process.argv[1], tool: process.argv[2], timestamp: new Date().toISOString() };
+let entries = [];
+try { entries = JSON.parse(fs.readFileSync(log, 'utf8')); } catch {}
+entries.push(entry);
+fs.writeFileSync(log, JSON.stringify(entries, null, 2));
+" -- "$ERROR" "$TOOL_NAME"
 `,
   },
   {
@@ -958,6 +1023,7 @@ echo "$UPDATED" > "$SESSION_LOG"
     content: `#!/bin/bash
 # SessionEnd hook: Signal pending errors for next session processing
 # Errors will be processed by onSessionStart() in the next session
+# Uses Node.js instead of jq for cross-platform compatibility (Windows)
 
 set -euo pipefail
 
@@ -968,8 +1034,8 @@ if [ ! -f "$SESSION_LOG" ]; then
   exit 0
 fi
 
-# Clean up empty logs
-ERROR_COUNT=$(jq 'length' "$SESSION_LOG" 2>/dev/null || echo "0")
+# Clean up empty logs using Node.js
+ERROR_COUNT=$(node -e "try{const d=JSON.parse(require('fs').readFileSync('$SESSION_LOG','utf8'));console.log(d.length)}catch{console.log('0')}")
 if [ "$ERROR_COUNT" = "0" ]; then
   rm -f "$SESSION_LOG"
 fi

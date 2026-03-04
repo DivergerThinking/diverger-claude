@@ -10,7 +10,7 @@ function buildTypescriptHookScripts(): HookScriptDefinition[] {
       content: `#!/bin/bash
 # Warn on unqualified "any" types in TypeScript files
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+FILE_PATH=$(echo "$INPUT" | node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}")
 if [ -z "$FILE_PATH" ]; then exit 0; fi
 echo "$FILE_PATH" | grep -qE '\\.(ts|tsx)$' || exit 0
 if grep -nE "\\bany\\b" "$FILE_PATH" | grep -vE "(// eslint-disable|// @ts-|// any:|as any // justified)" | head -5 | grep -q "."; then
@@ -37,7 +37,7 @@ exit 0
       content: `#!/bin/bash
 # Warn on catch blocks without :unknown type annotation
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+FILE_PATH=$(echo "$INPUT" | node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}")
 if [ -z "$FILE_PATH" ]; then exit 0; fi
 echo "$FILE_PATH" | grep -qE '\\.(ts|tsx)$' || exit 0
 if grep -nE "\\bcatch\\s*\\(\\w+\\)" "$FILE_PATH" | grep -vE ":\\s*unknown" | head -3 | grep -q "."; then

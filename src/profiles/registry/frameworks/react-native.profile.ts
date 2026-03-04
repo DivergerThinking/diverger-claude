@@ -438,7 +438,7 @@ Generate a complete screen following React Native conventions:
         hooks: [{
           type: 'command',
           statusMessage: 'Checking for inline style objects in React Native code',
-          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/style=\\{\\{/.test(c)&&!/StyleSheet/.test(c)){const count=(c.match(/style=\\{\\{/g)||[]).length;if(count>=2){console.error(\'WARNING: \'+count+\' inline style objects detected. Use StyleSheet.create() for better performance and memory efficiency.\');process.exit(2)}}" -- "$FILE_PATH"',
+          command: 'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/style=\\{\\{/.test(c)&&!/StyleSheet/.test(c)){const count=(c.match(/style=\\{\\{/g)||[]).length;if(count>=2){console.error(\'WARNING: \'+count+\' inline style objects detected. Use StyleSheet.create() for better performance and memory efficiency.\');process.exit(2)}}" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -448,7 +448,7 @@ Generate a complete screen following React Native conventions:
         hooks: [{
           type: 'command',
           statusMessage: 'Checking for sensitive data in AsyncStorage',
-          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx|ts|js)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/AsyncStorage\\.setItem/.test(c)&&/(token|password|secret|credential|apiKey|api_key)/i.test(c)){console.error(\'SECURITY: Storing sensitive data in AsyncStorage (unencrypted). Use react-native-keychain or react-native-encrypted-storage instead.\');process.exit(2)}" -- "$FILE_PATH"',
+          command: 'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx|ts|js)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/AsyncStorage\\.setItem/.test(c)&&/(token|password|secret|credential|apiKey|api_key)/i.test(c)){console.error(\'SECURITY: Storing sensitive data in AsyncStorage (unencrypted). Use react-native-keychain or react-native-encrypted-storage instead.\');process.exit(2)}" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -458,7 +458,7 @@ Generate a complete screen following React Native conventions:
         hooks: [{
           type: 'command',
           statusMessage: 'Checking for ScrollView with .map() in React Native code',
-          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/<ScrollView[^>]*>[\\s\\S]*\\.map\\s*\\(/m.test(c)){console.error(\'WARNING: ScrollView with .map() detected. Use FlatList or SectionList for lists to enable view recycling and better memory usage.\');process.exit(2)}" -- "$FILE_PATH"',
+          command: 'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/<ScrollView[^>]*>[\\s\\S]*\\.map\\s*\\(/m.test(c)){console.error(\'WARNING: ScrollView with .map() detected. Use FlatList or SectionList for lists to enable view recycling and better memory usage.\');process.exit(2)}" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },
@@ -468,7 +468,7 @@ Generate a complete screen following React Native conventions:
         hooks: [{
           type: 'command',
           statusMessage: 'Checking for deprecated Touchable* components in React Native code',
-          command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/TouchableOpacity|TouchableHighlight|TouchableWithoutFeedback|TouchableNativeFeedback/.test(c)&&!/Pressable/.test(c)){console.error(\'WARNING: Deprecated Touchable* component detected. Migrate to Pressable for better customization and future compatibility.\');process.exit(2)}" -- "$FILE_PATH"',
+          command: 'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.(tsx|jsx)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/TouchableOpacity|TouchableHighlight|TouchableWithoutFeedback|TouchableNativeFeedback/.test(c)&&!/Pressable/.test(c)){console.error(\'WARNING: Deprecated Touchable* component detected. Migrate to Pressable for better customization and future compatibility.\');process.exit(2)}" -- "$FILE_PATH"',
           timeout: 5,
         }],
       },

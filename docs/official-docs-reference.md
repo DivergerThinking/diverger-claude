@@ -1,6 +1,6 @@
 # Referencia de Documentación Oficial por Profile
 
-> Referencia exhaustiva de documentación oficial para validar la calidad de los 50 profiles de diverger-claude.
+> Referencia exhaustiva de documentación oficial para validar la calidad de los 59 profiles de diverger-claude.
 > Incluye: docs home, best practices, style guides, API reference y convenciones.
 
 ---

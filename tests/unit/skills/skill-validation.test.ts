@@ -29,8 +29,8 @@ describe('Skill Validation', () => {
     fs.statSync(path.join(SKILLS_DIR, d)).isDirectory(),
   );
 
-  it('should have at least 15 skills', () => {
-    expect(skillDirs.length).toBeGreaterThanOrEqual(15);
+  it('should have at least 20 skills', () => {
+    expect(skillDirs.length).toBeGreaterThanOrEqual(20);
   });
 
   describe('All skills have valid frontmatter', () => {
@@ -75,6 +75,36 @@ describe('Skill Validation', () => {
         expect(fm.name).toBe(skillDir);
       });
     }
+  });
+
+  describe('Skill quality', () => {
+    for (const skillDir of skillDirs) {
+      it(`${skillDir} SKILL.md has substantial content (>20 lines)`, () => {
+        const skillPath = path.join(SKILLS_DIR, skillDir, 'SKILL.md');
+        const content = fs.readFileSync(skillPath, 'utf-8');
+        const lineCount = content.split('\n').length;
+        expect(lineCount).toBeGreaterThan(20);
+      });
+    }
+
+    it('reference guide skills have disable-model-invocation', () => {
+      const guideSkills = skillDirs.filter((d) => d.includes('-guide'));
+      for (const skillDir of guideSkills) {
+        const skillPath = path.join(SKILLS_DIR, skillDir, 'SKILL.md');
+        const content = fs.readFileSync(skillPath, 'utf-8');
+
+        expect(content).toContain('user-invocable: true');
+        expect(content).toContain('disable-model-invocation: true');
+      }
+    });
+
+    it('diverger-doctor skill has allowed-tools in frontmatter', () => {
+      const skillPath = path.join(SKILLS_DIR, 'diverger-doctor', 'SKILL.md');
+      if (fs.existsSync(skillPath)) {
+        const content = fs.readFileSync(skillPath, 'utf-8');
+        expect(content).toContain('allowed-tools:');
+      }
+    });
   });
 });
 

@@ -462,7 +462,7 @@ eas build --profile production --platform all --auto-submit
         hooks: [{
           type: 'command' as const,
           statusMessage: 'Checking for EXPO_PUBLIC_ env var access patterns',
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty'); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}"); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.(tsx?|jsx?)$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -486,7 +486,7 @@ if (issues.length) { console.error('Warning: ' + issues.join(' | ')); process.ex
         hooks: [{
           type: 'command' as const,
           statusMessage: 'Checking Expo app.config for runtimeVersion and secrets',
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty'); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}"); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/app\\.config\\.(ts|js)$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -510,7 +510,7 @@ if (issues.length) { console.error('Warning: ' + issues.join(' | ')); process.ex
         hooks: [{
           type: 'command' as const,
           statusMessage: 'Checking Expo +api.ts handlers for input validation',
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty'); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}"); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\+api\\.ts$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');

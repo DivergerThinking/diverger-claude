@@ -400,7 +400,7 @@ Generate a Gin middleware following best practices:
             type: 'command',
             statusMessage: 'Checking for Bind/MustBindWith usage instead of ShouldBind in Gin code',
             command:
-              'f=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -z "$f" ] && exit 0; case "$f" in *.go) grep -nE "\\.(Bind|BindJSON|BindQuery|BindUri|BindHeader|BindYAML|BindXML|MustBindWith)\\(" "$f" 2>/dev/null | grep -v "ShouldBind" | grep -v "^$" && { echo "WARNING: Use ShouldBind variants instead of Bind/MustBindWith — Bind aborts with plain-text 400 on failure, removing control over error response format" >&2; exit 2; } || exit 0 ;; *) exit 0 ;; esac',
+              'f=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -z "$f" ] && exit 0; case "$f" in *.go) grep -nE "\\.(Bind|BindJSON|BindQuery|BindUri|BindHeader|BindYAML|BindXML|MustBindWith)\\(" "$f" 2>/dev/null | grep -v "ShouldBind" | grep -v "^$" && { echo "WARNING: Use ShouldBind variants instead of Bind/MustBindWith — Bind aborts with plain-text 400 on failure, removing control over error response format" >&2; exit 2; } || exit 0 ;; *) exit 0 ;; esac',
             timeout: 5,
           },
         ],
@@ -413,7 +413,7 @@ Generate a Gin middleware following best practices:
             type: 'command',
             statusMessage: 'Checking for c.JSON() error responses without c.Abort() in Gin code',
             command:
-              'f=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -z "$f" ] && exit 0; case "$f" in *.go) grep -nE "c\\.JSON\\(" "$f" 2>/dev/null | grep -v "AbortWithStatusJSON" | grep -vE "c\\.JSON\\(http\\.Status(OK|Created|NoContent|Accepted)" | grep -E "c\\.JSON\\(http\\.Status(BadRequest|Unauthorized|Forbidden|NotFound|InternalServerError|Conflict|UnprocessableEntity|TooManyRequests|MethodNotAllowed)" | head -3 && { echo "WARNING: Consider using c.AbortWithStatusJSON() for error responses in middleware, or c.Error(err)+c.Abort() for centralized error handling" >&2; exit 2; } || exit 0 ;; *) exit 0 ;; esac',
+              'f=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -z "$f" ] && exit 0; case "$f" in *.go) grep -nE "c\\.JSON\\(" "$f" 2>/dev/null | grep -v "AbortWithStatusJSON" | grep -vE "c\\.JSON\\(http\\.Status(OK|Created|NoContent|Accepted)" | grep -E "c\\.JSON\\(http\\.Status(BadRequest|Unauthorized|Forbidden|NotFound|InternalServerError|Conflict|UnprocessableEntity|TooManyRequests|MethodNotAllowed)" | head -3 && { echo "WARNING: Consider using c.AbortWithStatusJSON() for error responses in middleware, or c.Error(err)+c.Abort() for centralized error handling" >&2; exit 2; } || exit 0 ;; *) exit 0 ;; esac',
             timeout: 5,
           },
         ],
@@ -426,7 +426,7 @@ Generate a Gin middleware following best practices:
             type: 'command',
             statusMessage: 'Checking for gin.Default() usage in Gin code',
             command:
-              'f=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -z "$f" ] && exit 0; case "$f" in *.go) grep -nE "gin\\.Default\\(\\)" "$f" 2>/dev/null && { echo "WARNING: gin.Default() includes Logger+Recovery with default settings. In production, use gin.New() with explicitly configured middleware for control over logging format and panic recovery behavior" >&2; exit 2; } || exit 0 ;; *) exit 0 ;; esac',
+              'f=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -z "$f" ] && exit 0; case "$f" in *.go) grep -nE "gin\\.Default\\(\\)" "$f" 2>/dev/null && { echo "WARNING: gin.Default() includes Logger+Recovery with default settings. In production, use gin.New() with explicitly configured middleware for control over logging format and panic recovery behavior" >&2; exit 2; } || exit 0 ;; *) exit 0 ;; esac',
             timeout: 5,
           },
         ],

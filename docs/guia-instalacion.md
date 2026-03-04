@@ -195,7 +195,7 @@ Alternativamente, puedes configurar la variable de entorno `GITHUB_TOKEN` con un
 diverger plugin install
 ```
 
-Esto descarga la última versión del plugin desde GitHub Releases y lo instala en `~/.claude/plugins/diverger-claude/`.
+Esto descarga la última versión del plugin desde GitHub Releases, lo instala en `~/.claude/plugins/diverger-claude/`, y lo registra en `~/.claude/settings.json` bajo `enabledPlugins` para que Claude Code lo descubra automáticamente.
 
 ### Post-instalación
 

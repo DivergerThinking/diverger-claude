@@ -4,6 +4,7 @@ import { SENSITIVE_PATTERNS } from '../../../core/constants.js';
 import {
   makePreToolUseBlockerScript,
   makeFilePatternCheckScript,
+  nodeJsonExtract,
 } from '../../hook-script-templates.js';
 
 function buildUniversalHookScripts(): HookScriptDefinition[] {
@@ -44,9 +45,10 @@ function buildUniversalHookScripts(): HookScriptDefinition[] {
       content: `#!/bin/bash
 # PreToolUse blocker: Validate commit prerequisites before allowing git commit
 # Blocks commits when plugin build is stale or TypeScript has errors
+# Uses Node.js instead of jq for cross-platform compatibility (Windows)
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+COMMAND=$(echo "$INPUT" | node -e "${nodeJsonExtract('.tool_input.command')}")
 
 # Only intercept git commit commands
 if ! echo "$COMMAND" | grep -qE '^\\s*git\\s+commit'; then
@@ -57,8 +59,8 @@ ERRORS=""
 
 # Check 1: Plugin version consistency (package.json must match plugin.json)
 if [ -f "package.json" ] && [ -f "plugin/.claude-plugin/plugin.json" ]; then
-  PKG_VERSION=$(jq -r '.version' package.json 2>/dev/null || echo "")
-  PLUGIN_VERSION=$(jq -r '.version' plugin/.claude-plugin/plugin.json 2>/dev/null || echo "")
+  PKG_VERSION=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).version||'')}catch{console.log('')}")
+  PLUGIN_VERSION=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('plugin/.claude-plugin/plugin.json','utf8')).version||'')}catch{console.log('')}")
   if [ -n "$PKG_VERSION" ] && [ -n "$PLUGIN_VERSION" ] && [ "$PKG_VERSION" != "$PLUGIN_VERSION" ]; then
     ERRORS="\${ERRORS}Plugin build stale: package.json=\${PKG_VERSION} but plugin.json=\${PLUGIN_VERSION}. Run npm run build:plugin first. "
   fi
@@ -76,13 +78,7 @@ fi
 
 # If errors found, deny the commit
 if [ -n "$ERRORS" ]; then
-  jq -n --arg reason "Pre-commit validation failed: \${ERRORS}" '{
-    hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "deny",
-      permissionDecisionReason: $reason
-    }
-  }'
+  node -e "console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:'Pre-commit validation failed: '+process.argv[1]}}))" -- "$ERRORS"
   exit 0
 fi
 
@@ -96,7 +92,7 @@ exit 0
       content: `#!/bin/bash
 # Check that file ends with a newline
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+FILE_PATH=$(echo "$INPUT" | node -e "${nodeJsonExtract('.tool_input.file_path')}")
 if [ -z "$FILE_PATH" ]; then exit 0; fi
 if [ -s "$FILE_PATH" ]; then
   LAST_CHAR=$(tail -c 1 "$FILE_PATH" 2>/dev/null | od -An -tx1 | tr -d ' ')
@@ -216,15 +212,15 @@ Clean Code, SOLID, and security-first development. Conventional Commits for all 
 
 ## Pre-commit Checklist
 Before committing, always verify:
-1. \`npm run build\` completes without errors (includes plugin build)
-2. \`npm run typecheck\` passes
-3. \`npm test\` passes
-4. Plugin version in \`plugin/.claude-plugin/plugin.json\` matches \`package.json\`
+1. The project builds without errors (run the build command from package.json/Makefile)
+2. Type checking passes (if applicable)
+3. Tests pass
+4. Linting passes (if configured)
 
 ## After Modifying Source Code
-- If you changed files in \`src/\`: run \`npm run build\` before committing
-- If you changed plugin-related code: run \`npm run build:plugin\` to regenerate plugin assets
-- If you added/renamed agents, skills, or hooks: update \`UNIVERSAL_*\` constants in \`src/core/constants.ts\`
+- If the project has a build step: rebuild before committing
+- If you changed config files (CI, Docker, etc.): verify they are syntactically valid
+- If you added new modules: ensure they are properly exported/registered
 
 ## CI Awareness
 - Check recent CI status before starting work: \`gh run list --limit 3\`
@@ -375,6 +371,9 @@ For detailed examples and reference, invoke: /git-workflow-guide
 5. **Performance**: no O(n²) when O(n) works, no allocations in loops, paginate large data
 6. **Tests**: new logic has tests covering happy path + edge + error cases
 
+This checklist is automatically enriched based on the detected technology stack — language idioms, framework conventions, and infrastructure constraints are layered in by diverger profiles.
+Tech-specific reference skills may be available for deeper guidance (e.g., /react-hooks-guide, /ts-conventions-guide, /go-patterns-guide). Invoke them when reviewing stack-specific patterns.
+
 ## Output: CRITICAL | WARNING | SUGGESTION | POSITIVE — explain WHY, not just WHAT.
 
 For detailed rules, invoke: /architecture-style-guide, /security-guide`,
@@ -422,7 +421,10 @@ For every function/module, write tests covering:
 - Copy-pasting test cases instead of using parameterized tests
 - Tests that depend on execution order
 - Tests that test the mocking framework instead of the code
-- Snapshot tests for logic that should have explicit assertions`,
+- Snapshot tests for logic that should have explicit assertions
+
+Testing patterns are adapted to the detected stack — the test runner, assertion style, mocking approach, and file conventions are determined by the active diverger profiles.
+Framework-specific testing guidance (e.g., React Testing Library patterns, pytest fixtures, Go table-driven tests) is embedded when the corresponding technology is detected.`,
         skills: [],
       },
       {
@@ -443,6 +445,9 @@ For every function/module, write tests covering:
 - A08: No unsafe deserialization, CI/CD integrity
 - A09: Auth events logged, no PII in logs, structured format
 - A10: All error paths handled, fail securely, generic user errors
+
+Security checks are adapted to the detected stack — language-specific vulnerability patterns, framework security middleware, and infrastructure hardening rules are layered in by diverger profiles.
+Tech-specific security guides may be available (e.g., /node-security-guide, /django-security-guide, /docker-security-guide). Invoke them for stack-targeted remediation advice.
 
 ## Severity: CRITICAL > HIGH > MEDIUM > LOW
 Report: severity, location, description, impact, remediation.
@@ -510,6 +515,10 @@ For detailed rules, invoke: /security-guide`,
 | Divergent change (one class changed for many reasons) | Extract Class by responsibility |
 | Dead code (unreachable/unused) | Delete it — version control is the backup |
 | Speculative generality (unused abstraction) | Collapse Hierarchy / Inline Class |
+
+## Stack-Aware Refactoring
+Refactoring patterns are adapted to the detected technology stack — language idioms, framework lifecycle methods, and project structure conventions are taken into account by diverger profiles.
+For example: extracting a React component follows different patterns than extracting a Go interface or restructuring a Django app.
 
 ## Safety Rules
 - ALWAYS ensure tests pass before starting
@@ -971,6 +980,210 @@ BREAKING CHANGE: all imports of UserService must be updated to AuthenticationSer
 - [ ] No secrets or credentials in the diff
 - [ ] Commit message follows Conventional Commits format
 - [ ] Changes are scoped to one logical change
+`,
+      },
+      {
+        name: 'diverger-doctor',
+        description: 'Diagnose project health with a 0-100 score across 6 categories',
+        userInvocable: true,
+        allowedTools: [
+          'Read',
+          'Glob',
+          'Grep',
+          'Bash',
+          'mcp__diverger-claude__detect_stack',
+          'mcp__diverger-claude__check_config',
+          'mcp__diverger-claude__check_plugin_health',
+        ],
+        content: `# Diverger Doctor — Project Health Diagnostic
+
+You are a project health diagnostician. Your job is to evaluate the current project
+across 6 categories and produce a weighted health score from 0 to 100.
+
+## Step 1: Detect the Stack
+
+Use the \\\`mcp__diverger-claude__detect_stack\\\` MCP tool to identify the project's
+technology stack. This determines which package manager, test runner, linter, and
+security audit commands to use in subsequent steps.
+
+## Step 2: Run 6 Diagnostic Categories
+
+Run each category in order. For each, assign a score from 0 to 100.
+
+### Category 1: Config Health (weight: 25%)
+- Use \\\`mcp__diverger-claude__check_config\\\` to validate the .claude/ configuration.
+- Score 100 if all checks pass with no warnings or errors.
+- Deduct 15 points per error, 5 points per warning. Minimum score: 0.
+
+### Category 2: Plugin Health (weight: 15%)
+- Use \\\`mcp__diverger-claude__check_plugin_health\\\` to run plugin diagnostics.
+- Score 100 if all health checks pass.
+- Deduct points proportionally: score = (passing_checks / total_checks) * 100.
+
+### Category 3: Dependency Freshness (weight: 15%)
+- Based on detected stack, run the appropriate outdated check:
+  - Node/npm: \\\`npm outdated --json\\\`
+  - Node/pnpm: \\\`pnpm outdated --format json\\\`
+  - Python/pip: \\\`pip list --outdated --format json\\\`
+  - Go: \\\`go list -m -u all\\\`
+  - Rust: \\\`cargo outdated --format json\\\` (if cargo-outdated installed)
+  - Other: skip this category, assign score 50 (neutral).
+- Score = (up_to_date_packages / total_packages) * 100. If no packages found, score 100.
+
+### Category 4: Test Coverage (weight: 20%)
+- Based on detected stack, run the test command with coverage:
+  - Node/vitest: \\\`npx vitest run --coverage --reporter=json\\\`
+  - Node/jest: \\\`npx jest --coverage --json\\\`
+  - Python/pytest: \\\`pytest --cov --cov-report=json\\\`
+  - Go: \\\`go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out\\\`
+  - Other: check if a coverage report file exists; if not, assign score 50 (neutral).
+- Extract the overall line/statement coverage percentage. Score = that percentage.
+- If tests fail to run, score 0 and note the failure.
+
+### Category 5: Security (weight: 15%)
+- Based on detected stack, run the appropriate security audit:
+  - Node/npm: \\\`npm audit --json\\\`
+  - Node/pnpm: \\\`pnpm audit --json\\\`
+  - Python: \\\`pip-audit --format json\\\` or \\\`safety check --json\\\`
+  - Rust: \\\`cargo audit --json\\\`
+  - Go: \\\`govulncheck ./...\\\`
+  - Other: skip, assign score 75 (neutral-optimistic).
+- Score: 100 if no vulnerabilities. Deduct 5 per low, 10 per moderate, 20 per high, 30 per critical. Minimum: 0.
+
+### Category 6: Code Quality (weight: 10%)
+- Based on detected stack, run the linter:
+  - Node: \\\`npx eslint . --format json\\\` or check for biome/oxlint config
+  - Python: \\\`ruff check --format json .\\\` or \\\`flake8 --format json\\\`
+  - Go: \\\`golangci-lint run --out-format json\\\`
+  - Rust: \\\`cargo clippy --message-format json\\\`
+  - Other: skip, assign score 75 (neutral-optimistic).
+- Score: 100 if 0 issues. Deduct 2 per warning, 5 per error. Minimum: 0.
+
+## Step 3: Calculate Weighted Total Score
+
+Compute the final score using these weights:
+- Config Health:        score * 0.25
+- Plugin Health:        score * 0.15
+- Dependency Freshness: score * 0.15
+- Test Coverage:        score * 0.20
+- Security:             score * 0.15
+- Code Quality:         score * 0.10
+
+Total = sum of weighted scores, rounded to nearest integer.
+
+## Step 4: Output Results Table
+
+Present results in this exact format:
+
+\\\`\\\`\\\`
+=== DIVERGER DOCTOR — Project Health Report ===
+
+Category              Score   Weight   Weighted   Status
+-----------------------------------------------------
+Config Health           XX    25%       XX.X      [indicator]
+Plugin Health           XX    15%       XX.X      [indicator]
+Dependency Freshness    XX    15%       XX.X      [indicator]
+Test Coverage           XX    20%       XX.X      [indicator]
+Security                XX    15%       XX.X      [indicator]
+Code Quality            XX    10%       XX.X      [indicator]
+-----------------------------------------------------
+TOTAL SCORE:            XX / 100       [overall indicator]
+\\\`\\\`\\\`
+
+Status indicators:
+- Score >= 80: GREEN (healthy)
+- Score 50-79: YELLOW (needs attention)
+- Score < 50:  RED (critical)
+
+Overall indicator:
+- >= 80: HEALTHY
+- 50-79: FAIR
+- < 50:  UNHEALTHY
+
+## Step 5: Top 3 Actionable Recommendations
+
+Sort categories by score (ascending). For the 3 lowest-scoring categories,
+provide one concrete, actionable recommendation each. Format:
+
+1. **[Category Name] (score: XX)**: [Specific action to improve, e.g.,
+   "Run npm audit fix to resolve 3 moderate vulnerabilities"]
+2. ...
+3. ...
+
+If all categories score >= 80, congratulate the project and suggest
+one area for further improvement.
+
+## Step 6: Record Findings
+
+Use \\\`mcp__diverger-claude__record_learning\\\` to save the diagnostic results with:
+- type: "diagnostic"
+- context: "diverger-doctor health check"
+- content: summary including total score, date, and per-category scores
+
+This enables tracking health trends over time.
+
+## Important Notes
+- If a tool or command is not available, assign the neutral score noted above for that category.
+- Do NOT install missing tools — just note them as unavailable and score neutrally.
+- Run all commands with reasonable timeouts. If a command hangs, skip it.
+- Always show the full table even if some categories were skipped.
+`,
+      },
+      {
+        name: 'diverger-quickstart',
+        description: 'Guided onboarding after diverger init — explore your configuration in 5 minutes',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Diverger Quickstart — Explore Your Configuration in 5 Minutes
+
+You just ran \\\`diverger init\\\` (or the \\\`generate_config\\\` MCP tool). Follow these steps
+to understand and get the most out of your new \\\`.claude/\\\` configuration.
+
+---
+
+## Step 1: Verify your configuration
+Confirm that \\\`.claude/\\\` was generated with rules, agents, skills, and hooks:
+\\\`\\\`\\\`
+ls .claude/rules/ .claude/agents/ .claude/skills/ .claude/hooks/
+\\\`\\\`\\\`
+You should see files matching your detected stack (e.g., \\\`typescript.md\\\`, \\\`react.md\\\`).
+
+## Step 2: Run /diverger-status
+See your detected stack, applied profiles, and configuration summary:
+\\\`\\\`\\\`
+/diverger-status
+\\\`\\\`\\\`
+
+## Step 3: Run /diverger-doctor
+Get your initial project health score and identify any configuration issues:
+\\\`\\\`\\\`
+/diverger-doctor
+\\\`\\\`\\\`
+
+## Step 4: Explore your rules
+Browse \\\`.claude/rules/\\\` to see what guidelines were generated for your stack.
+Each rule file covers a specific concern — architecture, security, git workflow,
+plus language- and framework-specific conventions.
+
+## Step 5: Discover available commands
+List all slash commands available for your detected technologies:
+\\\`\\\`\\\`
+/commands
+\\\`\\\`\\\`
+Stack-adapted skills like style guides, testing helpers, and review tools will appear.
+
+## Step 6: Try a code review
+Use the \\\`code-reviewer\\\` agent on a recent file to see a stack-adapted review:
+\\\`\\\`\\\`
+@code-reviewer Review src/path/to/recent-file.ts
+\\\`\\\`\\\`
+The reviewer applies your detected stack's conventions automatically.
+
+## Step 7: Next steps
+- \\\`/diverger-audit\\\` — Full audit of your project configuration and code quality
+- \\\`/diverger-test-suite\\\` — Identify test coverage gaps and generate missing tests
+- \\\`/diverger-check\\\` — Validate configuration governance and detect drift
+- Edit \\\`.claude/rules/\\\` files to customize rules for your team's preferences
 `,
       },
     ],

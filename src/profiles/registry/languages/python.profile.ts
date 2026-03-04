@@ -279,6 +279,446 @@ PEP 8 style, type hints mandatory (PEP 484/604). Prefer pathlib, f-strings, data
     ],
     skills: [
       {
+        name: 'python-typing-guide',
+        description: 'Detailed reference for Python type hints, protocols, generics, and advanced type patterns',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Python Type Hints — Detailed Reference
+
+## Why This Matters
+Type hints catch bugs at development time, serve as executable documentation,
+and enable IDE autocompletion. These patterns follow PEP 484, PEP 604, PEP 612,
+PEP 681, PEP 692, and the mypy/pyright documentation.
+
+---
+
+## Modern Syntax (Python 3.10+)
+
+### Use union syntax instead of Optional/Union
+\\\`\\\`\\\`python
+# Correct: modern syntax
+def find_user(user_id: str) -> User | None:
+    ...
+
+def parse_value(raw: str) -> int | float | str:
+    ...
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`python
+# Anti-Pattern: deprecated typing imports
+from typing import Optional, Union
+
+def find_user(user_id: str) -> Optional[User]:  # Use User | None
+    ...
+
+def parse_value(raw: str) -> Union[int, float, str]:  # Use int | float | str
+    ...
+\\\`\\\`\\\`
+
+---
+
+## Protocol — Structural Subtyping (Duck Typing with Safety)
+
+Use Protocol when you need interface-like behavior without inheritance:
+
+\\\`\\\`\\\`python
+from typing import Protocol, runtime_checkable
+
+@runtime_checkable
+class Serializable(Protocol):
+    def to_dict(self) -> dict[str, Any]: ...
+    def from_dict(cls, data: dict[str, Any]) -> Self: ...
+
+# Any class with these methods satisfies Serializable — no inheritance needed
+class User:
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "email": self.email}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        return cls(name=data["name"], email=data["email"])
+
+def save(entity: Serializable) -> None:
+    data = entity.to_dict()  # Type-safe — mypy knows to_dict exists
+    ...
+\\\`\\\`\\\`
+
+### When to use Protocol vs ABC
+- **Protocol**: when you want structural subtyping (duck typing) — no inheritance required
+- **ABC**: when you want to enforce implementation via inheritance and share base logic
+
+---
+
+## TypedDict — Typed Dictionaries
+
+Use TypedDict for dictionaries with known keys (replaces Dict[str, Any]):
+
+\\\`\\\`\\\`python
+from typing import TypedDict, NotRequired
+
+class UserProfile(TypedDict):
+    name: str
+    email: str
+    age: int
+    bio: NotRequired[str]  # Optional key
+
+def create_profile(data: UserProfile) -> None:
+    name = data["name"]  # Type-safe: str
+    bio = data.get("bio", "")  # Type-safe: str
+\\\`\\\`\\\`
+
+---
+
+## Generics
+
+### TypeVar for generic functions
+\\\`\\\`\\\`python
+from typing import TypeVar
+
+T = TypeVar("T")
+
+def first(items: Sequence[T]) -> T | None:
+    return items[0] if items else None
+
+# Usage: first([1, 2, 3]) returns int | None
+#        first(["a", "b"]) returns str | None
+\\\`\\\`\\\`
+
+### Generic classes (Python 3.12+ syntax)
+\\\`\\\`\\\`python
+# Python 3.12+: native syntax
+class Stack[T]:
+    def __init__(self) -> None:
+        self._items: list[T] = []
+
+    def push(self, item: T) -> None:
+        self._items.append(item)
+
+    def pop(self) -> T:
+        return self._items.pop()
+
+# Pre-3.12: TypeVar syntax
+from typing import Generic, TypeVar
+T = TypeVar("T")
+
+class Stack(Generic[T]):
+    ...
+\\\`\\\`\\\`
+
+### Bounded TypeVar
+\\\`\\\`\\\`python
+from typing import TypeVar
+
+Numeric = TypeVar("Numeric", int, float)
+
+def add(a: Numeric, b: Numeric) -> Numeric:
+    return a + b
+\\\`\\\`\\\`
+
+---
+
+## Overload — Multiple Call Signatures
+
+\\\`\\\`\\\`python
+from typing import overload, Literal
+
+@overload
+def fetch(url: str, *, as_json: Literal[True]) -> dict: ...
+@overload
+def fetch(url: str, *, as_json: Literal[False] = ...) -> str: ...
+
+def fetch(url: str, *, as_json: bool = False) -> dict | str:
+    response = httpx.get(url)
+    if as_json:
+        return response.json()
+    return response.text
+\\\`\\\`\\\`
+
+---
+
+## Literal, Final, and NewType
+
+\\\`\\\`\\\`python
+from typing import Literal, Final, NewType
+
+# Literal: constrained values
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
+
+def set_level(level: LogLevel) -> None: ...
+set_level("DEBUG")  # OK
+set_level("TRACE")  # Type error
+
+# Final: immutable bindings
+MAX_RETRIES: Final = 3
+
+# NewType: distinct types for domain concepts
+UserId = NewType("UserId", str)
+OrderId = NewType("OrderId", str)
+
+def get_user(user_id: UserId) -> User: ...
+get_user(UserId("abc"))   # OK
+get_user(OrderId("xyz"))  # Type error — different type
+\\\`\\\`\\\`
+
+---
+
+## ParamSpec and Concatenate (PEP 612)
+
+For decorators that preserve the original function's signature:
+
+\\\`\\\`\\\`python
+from typing import ParamSpec, Callable, TypeVar
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+def retry(max_attempts: int = 3) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except Exception:
+                    if attempt == max_attempts - 1:
+                        raise
+            raise RuntimeError("unreachable")
+        return wrapper
+    return decorator
+
+@retry(max_attempts=3)
+def fetch_data(url: str, timeout: int = 30) -> dict:
+    ...
+# fetch_data preserves its original signature for type checkers
+\\\`\\\`\\\`
+
+---
+
+## Type Narrowing
+
+\\\`\\\`\\\`python
+from typing import TypeGuard
+
+def is_string_list(val: list[object]) -> TypeGuard[list[str]]:
+    return all(isinstance(item, str) for item in val)
+
+def process(items: list[object]) -> None:
+    if is_string_list(items):
+        # Type checker now knows items is list[str]
+        print(", ".join(items))
+\\\`\\\`\\\`
+`,
+      },
+      {
+        name: 'python-async-guide',
+        description: 'Detailed reference for Python async/await patterns, TaskGroup, and structured concurrency',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Python Async Patterns — Detailed Reference
+
+## Why This Matters
+Async Python unlocks massive I/O concurrency, but incorrect usage causes
+event loop blocking, resource leaks, and subtle bugs. These patterns follow
+the asyncio documentation, PEP 654 (ExceptionGroup), and Python 3.11+ best practices.
+
+---
+
+## TaskGroup — Structured Concurrency (Python 3.11+)
+
+TaskGroup is the preferred pattern for concurrent tasks. All tasks complete or all cancel on first exception.
+
+### Correct
+\\\`\\\`\\\`python
+async def fetch_all(urls: list[str]) -> list[Response]:
+    results: list[Response] = [None] * len(urls)  # type: ignore[list-item]
+
+    async with asyncio.TaskGroup() as tg:
+        for i, url in enumerate(urls):
+            async def fetch(idx: int = i, u: str = url) -> None:
+                results[idx] = await http_get(u)
+            tg.create_task(fetch())
+
+    return results
+\\\`\\\`\\\`
+
+### Anti-Pattern: gather without error handling
+\\\`\\\`\\\`python
+# BAD: if one task fails, results are mixed with exceptions
+results = await asyncio.gather(*tasks, return_exceptions=True)
+# You must manually check each result for exceptions — easy to forget
+\\\`\\\`\\\`
+
+---
+
+## Blocking Code in Async Context
+
+NEVER call blocking I/O inside async functions — it freezes the entire event loop.
+
+### Correct: offload to thread pool
+\\\`\\\`\\\`python
+import asyncio
+
+async def read_file(path: str) -> str:
+    # Offload blocking file I/O to a thread
+    return await asyncio.to_thread(Path(path).read_text)
+
+async def cpu_intensive(data: bytes) -> bytes:
+    # Offload CPU-bound work to a thread
+    return await asyncio.to_thread(compress, data)
+\\\`\\\`\\\`
+
+### Anti-Pattern: blocking the event loop
+\\\`\\\`\\\`python
+async def read_file(path: str) -> str:
+    # BAD: blocks the entire event loop while reading
+    return Path(path).read_text()
+
+async def wait() -> None:
+    # BAD: blocks the event loop — use asyncio.sleep instead
+    time.sleep(5)
+\\\`\\\`\\\`
+
+---
+
+## Timeout and Cancellation
+
+### asyncio.timeout (Python 3.11+)
+\\\`\\\`\\\`python
+async def fetch_with_timeout(url: str) -> Response:
+    async with asyncio.timeout(10):
+        return await http_get(url)
+    # Raises TimeoutError if 10 seconds exceeded
+\\\`\\\`\\\`
+
+### Cancellation-aware loops
+\\\`\\\`\\\`python
+async def process_queue(queue: asyncio.Queue[Job]) -> None:
+    while True:
+        try:
+            job = await asyncio.wait_for(queue.get(), timeout=30)
+            await process(job)
+        except asyncio.TimeoutError:
+            continue  # No job in 30s, check again
+        except asyncio.CancelledError:
+            # Clean up before exiting
+            logger.info("Worker cancelled, draining queue")
+            raise  # Always re-raise CancelledError
+\\\`\\\`\\\`
+
+---
+
+## Async Context Managers
+
+\\\`\\\`\\\`python
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def db_connection(dsn: str):
+    conn = await asyncpg.connect(dsn)
+    try:
+        yield conn
+    finally:
+        await conn.close()
+
+# Usage
+async def query_users() -> list[User]:
+    async with db_connection(DATABASE_URL) as conn:
+        rows = await conn.fetch("SELECT * FROM users")
+        return [User(**row) for row in rows]
+\\\`\\\`\\\`
+
+---
+
+## Async Generators
+
+\\\`\\\`\\\`python
+async def paginate(url: str) -> AsyncIterator[list[dict]]:
+    """Yield pages of results from a paginated API."""
+    next_url: str | None = url
+    while next_url:
+        response = await http_get(next_url)
+        data = response.json()
+        yield data["results"]
+        next_url = data.get("next")
+
+# Usage
+async for page in paginate("/api/users"):
+    for user in page:
+        await process_user(user)
+\\\`\\\`\\\`
+
+---
+
+## Semaphore — Concurrency Limiting
+
+\\\`\\\`\\\`python
+async def fetch_all_limited(urls: list[str], max_concurrent: int = 10) -> list[Response]:
+    semaphore = asyncio.Semaphore(max_concurrent)
+    results: list[Response] = []
+
+    async def fetch(url: str) -> Response:
+        async with semaphore:
+            return await http_get(url)
+
+    async with asyncio.TaskGroup() as tg:
+        tasks = [tg.create_task(fetch(url)) for url in urls]
+
+    return [task.result() for task in tasks]
+\\\`\\\`\\\`
+
+---
+
+## Event and Queue Patterns
+
+### asyncio.Event — signaling between coroutines
+\\\`\\\`\\\`python
+ready = asyncio.Event()
+
+async def producer():
+    await setup()
+    ready.set()  # Signal that setup is complete
+
+async def consumer():
+    await ready.wait()  # Block until producer signals
+    await do_work()
+\\\`\\\`\\\`
+
+### asyncio.Queue — producer/consumer
+\\\`\\\`\\\`python
+async def producer(queue: asyncio.Queue[Job]) -> None:
+    for job in generate_jobs():
+        await queue.put(job)
+    await queue.put(None)  # Sentinel to signal done
+
+async def consumer(queue: asyncio.Queue[Job | None]) -> None:
+    while True:
+        job = await queue.get()
+        if job is None:
+            break
+        await process(job)
+        queue.task_done()
+\\\`\\\`\\\`
+
+---
+
+## Common Anti-Patterns
+
+1. **Fire-and-forget tasks**: Always store task references — GC can collect unfinished tasks
+\\\`\\\`\\\`python
+# BAD
+asyncio.create_task(send_email(user))  # Task may be garbage collected
+
+# CORRECT
+background_tasks: set[asyncio.Task] = set()
+task = asyncio.create_task(send_email(user))
+background_tasks.add(task)
+task.add_done_callback(background_tasks.discard)
+\\\`\\\`\\\`
+
+2. **Mixing sync and async**: Never call \\\`asyncio.run()\\\` from inside an async function
+3. **Ignoring CancelledError**: Always re-raise it after cleanup
+`,
+      },
+      {
         name: 'python-debug',
         description: 'Python debugging workflows: breakpoints, pdb, debugpy, profiling',
         content: `# Python Debug Skill
@@ -430,7 +870,7 @@ uv pip install -e ".[dev]"
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "^(import pickle|from pickle import|eval\\(|exec\\(|os\\.system\\(|__import__\\()" "$FILE_PATH" && { echo "Dangerous Python pattern detected (pickle/eval/exec/os.system) — use safe alternatives" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "^(import pickle|from pickle import|eval\\(|exec\\(|os\\.system\\(|__import__\\()" "$FILE_PATH" && { echo "Dangerous Python pattern detected (pickle/eval/exec/os.system) — use safe alternatives" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for dangerous Python patterns',
           },
@@ -443,7 +883,7 @@ uv pip install -e ".[dev]"
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "(yaml\\.load\\(|yaml\\.unsafe_load\\()" "$FILE_PATH" && { echo "Unsafe YAML loading detected — use yaml.safe_load() instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "(yaml\\.load\\(|yaml\\.unsafe_load\\()" "$FILE_PATH" && { echo "Unsafe YAML loading detected — use yaml.safe_load() instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for unsafe YAML loading',
           },
@@ -456,7 +896,7 @@ uv pip install -e ".[dev]"
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "subprocess\\.(run|call|Popen)\\(.*shell\\s*=\\s*True" "$FILE_PATH" && { echo "Warning: subprocess with shell=True detected — verify no user input reaches the command" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "subprocess\\.(run|call|Popen)\\(.*shell\\s*=\\s*True" "$FILE_PATH" && { echo "Warning: subprocess with shell=True detected — verify no user input reaches the command" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for subprocess shell=True usage',
           },
@@ -469,7 +909,7 @@ uv pip install -e ".[dev]"
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -cE "^def [a-zA-Z_]+\\([^)]*\\)\\s*:" "$FILE_PATH" | grep -qvE "^0$" && grep -nE "^def [a-zA-Z_]+\\([^)]*\\)\\s*:" "$FILE_PATH" && { echo "Warning: function(s) without return type annotation detected — add -> ReturnType" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -cE "^def [a-zA-Z_]+\\([^)]*\\)\\s*:" "$FILE_PATH" | grep -qvE "^0$" && grep -nE "^def [a-zA-Z_]+\\([^)]*\\)\\s*:" "$FILE_PATH" && { echo "Warning: function(s) without return type annotation detected — add -> ReturnType" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for missing return type annotations',
           },

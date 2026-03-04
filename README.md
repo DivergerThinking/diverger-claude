@@ -34,6 +34,8 @@ El plugin extiende Claude Code con agentes, skills, hooks y MCP server universal
 diverger plugin install
 ```
 
+El comando descarga el plugin y lo registra en `~/.claude/settings.json` para que Claude Code lo descubra automáticamente. Reinicia Claude Code si ya tenías una sesión abierta.
+
 Tras instalar el plugin, regenera la configuración de tus proyectos:
 
 ```bash

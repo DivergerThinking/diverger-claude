@@ -1,7 +1,7 @@
 #!/bin/bash
 # Check that file ends with a newline
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+FILE_PATH=$(echo "$INPUT" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);const v=j["tool_input"]["file_path"];console.log(v||'')}catch{console.log('')}})")
 if [ -z "$FILE_PATH" ]; then exit 0; fi
 if [ -s "$FILE_PATH" ]; then
   LAST_CHAR=$(tail -c 1 "$FILE_PATH" 2>/dev/null | od -An -tx1 | tr -d ' ')

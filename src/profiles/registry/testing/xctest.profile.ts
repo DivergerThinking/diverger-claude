@@ -414,7 +414,7 @@ struct NetworkClientTests {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Tests?\\.swift$" && grep -cE "\\b(Thread\\.sleep|sleep\\()" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Anti-pattern: sleep()/Thread.sleep() detected in test file — use waitForExistence(), XCTestExpectation, or async/await instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Tests?\\.swift$" && grep -cE "\\b(Thread\\.sleep|sleep\\()" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Anti-pattern: sleep()/Thread.sleep() detected in test file — use waitForExistence(), XCTestExpectation, or async/await instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for sleep() in XCTest files',
           },
@@ -427,7 +427,7 @@ struct NetworkClientTests {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Tests?\\.swift$" && grep -nE "\\![[:space:]]*$|\\!\\)" "$FILE_PATH" | grep -vE "(XCTAssert|#expect|#require|!=|//" | head -1 | grep -q "." && { echo "Warning: possible force-unwrap detected in test file — prefer XCTUnwrap (XCTest) or try #require (Swift Testing) for safe unwrapping" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Tests?\\.swift$" && grep -nE "\\![[:space:]]*$|\\!\\)" "$FILE_PATH" | grep -vE "(XCTAssert|#expect|#require|!=|//" | head -1 | grep -q "." && { echo "Warning: possible force-unwrap detected in test file — prefer XCTUnwrap (XCTest) or try #require (Swift Testing) for safe unwrapping" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for force-unwrap in XCTest files',
           },
@@ -440,7 +440,7 @@ struct NetworkClientTests {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "UITests?\\.swift$" && grep -cE "\\.element\\(boundBy:" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Warning: index-based element selection detected in UI test — use accessibility identifiers instead of element(boundBy:)" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "UITests?\\.swift$" && grep -cE "\\.element\\(boundBy:" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Warning: index-based element selection detected in UI test — use accessibility identifiers instead of element(boundBy:)" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for index-based element selection in UI tests',
           },

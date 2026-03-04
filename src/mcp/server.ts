@@ -17,6 +17,11 @@ import { registerIngestCIErrorsTool } from './tools/ingest-ci-errors.js';
 
 const version = process.env.DIVERGER_VERSION ?? '0.0.0';
 
+// Offline-first: The MCP server starts without requiring ANTHROPIC_API_KEY.
+// Knowledge/API features are initialized lazily — the Anthropic SDK is only
+// instantiated when a tool explicitly requests knowledge fetch (opt-in via
+// fetchKnowledge param in generate_config). Missing key is handled gracefully
+// in DivergerEngine.fetchKnowledge() which returns [] when no key is set.
 const server = new McpServer({ name: 'diverger-claude', version });
 
 registerDetectStackTool(server);

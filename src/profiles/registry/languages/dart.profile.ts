@@ -506,7 +506,7 @@ assert(result is Map<String, dynamic>, 'Expected Map, got \${result.runtimeType}
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && command -v dart >/dev/null 2>&1 && dart format --set-exit-if-changed "$FILE_PATH" 2>/dev/null || true',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && command -v dart >/dev/null 2>&1 && dart format --set-exit-if-changed "$FILE_PATH" 2>/dev/null || true',
             timeout: 15,
             statusMessage: 'Checking Dart formatting with dart format',
           },
@@ -519,7 +519,7 @@ assert(result is Map<String, dynamic>, 'Expected Map, got \${result.runtimeType}
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && grep -nE "\\bProcess\\.(run|start)\\b" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: Process.run/start detected — verify no user-controlled input reaches the command arguments" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && grep -nE "\\bProcess\\.(run|start)\\b" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: Process.run/start detected — verify no user-controlled input reaches the command arguments" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for Process.run/start usage',
           },
@@ -532,7 +532,7 @@ assert(result is Map<String, dynamic>, 'Expected Map, got \${result.runtimeType}
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && grep -nE "\\bdynamic\\b" "$FILE_PATH" | grep -v "//.*dynamic" | grep -v "fromJson\\|toJson\\|decode\\|encode" | head -5 | grep -q "." && { echo "Warning: dynamic type detected outside serialization boundaries — consider using typed alternatives" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && grep -nE "\\bdynamic\\b" "$FILE_PATH" | grep -v "//.*dynamic" | grep -v "fromJson\\|toJson\\|decode\\|encode" | head -5 | grep -q "." && { echo "Warning: dynamic type detected outside serialization boundaries — consider using typed alternatives" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for dynamic type outside serialization',
           },
@@ -545,7 +545,7 @@ assert(result is Map<String, dynamic>, 'Expected Map, got \${result.runtimeType}
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && grep -cE "^\\s*///" "$FILE_PATH" | grep -q "^0$" && grep -qE "^(class|enum|mixin|extension|typedef|sealed|final class|base class|interface class)\\b" "$FILE_PATH" && { echo "Warning: public type declarations found without any doc comments (///)" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.dart$" && grep -cE "^\\s*///" "$FILE_PATH" | grep -q "^0$" && grep -qE "^(class|enum|mixin|extension|typedef|sealed|final class|base class|interface class)\\b" "$FILE_PATH" && { echo "Warning: public type declarations found without any doc comments (///)" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for missing doc comments on public types',
           },

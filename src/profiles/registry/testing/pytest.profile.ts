@@ -358,7 +358,7 @@ def temp_database(tmp_path):
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "test_.*\\.py$" && grep -cE "\\b(pytest\\.mark\\.only|@only)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test marker detected — remove before committing to avoid skipping other tests" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "test_.*\\.py$" && grep -cE "\\b(pytest\\.mark\\.only|@only)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test marker detected — remove before committing to avoid skipping other tests" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for focused test markers in pytest files',
           },
@@ -371,7 +371,7 @@ def temp_database(tmp_path):
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "test_.*\\.py$" && grep -cE "\\btime\\.sleep\\(" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Warning: time.sleep() detected in test file — consider using monkeypatch or mocking time-dependent code instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "test_.*\\.py$" && grep -cE "\\btime\\.sleep\\(" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Warning: time.sleep() detected in test file — consider using monkeypatch or mocking time-dependent code instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for time.sleep() in pytest files',
           },

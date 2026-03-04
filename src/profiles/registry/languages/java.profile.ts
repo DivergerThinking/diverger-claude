@@ -122,6 +122,70 @@ Modern Java (17+) with strong typing, records, sealed classes, and pattern match
 - Use module-info.java (JPMS) for library projects to control encapsulation
 `,
       },
+      {
+        path: 'java/security.md',
+        paths: ['**/*.java'],
+        governance: 'mandatory',
+        description: 'Java security rules: OWASP, input validation, crypto, deserialization, secrets',
+        content: `# Java Security Rules (OWASP + CERT Oracle)
+
+## SQL Injection Prevention
+
+- Use \`PreparedStatement\` or ORM parameterized queries for ALL SQL — never string concatenation
+- Verify native queries in JPA/Hibernate use parameter binding (\`:param\` or \`?1\`)
+- Flag any \`Statement.execute()\` or \`Statement.executeQuery()\` with concatenated strings
+
+## Deserialization Safety
+
+- Flag \`ObjectInputStream\` usage without allowlists — deserialization of untrusted data is critical
+- Use JSON (Jackson/Gson) or Protocol Buffers instead of Java serialization
+- If Java serialization is required, implement \`ObjectInputFilter\` to restrict allowed classes
+
+## Command Injection
+
+- Never use \`Runtime.exec()\` with unsanitized user input
+- Use \`ProcessBuilder\` with argument lists (not a single command string)
+- Validate and sanitize all external input before passing to system commands
+
+## XML Security (XXE Prevention)
+
+- Disable external entities in all XML parsers:
+  - \`DocumentBuilderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)\`
+  - \`SAXParserFactory\`: disable external general and parameter entities
+- Use \`JAXB\` or \`StAX\` with secure defaults for XML processing
+
+## Secrets Management
+
+- Never hardcode passwords, API keys, or crypto keys in source code
+- Use environment variables, vault services, or encrypted config files
+- Flag string literals that look like tokens, passwords, or connection strings
+
+## Path Traversal
+
+- Validate and canonicalize file paths from user input: \`Path.normalize().startsWith(baseDir)\`
+- Never construct file paths by concatenating user input without validation
+- Use \`java.nio.file.Path\` resolve/normalize — never string concatenation for paths
+
+## Cryptography
+
+- Forbidden: DES, 3DES, MD5, SHA-1 for security purposes
+- Required: AES-256-GCM, SHA-256+, bcrypt/Argon2/scrypt for password hashing
+- Use \`SecureRandom\` for all security-sensitive random values — never \`java.util.Random\`
+- Never disable certificate validation or use TrustManagers that trust all certificates
+
+## Logging Security
+
+- Sanitize user input before passing to logging frameworks (prevent log injection)
+- Never log: passwords, tokens, PII, credit card numbers, session IDs
+- Use structured logging to avoid format string injection
+
+## Resource Management
+
+- Use try-with-resources for ALL \`AutoCloseable\` instances — prevent resource leaks
+- Set timeouts on all network operations — prevent denial-of-service via slow connections
+- Limit request body sizes and collection sizes from untrusted input
+`,
+      },
     ],
     agents: [
       {
@@ -193,6 +257,615 @@ Modern Java (17+) with strong typing, records, sealed classes, and pattern match
       },
     ],
     skills: [
+      {
+        name: 'java-patterns-guide',
+        description: 'Detailed reference for Java design patterns with modern Java examples',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Java Design Patterns — Detailed Reference
+
+## Why This Matters
+Design patterns in Java have evolved significantly with modern language features. Records,
+sealed classes, and pattern matching make many classic Gang-of-Four patterns simpler and
+more type-safe. This guide covers the most commonly needed patterns in contemporary Java
+development with both correct usage and common anti-patterns.
+
+---
+
+## 1. Builder Pattern
+
+Use when a class has more than 3-4 optional parameters. Prevents telescoping constructors.
+
+\\\`\\\`\\\`java
+// Correct: fluent builder with validation
+public record HttpRequest(
+    String url, String method, Map<String, String> headers, byte[] body, Duration timeout
+) {
+    public static Builder builder(String url) { return new Builder(url); }
+
+    public static final class Builder {
+        private final String url;
+        private String method = "GET";
+        private final Map<String, String> headers = new LinkedHashMap<>();
+        private byte[] body;
+        private Duration timeout = Duration.ofSeconds(30);
+
+        private Builder(String url) { this.url = Objects.requireNonNull(url); }
+
+        public Builder method(String method) { this.method = method; return this; }
+        public Builder header(String key, String value) { headers.put(key, value); return this; }
+        public Builder body(byte[] body) { this.body = body; return this; }
+        public Builder timeout(Duration timeout) { this.timeout = timeout; return this; }
+
+        public HttpRequest build() {
+            if (body != null && "GET".equals(method)) {
+                throw new IllegalStateException("GET requests cannot have a body");
+            }
+            return new HttpRequest(url, method, Map.copyOf(headers), body, timeout);
+        }
+    }
+}
+
+// Usage:
+var request = HttpRequest.builder("https://api.example.com/users")
+    .method("POST")
+    .header("Content-Type", "application/json")
+    .body(jsonBytes)
+    .timeout(Duration.ofSeconds(10))
+    .build();
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Anti-Pattern: telescoping constructors
+public HttpRequest(String url) { this(url, "GET"); }
+public HttpRequest(String url, String method) { this(url, method, null); }
+public HttpRequest(String url, String method, byte[] body) { this(url, method, body, null); }
+// BAD: hard to read, easy to mix up parameter order
+\\\`\\\`\\\`
+
+---
+
+## 2. Factory Pattern
+
+Use when object creation logic is complex or you need to return different subtypes.
+
+\\\`\\\`\\\`java
+// Correct: sealed interface + factory method
+public sealed interface Notification permits EmailNotification, SmsNotification, PushNotification {
+
+    static Notification of(String type, String recipient, String message) {
+        return switch (type.toLowerCase()) {
+            case "email" -> new EmailNotification(recipient, message);
+            case "sms"   -> new SmsNotification(recipient, message);
+            case "push"  -> new PushNotification(recipient, message);
+            default -> throw new IllegalArgumentException("Unknown notification type: " + type);
+        };
+    }
+}
+
+public record EmailNotification(String email, String message) implements Notification {}
+public record SmsNotification(String phone, String message) implements Notification {}
+public record PushNotification(String deviceId, String message) implements Notification {}
+\\\`\\\`\\\`
+
+---
+
+## 3. Strategy Pattern
+
+Use to select algorithms or behaviors at runtime. Modern Java uses functional interfaces.
+
+\\\`\\\`\\\`java
+// Correct: strategy as functional interface
+@FunctionalInterface
+public interface PricingStrategy {
+    BigDecimal calculate(BigDecimal basePrice, int quantity);
+
+    // Pre-defined strategies as static methods
+    static PricingStrategy standard() { return (price, qty) -> price.multiply(BigDecimal.valueOf(qty)); }
+    static PricingStrategy bulk(double discount) {
+        return (price, qty) -> qty >= 10
+            ? price.multiply(BigDecimal.valueOf(qty * (1 - discount)))
+            : price.multiply(BigDecimal.valueOf(qty));
+    }
+}
+
+// Usage:
+var strategy = order.isBulk() ? PricingStrategy.bulk(0.15) : PricingStrategy.standard();
+var total = strategy.calculate(unitPrice, quantity);
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Anti-Pattern: if/else chain instead of strategy
+if (type.equals("standard")) { /* calculate */ }
+else if (type.equals("bulk")) { /* calculate */ }
+else if (type.equals("premium")) { /* calculate */ }
+// BAD: violates Open-Closed Principle, hard to extend
+\\\`\\\`\\\`
+
+---
+
+## 4. Observer Pattern
+
+Modern Java prefers functional callbacks or reactive streams over classic Observer.
+
+\\\`\\\`\\\`java
+// Correct: type-safe event system with functional listeners
+public class EventBus<E> {
+    private final Map<Class<?>, List<Consumer<?>>> listeners = new ConcurrentHashMap<>();
+
+    public <T extends E> void on(Class<T> eventType, Consumer<T> listener) {
+        listeners.computeIfAbsent(eventType, k -> new CopyOnWriteArrayList<>()).add(listener);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends E> void emit(T event) {
+        var handlers = listeners.getOrDefault(event.getClass(), List.of());
+        handlers.forEach(h -> ((Consumer<T>) h).accept(event));
+    }
+}
+\\\`\\\`\\\`
+
+---
+
+## 5. Repository Pattern
+
+Abstracts data access behind a clean interface.
+
+\\\`\\\`\\\`java
+// Correct: generic repository interface
+public interface Repository<T, ID> {
+    Optional<T> findById(ID id);
+    List<T> findAll();
+    T save(T entity);
+    void deleteById(ID id);
+    boolean existsById(ID id);
+}
+
+// Concrete implementation
+public class JpaUserRepository implements Repository<User, Long> {
+    private final EntityManager em;
+
+    @Override
+    public Optional<User> findById(Long id) {
+        return Optional.ofNullable(em.find(User.class, id));
+    }
+    // ...
+}
+\\\`\\\`\\\`
+
+---
+
+## 6. DTO Mapping
+
+\\\`\\\`\\\`java
+// Correct: records as DTOs with explicit mapping
+public record UserDto(String name, String email, String role) {
+    public static UserDto from(User user) {
+        return new UserDto(user.getName(), user.getEmail(), user.getRole().name());
+    }
+
+    public User toEntity() {
+        return new User(name, email, Role.valueOf(role));
+    }
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Anti-Pattern: exposing JPA entities directly in API responses
+@GetMapping("/users/{id}")
+public User getUser(@PathVariable Long id) { return repo.findById(id).orElseThrow(); }
+// BAD: leaks internal fields, lazy-loading proxies, circular references
+\\\`\\\`\\\`
+
+---
+
+## 7. Optional Usage
+
+\\\`\\\`\\\`java
+// Correct: Optional for return values that may be absent
+public Optional<User> findByEmail(String email) {
+    return users.stream().filter(u -> u.email().equals(email)).findFirst();
+}
+
+// Correct: chaining Optional operations
+String displayName = findByEmail(email)
+    .map(User::displayName)
+    .orElse("Anonymous");
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Anti-Pattern: Optional as parameter
+public void sendEmail(Optional<String> cc) { ... }
+// BAD: callers forced to wrap — use @Nullable or method overloads
+
+// Anti-Pattern: Optional.get() without check
+Optional<User> user = findByEmail(email);
+String name = user.get(); // BAD: throws NoSuchElementException if empty
+// Use orElseThrow(), orElse(), or ifPresent() instead
+\\\`\\\`\\\`
+
+---
+
+## 8. Records (Java 16+)
+
+\\\`\\\`\\\`java
+// Correct: record with compact constructor validation
+public record Money(BigDecimal amount, Currency currency) {
+    public Money {
+        Objects.requireNonNull(amount, "amount must not be null");
+        Objects.requireNonNull(currency, "currency must not be null");
+        if (amount.signum() < 0) throw new IllegalArgumentException("amount must be non-negative");
+    }
+
+    public Money add(Money other) {
+        if (!currency.equals(other.currency)) throw new IllegalArgumentException("currency mismatch");
+        return new Money(amount.add(other.amount), currency);
+    }
+}
+\\\`\\\`\\\`
+
+---
+
+## 9. Sealed Classes (Java 17+)
+
+\\\`\\\`\\\`java
+// Correct: algebraic data type with exhaustive pattern matching
+public sealed interface Shape permits Circle, Rectangle, Triangle {
+    double area();
+}
+public record Circle(double radius) implements Shape {
+    public double area() { return Math.PI * radius * radius; }
+}
+public record Rectangle(double width, double height) implements Shape {
+    public double area() { return width * height; }
+}
+public record Triangle(double base, double height) implements Shape {
+    public double area() { return 0.5 * base * height; }
+}
+
+// Exhaustive switch — compiler enforces all cases covered
+String describe(Shape shape) {
+    return switch (shape) {
+        case Circle c    -> "Circle with radius " + c.radius();
+        case Rectangle r -> "Rectangle " + r.width() + "x" + r.height();
+        case Triangle t  -> "Triangle with base " + t.base();
+        // No default needed — sealed type is exhaustive
+    };
+}
+\\\`\\\`\\\`
+
+---
+
+## 10. Pattern Matching (Java 21+)
+
+\\\`\\\`\\\`java
+// Correct: pattern matching with guards
+String format(Object obj) {
+    return switch (obj) {
+        case Integer i when i < 0     -> "negative: " + i;
+        case Integer i                -> "positive: " + i;
+        case String s when s.isBlank() -> "empty string";
+        case String s                 -> "string: " + s;
+        case List<?> l when l.isEmpty() -> "empty list";
+        case List<?> l                -> "list of " + l.size();
+        case null                     -> "null";
+        default                       -> obj.getClass().getSimpleName();
+    };
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Anti-Pattern: instanceof chain
+if (obj instanceof Integer) { ... }
+else if (obj instanceof String) { ... }
+else if (obj instanceof List) { ... }
+// BAD: verbose, error-prone, no exhaustiveness check
+\\\`\\\`\\\`
+`,
+      },
+      {
+        name: 'java-concurrency-guide',
+        description: 'Detailed reference for Java concurrency patterns with modern Java examples',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Java Concurrency — Detailed Reference
+
+## Why This Matters
+Concurrency bugs are among the hardest to find and reproduce — data races, deadlocks,
+and visibility issues can lurk undetected for months. Modern Java (21+) introduces
+virtual threads and structured concurrency that dramatically simplify concurrent
+programming, but understanding the fundamentals is still essential.
+
+---
+
+## 1. Virtual Threads (Java 21+)
+
+Virtual threads are lightweight threads managed by the JVM. Use them for I/O-bound work
+— they scale to millions without the overhead of platform threads.
+
+\\\`\\\`\\\`java
+// Correct: virtual thread executor for I/O-bound tasks
+try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    List<Future<String>> futures = urls.stream()
+        .map(url -> executor.submit(() -> fetchUrl(url)))
+        .toList();
+
+    List<String> results = futures.stream()
+        .map(f -> {
+            try { return f.get(); }
+            catch (Exception e) { throw new RuntimeException(e); }
+        })
+        .toList();
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Correct: simple virtual thread creation
+Thread.startVirtualThread(() -> {
+    var result = callRemoteService();
+    processResult(result);
+});
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Anti-Pattern: pooling virtual threads
+var pool = Executors.newFixedThreadPool(100); // BAD: don't pool virtual threads
+// Virtual threads are cheap to create — use newVirtualThreadPerTaskExecutor()
+// Pooling them defeats the purpose and limits scalability
+
+// Anti-Pattern: CPU-bound work on virtual threads
+try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    executor.submit(() -> computeHash(data)); // BAD: CPU-bound blocks the carrier thread
+}
+// Use platform threads (ForkJoinPool) for CPU-bound computation
+\\\`\\\`\\\`
+
+---
+
+## 2. CompletableFuture
+
+Composable async operations with chaining, combining, and error handling.
+
+\\\`\\\`\\\`java
+// Correct: chain async operations
+CompletableFuture<OrderConfirmation> placeOrder(Order order) {
+    return validateOrder(order)
+        .thenCompose(valid -> reserveInventory(valid))
+        .thenCompose(reserved -> chargePayment(reserved))
+        .thenApply(payment -> new OrderConfirmation(order.id(), payment.transactionId()))
+        .exceptionally(ex -> {
+            log.error("Order failed: {}", order.id(), ex);
+            throw new OrderFailedException(order.id(), ex);
+        });
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Correct: combine multiple async results
+CompletableFuture<Dashboard> loadDashboard(String userId) {
+    var profileFuture = fetchProfile(userId);
+    var ordersFuture = fetchRecentOrders(userId);
+    var notificationsFuture = fetchNotifications(userId);
+
+    return CompletableFuture.allOf(profileFuture, ordersFuture, notificationsFuture)
+        .thenApply(v -> new Dashboard(
+            profileFuture.join(),
+            ordersFuture.join(),
+            notificationsFuture.join()
+        ));
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Anti-Pattern: blocking on CompletableFuture immediately
+var result = someAsyncOperation().get(); // BAD: blocks the calling thread
+// Use thenApply/thenCompose to stay async, or use virtual threads
+\\\`\\\`\\\`
+
+---
+
+## 3. ExecutorService
+
+\\\`\\\`\\\`java
+// Correct: properly managed executor with try-with-resources (Java 19+)
+try (var executor = Executors.newFixedThreadPool(
+        Runtime.getRuntime().availableProcessors())) {
+    var futures = tasks.stream()
+        .map(task -> executor.submit(task))
+        .toList();
+    // process futures...
+} // auto-shutdown
+
+// Correct: executor with timeout for graceful shutdown (pre-Java 19)
+ExecutorService executor = Executors.newFixedThreadPool(4);
+try {
+    // submit tasks...
+} finally {
+    executor.shutdown();
+    if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+        executor.shutdownNow();
+    }
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Anti-Pattern: creating a new executor per request
+void handleRequest(Request req) {
+    var executor = Executors.newFixedThreadPool(4); // BAD: unbounded executor creation
+    executor.submit(() -> process(req));
+    // executor never shut down — resource leak
+}
+\\\`\\\`\\\`
+
+---
+
+## 4. synchronized vs ReentrantLock
+
+\\\`\\\`\\\`java
+// Correct: ReentrantLock with try-finally (preferred for complex locking)
+private final ReentrantLock lock = new ReentrantLock();
+
+public void transferFunds(Account from, Account to, BigDecimal amount) {
+    lock.lock();
+    try {
+        from.debit(amount);
+        to.credit(amount);
+    } finally {
+        lock.unlock(); // ALWAYS unlock in finally
+    }
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Correct: tryLock to avoid deadlocks
+if (lock.tryLock(5, TimeUnit.SECONDS)) {
+    try {
+        // critical section
+    } finally {
+        lock.unlock();
+    }
+} else {
+    log.warn("Could not acquire lock within timeout");
+    throw new TimeoutException("Lock acquisition timed out");
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Correct: simple synchronized for straightforward mutual exclusion
+private final Object monitor = new Object();
+
+public void increment() {
+    synchronized (monitor) {
+        count++;
+    }
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Anti-Pattern: synchronized on "this" or class — exposes lock to external code
+public synchronized void update() { ... } // BAD: external code can deadlock on 'this'
+// Use a private final lock object instead
+
+// Anti-Pattern: synchronized with virtual threads
+synchronized (lock) {          // BAD: pins the carrier thread
+    var result = callApi();    // virtual thread cannot unmount during I/O
+}
+// Use ReentrantLock with virtual threads instead
+\\\`\\\`\\\`
+
+---
+
+## 5. ConcurrentHashMap
+
+\\\`\\\`\\\`java
+// Correct: atomic compute operations
+ConcurrentHashMap<String, AtomicLong> counters = new ConcurrentHashMap<>();
+
+// Atomic increment — no external synchronization needed
+counters.computeIfAbsent(key, k -> new AtomicLong()).incrementAndGet();
+
+// Atomic conditional update
+counters.compute(key, (k, current) -> {
+    if (current == null) return new AtomicLong(1);
+    current.incrementAndGet();
+    return current;
+});
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Anti-Pattern: check-then-act without atomicity
+if (!map.containsKey(key)) {  // BAD: race condition
+    map.put(key, value);       // another thread may have inserted between check and put
+}
+// Use computeIfAbsent() or putIfAbsent() instead
+\\\`\\\`\\\`
+
+---
+
+## 6. Atomic Variables
+
+Lock-free thread-safe operations for simple values.
+
+\\\`\\\`\\\`java
+// Correct: AtomicReference for lock-free state transitions
+private final AtomicReference<State> state = new AtomicReference<>(State.IDLE);
+
+public boolean start() {
+    return state.compareAndSet(State.IDLE, State.RUNNING); // atomic transition
+}
+
+public void stop() {
+    state.set(State.STOPPED);
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Correct: AtomicInteger for counters
+private final AtomicInteger requestCount = new AtomicInteger(0);
+
+public void handleRequest() {
+    int count = requestCount.incrementAndGet();
+    log.info("Request #{}", count);
+}
+\\\`\\\`\\\`
+
+\\\`\\\`\\\`java
+// Anti-Pattern: volatile for compound operations
+private volatile int count = 0;
+count++; // BAD: not atomic — read-modify-write is 3 operations
+// Use AtomicInteger.incrementAndGet() instead
+\\\`\\\`\\\`
+
+---
+
+## 7. Structured Concurrency (Preview — JEP 453)
+
+Structured concurrency ensures that child tasks complete before the parent scope exits,
+and failures propagate correctly.
+
+\\\`\\\`\\\`java
+// Correct: structured concurrency with ShutdownOnFailure
+Response handleRequest(Request request) throws Exception {
+    try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+        Subtask<User> userTask = scope.fork(() -> fetchUser(request.userId()));
+        Subtask<List<Order>> ordersTask = scope.fork(() -> fetchOrders(request.userId()));
+
+        scope.join();           // wait for both tasks
+        scope.throwIfFailed();  // propagate any exception
+
+        return new Response(userTask.get(), ordersTask.get());
+    }
+    // Both tasks are guaranteed to complete (or be cancelled) when scope exits
+}
+\\\`\\\`\\\`
+
+---
+
+## 8. Thread-Safe Patterns Summary
+
+| Pattern | Use Case | Mechanism |
+|---------|----------|-----------|
+| Immutable objects (records) | Shared read-only data | No synchronization needed |
+| AtomicReference/AtomicInteger | Simple counters, flags, CAS | Lock-free |
+| ConcurrentHashMap | Shared key-value state | Segmented locking |
+| ReentrantLock | Complex critical sections | Explicit lock/unlock |
+| Virtual threads + I/O | High-concurrency I/O | JVM-managed scheduling |
+| CompletableFuture | Async composition | Callback chains |
+| StructuredTaskScope | Parent-child task lifecycle | Scope-based cancellation |
+
+\\\`\\\`\\\`java
+// Correct: immutable objects are inherently thread-safe
+public record Config(String host, int port, Duration timeout) {}
+// Records are final and immutable — safe to share across threads without synchronization
+
+// Anti-Pattern: mutable shared state without protection
+class Config {
+    public String host; // BAD: mutable field, no synchronization
+    public int port;
+}
+\\\`\\\`\\\`
+`,
+      },
       {
         name: 'java-refactor',
         description: 'Java modernization: records, sealed types, switch expressions, text blocks, virtual threads',
@@ -330,7 +1003,7 @@ try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/import\\s+[\\w.]+\\.\\*;/.test(c))issues.push(\'Wildcard import detected — use explicit imports per Google Java Style Guide\');if(/catch\\s*\\(\\s*(Exception|Throwable)\\s/.test(c))issues.push(\'Catching Exception/Throwable — catch specific exception types\');if(/\\.printStackTrace\\(\\)/.test(c))issues.push(\'printStackTrace() detected — use a logging framework (SLF4J + Logback)\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/import\\s+[\\w.]+\\.\\*;/.test(c))issues.push(\'Wildcard import detected — use explicit imports per Google Java Style Guide\');if(/catch\\s*\\(\\s*(Exception|Throwable)\\s/.test(c))issues.push(\'Catching Exception/Throwable — catch specific exception types\');if(/\\.printStackTrace\\(\\)/.test(c))issues.push(\'printStackTrace() detected — use a logging framework (SLF4J + Logback)\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -342,7 +1015,7 @@ try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/new\\s+Date\\(\\)/.test(c)&&!/java\\.time/.test(c))issues.push(\'java.util.Date detected — prefer java.time API (Instant, LocalDate, ZonedDateTime)\');if(/System\\.out\\.print/.test(c)&&!/public\\s+static\\s+void\\s+main/.test(c))issues.push(\'System.out.print detected outside main — use SLF4J logger\');if(/java\\.util\\.Random/.test(c)&&/password|secret|token|key|salt|nonce/i.test(c))issues.push(\'java.util.Random used near security context — use SecureRandom\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\.java$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/new\\s+Date\\(\\)/.test(c)&&!/java\\.time/.test(c))issues.push(\'java.util.Date detected — prefer java.time API (Instant, LocalDate, ZonedDateTime)\');if(/System\\.out\\.print/.test(c)&&!/public\\s+static\\s+void\\s+main/.test(c))issues.push(\'System.out.print detected outside main — use SLF4J logger\');if(/java\\.util\\.Random/.test(c)&&/password|secret|token|key|salt|nonce/i.test(c))issues.push(\'java.util.Random used near security context — use SecureRandom\');if(issues.length)console.log(issues.map(i=>\'WARNING: \'+i).join(\'\\n\'))" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

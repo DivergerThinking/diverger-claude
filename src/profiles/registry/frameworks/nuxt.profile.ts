@@ -384,7 +384,7 @@ export default defineEventHandler(async (event) => {
           {
             type: 'command' as const,
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';const c=require(\'fs\').readFileSync(f,\'utf8\');if(/composables[\\\\/]/.test(f)&&/^import\\s.*from\\s+[\'\\\"](vue|nuxt|#app)[\'\\\"]/m.test(c))console.log(\'Warning: composable has manual imports of Vue/Nuxt APIs — these are auto-imported in Nuxt, remove the import statements\')" -- "$FILE_PATH"',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';const c=require(\'fs\').readFileSync(f,\'utf8\');if(/composables[\\\\/]/.test(f)&&/^import\\s.*from\\s+[\'\\\"](vue|nuxt|#app)[\'\\\"]/m.test(c))console.log(\'Warning: composable has manual imports of Vue/Nuxt APIs — these are auto-imported in Nuxt, remove the import statements\')" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -396,7 +396,7 @@ export default defineEventHandler(async (event) => {
           {
             type: 'command' as const,
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/pages[\\\\/]/.test(f)||!/\\.vue$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/await\\s+\\$fetch\\s*\\(/.test(c)&&/setup/.test(c)&&!/onMounted|onClick|onSubmit|handle[A-Z]/.test(c))console.log(\'Warning: $fetch used in page setup — use useFetch or useAsyncData instead to avoid double fetching\')" -- "$FILE_PATH"',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/pages[\\\\/]/.test(f)||!/\\.vue$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/await\\s+\\$fetch\\s*\\(/.test(c)&&/setup/.test(c)&&!/onMounted|onClick|onSubmit|handle[A-Z]/.test(c))console.log(\'Warning: $fetch used in page setup — use useFetch or useAsyncData instead to avoid double fetching\')" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -408,7 +408,7 @@ export default defineEventHandler(async (event) => {
           {
             type: 'command' as const,
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/server[\\\\/]middleware[\\\\/]/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/return\\s+(?!void|undefined)/.test(c)&&!/createError|throw/.test(c))console.log(\'Warning: server middleware returns a value — this ends the request. Remove the return unless intentional.\')" -- "$FILE_PATH"',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/server[\\\\/]middleware[\\\\/]/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/return\\s+(?!void|undefined)/.test(c)&&!/createError|throw/.test(c))console.log(\'Warning: server middleware returns a value — this ends the request. Remove the return unless intentional.\')" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

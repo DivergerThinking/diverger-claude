@@ -368,7 +368,7 @@ func configDefault(config ...Config) Config {
             type: 'command',
             statusMessage: 'Checking for fasthttp buffer references passed to goroutines',
             command:
-              'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.go$" && grep -nE "c\\.(Body|Params|Query|FormValue)\\(" "$FILE_PATH" | grep -E "go\\s+func|chan\\s|<-" > /dev/null 2>&1 && { echo "Warning: possible fasthttp buffer reference passed to goroutine or channel — verify values are copied" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.go$" && grep -nE "c\\.(Body|Params|Query|FormValue)\\(" "$FILE_PATH" | grep -E "go\\s+func|chan\\s|<-" > /dev/null 2>&1 && { echo "Warning: possible fasthttp buffer reference passed to goroutine or channel — verify values are copied" >&2; exit 2; } || exit 0',
             timeout: 5,
           },
         ],

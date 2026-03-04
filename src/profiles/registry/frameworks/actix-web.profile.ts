@@ -372,7 +372,7 @@ Generate Actix-Web middleware using from_fn or Transform+Service traits:
             type: 'command',
             statusMessage: 'Checking for Cors::permissive() in Actix-Web code',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "Cors::permissive" "$FILE_PATH" | grep -q "." && { echo "Warning: Cors::permissive() detected — must NOT be used in production. Use explicit allowed_origin()." >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "Cors::permissive" "$FILE_PATH" | grep -q "." && { echo "Warning: Cors::permissive() detected — must NOT be used in production. Use explicit allowed_origin()." >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -385,7 +385,7 @@ Generate Actix-Web middleware using from_fn or Transform+Service traits:
             type: 'command',
             statusMessage: 'Checking for mutable static in Actix-Web code',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "static\\s+mut\\s+" "$FILE_PATH" | grep -q "." && { echo "Warning: mutable static detected — use web::Data<T> with interior mutability instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "static\\s+mut\\s+" "$FILE_PATH" | grep -q "." && { echo "Warning: mutable static detected — use web::Data<T> with interior mutability instead" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -398,7 +398,7 @@ Generate Actix-Web middleware using from_fn or Transform+Service traits:
             type: 'command',
             statusMessage: 'Checking for std::sync::Mutex/RwLock in Actix-Web async handlers',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "std::sync::(Mutex|RwLock)" "$FILE_PATH" | grep -q "." && { echo "Warning: std::sync::Mutex/RwLock detected in Actix handler — use tokio::sync variants to avoid blocking the async runtime" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "std::sync::(Mutex|RwLock)" "$FILE_PATH" | grep -q "." && { echo "Warning: std::sync::Mutex/RwLock detected in Actix handler — use tokio::sync variants to avoid blocking the async runtime" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],

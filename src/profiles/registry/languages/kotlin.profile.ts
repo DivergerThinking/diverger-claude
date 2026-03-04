@@ -462,7 +462,7 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "\\!\\!([^=]|$)" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: Non-null assertion (!!) detected — prefer safe calls (?.), elvis (?:), or requireNotNull()" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "\\!\\!([^=]|$)" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: Non-null assertion (!!) detected — prefer safe calls (?.), elvis (?:), or requireNotNull()" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for non-null assertion (!!) usage',
           },
@@ -475,7 +475,7 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "GlobalScope\\." "$FILE_PATH" | head -5 | grep -q "." && { echo "GlobalScope usage detected — use a lifecycle-bound CoroutineScope instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "GlobalScope\\." "$FILE_PATH" | head -5 | grep -q "." && { echo "GlobalScope usage detected — use a lifecycle-bound CoroutineScope instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for GlobalScope usage',
           },
@@ -488,7 +488,7 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "\\bRuntime\\.getRuntime\\(\\)\\.exec\\b|\\bProcessBuilder\\(.*\\$" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: Process execution detected — verify no unsanitized user input reaches the command" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "\\bRuntime\\.getRuntime\\(\\)\\.exec\\b|\\bProcessBuilder\\(.*\\$" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: Process execution detected — verify no unsanitized user input reaches the command" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for process execution patterns',
           },
@@ -501,7 +501,7 @@ repository.observeUpdates()
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "ObjectInputStream|readObject\\(\\)" "$FILE_PATH" | head -3 | grep -q "." && { echo "Unsafe deserialization detected (ObjectInputStream) — use kotlinx.serialization or Moshi instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.kt$|\\.kts$" && grep -nE "ObjectInputStream|readObject\\(\\)" "$FILE_PATH" | head -3 | grep -q "." && { echo "Unsafe deserialization detected (ObjectInputStream) — use kotlinx.serialization or Moshi instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for unsafe deserialization',
           },

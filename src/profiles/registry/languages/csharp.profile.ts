@@ -577,7 +577,7 @@ public class RequestTimingMiddleware(RequestDelegate next, ILogger<RequestTiming
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.cs$" && grep -nE "\\.(Result|Wait\\(\\)|GetAwaiter\\(\\)\\.GetResult\\(\\))" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: sync-over-async pattern detected (.Result/.Wait()/.GetAwaiter().GetResult()) — use await instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.cs$" && grep -nE "\\.(Result|Wait\\(\\)|GetAwaiter\\(\\)\\.GetResult\\(\\))" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: sync-over-async pattern detected (.Result/.Wait()/.GetAwaiter().GetResult()) — use await instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for sync-over-async patterns',
           },
@@ -590,7 +590,7 @@ public class RequestTimingMiddleware(RequestDelegate next, ILogger<RequestTiming
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.cs$" && grep -nE "new\\s+HttpClient\\s*\\(" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: direct HttpClient instantiation detected — use IHttpClientFactory to avoid socket exhaustion" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.cs$" && grep -nE "new\\s+HttpClient\\s*\\(" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: direct HttpClient instantiation detected — use IHttpClientFactory to avoid socket exhaustion" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for direct HttpClient instantiation',
           },
@@ -603,7 +603,7 @@ public class RequestTimingMiddleware(RequestDelegate next, ILogger<RequestTiming
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.cs$" && grep -nE "(BinaryFormatter|SoapFormatter|NetDataContractSerializer)" "$FILE_PATH" | head -3 | grep -q "." && { echo "Dangerous serializer detected (BinaryFormatter/SoapFormatter) — use System.Text.Json or Protobuf" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.cs$" && grep -nE "(BinaryFormatter|SoapFormatter|NetDataContractSerializer)" "$FILE_PATH" | head -3 | grep -q "." && { echo "Dangerous serializer detected (BinaryFormatter/SoapFormatter) — use System.Text.Json or Protobuf" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for dangerous serializers',
           },
@@ -616,7 +616,7 @@ public class RequestTimingMiddleware(RequestDelegate next, ILogger<RequestTiming
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cs$" && grep -nE "\\$\"[^\"]*\\{[^}]+\\}[^\"]*\"\\s*;\\s*$" "$FILE_PATH" | grep -iE "(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)" | head -3 | grep -q "." && { echo "Potential SQL injection — string interpolation in SQL query detected. Use parameterized queries." >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.cs$" && grep -nE "\\$\"[^\"]*\\{[^}]+\\}[^\"]*\"\\s*;\\s*$" "$FILE_PATH" | grep -iE "(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)" | head -3 | grep -q "." && { echo "Potential SQL injection — string interpolation in SQL query detected. Use parameterized queries." >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for SQL injection patterns',
           },

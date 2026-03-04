@@ -363,7 +363,7 @@ void shouldReturnCompleteUserProfile() {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "import\\s+org\\.junit\\.Test;|import\\s+org\\.junit\\.Before;|import\\s+org\\.junit\\.After;|import\\s+org\\.junit\\.BeforeClass;|import\\s+org\\.junit\\.AfterClass;|@RunWith\\(" "$FILE_PATH" | head -5 | grep -q "." && { echo "JUnit 4 imports or annotations detected — migrate to JUnit 5 Jupiter (org.junit.jupiter.api)" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "import\\s+org\\.junit\\.Test;|import\\s+org\\.junit\\.Before;|import\\s+org\\.junit\\.After;|import\\s+org\\.junit\\.BeforeClass;|import\\s+org\\.junit\\.AfterClass;|@RunWith\\(" "$FILE_PATH" | head -5 | grep -q "." && { echo "JUnit 4 imports or annotations detected — migrate to JUnit 5 Jupiter (org.junit.jupiter.api)" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for JUnit 4 imports in test files',
           },
@@ -376,7 +376,7 @@ void shouldReturnCompleteUserProfile() {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "assertEquals\\(|assertTrue\\(|assertFalse\\(|assertNull\\(|assertNotNull\\(" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: JUnit built-in assertions detected — prefer AssertJ fluent assertions (assertThat) for better readability" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "assertEquals\\(|assertTrue\\(|assertFalse\\(|assertNull\\(|assertNotNull\\(" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: JUnit built-in assertions detected — prefer AssertJ fluent assertions (assertThat) for better readability" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for JUnit built-in assertions vs AssertJ',
           },
@@ -389,7 +389,7 @@ void shouldReturnCompleteUserProfile() {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "MockitoAnnotations\\.openMocks|MockitoAnnotations\\.initMocks" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: Manual Mockito initialization detected — use @ExtendWith(MockitoExtension.class) instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "MockitoAnnotations\\.openMocks|MockitoAnnotations\\.initMocks" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: Manual Mockito initialization detected — use @ExtendWith(MockitoExtension.class) instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for manual Mockito initialization',
           },
@@ -402,7 +402,7 @@ void shouldReturnCompleteUserProfile() {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "Thread\\.sleep\\(" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: Thread.sleep() detected in test — use @Timeout, Awaitility, or CountDownLatch instead" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "Test\\.java$" && grep -nE "Thread\\.sleep\\(" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: Thread.sleep() detected in test — use @Timeout, Awaitility, or CountDownLatch instead" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for Thread.sleep() in JUnit tests',
           },

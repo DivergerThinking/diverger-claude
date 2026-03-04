@@ -6,7 +6,7 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 
 ## Qué incluye
 
-### 7 Agentes universales
+### 8 Agentes universales
 
 - **code-reviewer**: Revisa código aplicando estándares del stack detectado
 - **test-writer**: Genera tests según el framework de testing del proyecto
@@ -15,8 +15,9 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - **refactor-assistant**: Sugiere refactorings con patrones del framework
 - **migration-helper**: Asiste en migraciones de versiones y frameworks
 - **evolution-advisor**: Analiza cambios del proyecto y recomienda actualizaciones de configuración
+- **audit-reviewer**: Revisión exhaustiva de calidad y conformidad
 
-### 16 Skills
+### 20 Skills universales
 
 #### Configuración y gestión
 - `/diverger-init` — Detecta stack y genera configuración .claude/
@@ -39,12 +40,40 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - `/diverger-migrate` — Planifica y ejecuta migraciones tecnológicas
 - `/diverger-release` — Checklist de release completo (tests, changelog, version, tag, publish)
 
-#### Referencia
+#### Diagnóstico de proyecto
+- `/diverger-doctor` — Score de salud del proyecto 0-100 con recomendaciones
+- `/diverger-quickstart` — Guía post-init de 5 minutos para sacar partido a la configuración
+
+#### Referencia universal
 - `/architecture-style-guide` — Guía de estilo de arquitectura
 - `/git-workflow-guide` — Guía de flujo de trabajo Git
 - `/security-guide` — Guía de seguridad
 
-### 7 Hooks de protección
+### 30+ Skills de referencia por tecnología (v3.0)
+
+Al detectar tecnologías, el plugin genera skills de referencia específicos. Son guías estáticas de ~100-200 líneas con patrones correctos, anti-patrones y ejemplos de código. No consumen API.
+
+| Tecnología | Skills generados |
+|-----------|-----------------|
+| TypeScript | `/ts-conventions-guide`, `/ts-naming-guide`, `/ts-async-guide` |
+| Python | `/python-typing-guide`, `/python-async-guide` |
+| Go | `/go-concurrency-guide`, `/go-error-handling-guide` |
+| Rust | `/rust-ownership-guide`, `/rust-error-handling-guide` |
+| Java | `/java-patterns-guide`, `/java-concurrency-guide` |
+| React | `/react-hooks-guide`, `/react-patterns-guide`, `/react-performance-guide` |
+| Next.js | `/nextjs-caching-guide`, `/nextjs-server-actions-guide` |
+| Django | `/django-orm-guide`, `/django-security-guide` |
+| NestJS | `/nestjs-di-guide`, `/nestjs-testing-guide` |
+| Vue | `/vue-composition-guide`, `/vue-reactivity-guide` |
+| Angular | `/angular-signals-guide`, `/angular-testing-guide` |
+| Express | `/express-middleware-guide`, `/express-security-guide` |
+| FastAPI | `/fastapi-di-guide`, `/fastapi-testing-guide` |
+| Spring Boot | `/spring-di-guide`, `/spring-testing-guide` |
+| Docker | `/docker-security-guide`, `/dockerfile-best-practices` |
+| Kubernetes | `/k8s-security-guide`, `/k8s-debugging-guide` |
+| GitHub Actions | `/github-actions-guide` |
+
+### 7 Hooks de protección (cross-platform, sin dependencia de jq)
 
 Los hooks se activan automáticamente via eventos de Claude Code:
 - **PreToolUse/Write**: Secret scanner — detecta credenciales antes de escribir archivos
@@ -94,6 +123,15 @@ Esto descarga automáticamente la última versión del plugin desde GitHub Relea
 
 > **Nota:** El comando usa `gh auth token` para autenticarse con la API de GitHub. Alternativamente, configura la variable de entorno `GITHUB_TOKEN`.
 
+### Registro del plugin
+
+Al ejecutar `diverger plugin install`, el plugin se registra automáticamente en `~/.claude/settings.json` bajo `enabledPlugins`. Esto es necesario para que Claude Code descubra las skills, hooks y agentes del plugin.
+
+Si las skills no aparecen, verificar:
+1. `diverger plugin status` — confirma instalación
+2. Reiniciar Claude Code (los plugins se cargan al inicio de sesión)
+3. Verificar que `~/.claude/settings.json` contiene `"diverger-claude": true` en `enabledPlugins`
+
 Para instalar una versión específica:
 
 ```bash
@@ -142,25 +180,41 @@ diverger init --force    # Regenera config en modo plugin
 diverger cleanup         # Elimina componentes duplicados de .claude/
 ```
 
-## Uso de Skills
+## Uso recomendado
 
-### Inicializar un proyecto
+### 1. Inicializar un proyecto
 
 ```
 /diverger-init
 ```
 
-Esto detecta automáticamente tu stack (TypeScript, React, Docker, etc.) y genera una configuración `.claude/` optimizada.
+Detecta automáticamente tu stack (TypeScript, React, Docker, etc.) y genera una configuración `.claude/` con reglas, agentes, skills y hooks adaptados.
 
-### Verificar estado
+### 2. Tour guiado (nuevo en v3.0)
+
+```
+/diverger-quickstart
+```
+
+Guía post-init de 5 minutos: verificar configuración, explorar reglas generadas, listar skills disponibles para tu stack, probar un code review.
+
+### 3. Score de salud del proyecto (nuevo en v3.0)
+
+```
+/diverger-doctor
+```
+
+Evalúa tu proyecto con score 0-100 en 6 categorías: Config Health, Plugin Health, Dependencies, Test Coverage, Security, Code Quality. Muestra recomendaciones accionables por categoría.
+
+### 4. Verificar estado
 
 ```
 /diverger-status
 ```
 
-Muestra las tecnologías detectadas y valida que la configuración esté actualizada.
+Muestra las tecnologías detectadas, detecta stack drift y valida que la configuración esté actualizada.
 
-### Sincronizar tras cambios
+### 5. Sincronizar tras cambios
 
 ```
 /diverger-sync
@@ -168,13 +222,15 @@ Muestra las tecnologías detectadas y valida que la configuración esté actuali
 
 Si agregaste una nueva dependencia (ej: instalaste Prisma), sync actualiza la configuración para incluir los profiles correspondientes.
 
-### Validar configuración
+### 6. Consultar guías de referencia
 
 ```
-/diverger-check
+/go-concurrency-guide     # Si tu proyecto usa Go
+/react-hooks-guide         # Si tu proyecto usa React
+/django-orm-guide          # Si tu proyecto usa Django
 ```
 
-Verifica que la configuración `.claude/` sea válida y coherente con el stack actual.
+Guías estáticas de ~100-200 líneas con patrones correctos, anti-patrones y ejemplos de código. No consumen API.
 
 ## Hooks de protección
 
@@ -229,6 +285,7 @@ Genera configuración `.claude/` completa.
 **Parámetros:**
 - `rootDir` (string): Directorio raíz del proyecto
 - `pluginMode` (boolean, opcional): Si genera como plugin (default: false)
+- `fetchKnowledge` (boolean, opcional): Si consulta la API de Anthropic para best practices adicionales (default: false — los profiles ya incluyen conocimiento embebido)
 
 **Retorna:** Lista de archivos generados.
 

@@ -370,7 +370,7 @@ deploy:
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "(\\.circleci/config\\.yml|\\.circleci/.*\\.yml)$" && grep -nEi "(password|token|secret|api_key|private_key|access_key)\\s*[:=]\\s*[\"].+" "$FILE_PATH" | head -1 | grep -q "." && { echo "Unprotected secret detected in CircleCI config — use contexts for secret management instead of plaintext values" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "(\\.circleci/config\\.yml|\\.circleci/.*\\.yml)$" && grep -nEi "(password|token|secret|api_key|private_key|access_key)\\s*[:=]\\s*[\"].+" "$FILE_PATH" | head -1 | grep -q "." && { echo "Unprotected secret detected in CircleCI config — use contexts for secret management instead of plaintext values" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for unprotected secrets in CircleCI configuration',
           },

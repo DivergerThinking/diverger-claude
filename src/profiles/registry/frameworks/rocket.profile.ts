@@ -467,7 +467,7 @@ async fn delete_user(admin: AdminGuard, id: i64) -> Status { /* ... */ }
             type: 'command',
             statusMessage: 'Checking for unregistered Rocket catchers',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "#\\[catch\\(" "$FILE_PATH" | grep -q "." && ! grep -qE "register\\(" "$FILE_PATH" && { echo "Warning: #[catch] found but no register() call — catchers must be registered with rocket.register()" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "#\\[catch\\(" "$FILE_PATH" | grep -q "." && ! grep -qE "register\\(" "$FILE_PATH" && { echo "Warning: #[catch] found but no register() call — catchers must be registered with rocket.register()" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -480,7 +480,7 @@ async fn delete_user(admin: AdminGuard, id: i64) -> Status { /* ... */ }
             type: 'command',
             statusMessage: 'Checking for secret_key in Rocket.toml',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "Rocket\\.toml$" && grep -qE "secret_key" "$FILE_PATH" && grep -vqE "^\\s*#" "$FILE_PATH" | grep -qE "secret_key\\s*=\\s*\"[^\"]{10,}\"" && { echo "Warning: secret_key found in Rocket.toml — prefer ROCKET_SECRET_KEY environment variable for production" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "Rocket\\.toml$" && grep -qE "secret_key" "$FILE_PATH" && grep -vqE "^\\s*#" "$FILE_PATH" | grep -qE "secret_key\\s*=\\s*\"[^\"]{10,}\"" && { echo "Warning: secret_key found in Rocket.toml — prefer ROCKET_SECRET_KEY environment variable for production" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],

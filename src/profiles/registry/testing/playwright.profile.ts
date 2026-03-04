@@ -390,7 +390,7 @@ test('should create and retrieve a product via API', async ({ request }) => {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -cE "\\bpage\\.waitForTimeout\\(" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Anti-pattern: page.waitForTimeout() detected — use web-first assertions or event-based waits instead (see https://playwright.dev/docs/best-practices)" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -cE "\\bpage\\.waitForTimeout\\(" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Anti-pattern: page.waitForTimeout() detected — use web-first assertions or event-based waits instead (see https://playwright.dev/docs/best-practices)" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for page.waitForTimeout() anti-pattern',
           },
@@ -403,7 +403,7 @@ test('should create and retrieve a product via API', async ({ request }) => {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -cE "\\b(test\\.only|describe\\.only)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test detected (.only) — remove before committing to avoid skipping other tests" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -cE "\\b(test\\.only|describe\\.only)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test detected (.only) — remove before committing to avoid skipping other tests" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for .only in Playwright specs',
           },
@@ -416,7 +416,7 @@ test('should create and retrieve a product via API', async ({ request }) => {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -nE "expect\\(await .+\\.(isVisible|isEnabled|isDisabled|isChecked|isHidden|isEditable|textContent|inputValue|getAttribute|innerText)\\(" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: manual state extraction detected — use web-first assertions like expect(locator).toBeVisible() instead of expect(await locator.isVisible()).toBe(true)" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.(spec|test)\\.(ts|tsx|js|jsx)$" && grep -nE "expect\\(await .+\\.(isVisible|isEnabled|isDisabled|isChecked|isHidden|isEditable|textContent|inputValue|getAttribute|innerText)\\(" "$FILE_PATH" | head -1 | grep -q "." && { echo "Warning: manual state extraction detected — use web-first assertions like expect(locator).toBeVisible() instead of expect(await locator.isVisible()).toBe(true)" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for manual state extraction in Playwright specs',
           },

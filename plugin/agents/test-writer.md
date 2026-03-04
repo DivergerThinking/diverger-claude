@@ -47,3 +47,6 @@ For every function/module, write tests covering:
 - Tests that depend on execution order
 - Tests that test the mocking framework instead of the code
 - Snapshot tests for logic that should have explicit assertions
+
+Testing patterns are adapted to the detected stack — the test runner, assertion style, mocking approach, and file conventions are determined by the active diverger profiles.
+Framework-specific testing guidance (e.g., React Testing Library patterns, pytest fixtures, Go table-driven tests) is embedded when the corresponding technology is detected.

@@ -365,7 +365,7 @@ op.alter_column("users", "name", new_column_name="full_name")
             type: 'command',
             statusMessage: 'Checking for Flask debug mode enabled in code',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null) && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "app\\.run\\(.*debug\\s*=\\s*True" "$FILE_PATH" && { echo "Flask debug mode enabled in code — use FLASK_DEBUG env var instead, never app.run(debug=True) in production" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null) && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "app\\.run\\(.*debug\\s*=\\s*True" "$FILE_PATH" && { echo "Flask debug mode enabled in code — use FLASK_DEBUG env var instead, never app.run(debug=True) in production" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -378,7 +378,7 @@ op.alter_column("users", "name", new_column_name="full_name")
             type: 'command',
             statusMessage: 'Checking for hardcoded SECRET_KEY in Flask code',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null) && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "(SECRET_KEY|secret_key)\\s*=\\s*[\"\\x27][^\"\\x27]{0,20}[\"\\x27]" "$FILE_PATH" && { echo "Hardcoded SECRET_KEY detected — load from environment variable: os.environ[\\\"SECRET_KEY\\\"]" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null) && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "(SECRET_KEY|secret_key)\\s*=\\s*[\"\\x27][^\"\\x27]{0,20}[\"\\x27]" "$FILE_PATH" && { echo "Hardcoded SECRET_KEY detected — load from environment variable: os.environ[\\\"SECRET_KEY\\\"]" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -391,7 +391,7 @@ op.alter_column("users", "name", new_column_name="full_name")
             type: 'command',
             statusMessage: 'Checking for send_file() with user input in Flask code',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null) && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "send_file\\(.*request\\." "$FILE_PATH" && { echo "Warning: send_file() with user input detected — verify path traversal protection, prefer send_from_directory()" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null) && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.py$" && grep -nE "send_file\\(.*request\\." "$FILE_PATH" && { echo "Warning: send_file() with user input detected — verify path traversal protection, prefer send_from_directory()" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],

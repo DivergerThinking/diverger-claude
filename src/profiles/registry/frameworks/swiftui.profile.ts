@@ -527,7 +527,7 @@ struct RootNavigationView: View {
           {
             type: 'command',
             statusMessage: 'Checking for deprecated NavigationView in SwiftUI code',
-            command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/NavigationView\\b/.test(c)&&!/\\/\\/.*NavigationView/.test(c)){console.error(\'NavigationView is deprecated. Use NavigationStack or NavigationSplitView instead (available iOS 16+).\');process.exit(2)}" -- "$FILE_PATH" || true',
+            command: 'FILE_PATH=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/NavigationView\\b/.test(c)&&!/\\/\\/.*NavigationView/.test(c)){console.error(\'NavigationView is deprecated. Use NavigationStack or NavigationSplitView instead (available iOS 16+).\');process.exit(2)}" -- "$FILE_PATH" || true',
             timeout: 5,
           },
         ],
@@ -539,7 +539,7 @@ struct RootNavigationView: View {
           {
             type: 'command',
             statusMessage: 'Checking for .animation() without value: parameter in SwiftUI code',
-            command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/\\.animation\\s*\\([^)]*\\)/.test(c)&&!/\\.animation\\s*\\([^,]+,\\s*value:/.test(c)&&!/\\/\\//.test(c.split(\'.animation\')[0].split(\'\\n\').pop()||\'\')){console.error(\'WARNING: .animation() without value: parameter detected. Use .animation(.default, value: someValue) to scope animations and avoid unexpected behavior.\');process.exit(2)}" -- "$FILE_PATH" || true',
+            command: 'FILE_PATH=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/\\.animation\\s*\\([^)]*\\)/.test(c)&&!/\\.animation\\s*\\([^,]+,\\s*value:/.test(c)&&!/\\/\\//.test(c.split(\'.animation\')[0].split(\'\\n\').pop()||\'\')){console.error(\'WARNING: .animation() without value: parameter detected. Use .animation(.default, value: someValue) to scope animations and avoid unexpected behavior.\');process.exit(2)}" -- "$FILE_PATH" || true',
             timeout: 5,
           },
         ],
@@ -551,7 +551,7 @@ struct RootNavigationView: View {
           {
             type: 'command',
             statusMessage: 'Checking for sensitive data in @AppStorage',
-            command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@AppStorage/.test(c)&&/(token|password|secret|credential|apiKey|api_key|accessKey|refreshToken)/i.test(c)){console.error(\'SECURITY: Storing sensitive data in @AppStorage (UserDefaults — unencrypted). Use Keychain Services instead.\');process.exit(2)}" -- "$FILE_PATH" || true',
+            command: 'FILE_PATH=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@AppStorage/.test(c)&&/(token|password|secret|credential|apiKey|api_key|accessKey|refreshToken)/i.test(c)){console.error(\'SECURITY: Storing sensitive data in @AppStorage (UserDefaults — unencrypted). Use Keychain Services instead.\');process.exit(2)}" -- "$FILE_PATH" || true',
             timeout: 5,
           },
         ],
@@ -563,7 +563,7 @@ struct RootNavigationView: View {
           {
             type: 'command',
             statusMessage: 'Checking for oversized View body in SwiftUI code',
-            command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const lines=c.split(\'\\n\');let inBody=false,depth=0,bodyLines=0,maxBody=0;for(const l of lines){if(/var\\s+body\\s*:\\s*some\\s+View/.test(l)){inBody=true;depth=0;bodyLines=0}if(inBody){if(l.includes(\'{\'))depth++;if(l.includes(\'}\'))depth--;bodyLines++;if(depth===0&&bodyLines>1){if(bodyLines>maxBody)maxBody=bodyLines;inBody=false}}}if(maxBody>50){console.error(\'WARNING: View body is \'+maxBody+\' lines. Extract sub-views to keep body under 40 lines for readability and performance.\');process.exit(2)}" -- "$FILE_PATH" || true',
+            command: 'FILE_PATH=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.swift\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const lines=c.split(\'\\n\');let inBody=false,depth=0,bodyLines=0,maxBody=0;for(const l of lines){if(/var\\s+body\\s*:\\s*some\\s+View/.test(l)){inBody=true;depth=0;bodyLines=0}if(inBody){if(l.includes(\'{\'))depth++;if(l.includes(\'}\'))depth--;bodyLines++;if(depth===0&&bodyLines>1){if(bodyLines>maxBody)maxBody=bodyLines;inBody=false}}}if(maxBody>50){console.error(\'WARNING: View body is \'+maxBody+\' lines. Extract sub-views to keep body under 40 lines for readability and performance.\');process.exit(2)}" -- "$FILE_PATH" || true',
             timeout: 5,
           },
         ],

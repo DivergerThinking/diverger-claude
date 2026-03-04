@@ -186,6 +186,13 @@ export class DivergerEngine {
     // A2: skip knowledge fetch entirely in dry-run mode
     if (ctx.options.dryRun) return [];
 
+    // C1: Knowledge API is optional — skip when no API key is configured.
+    // Profiles already include embedded best practices, so nothing is lost.
+    if (!process.env.ANTHROPIC_API_KEY) {
+      ctx.onProgress?.('Knowledge API: omitida (no hay ANTHROPIC_API_KEY — el plugin incluye best practices embebidas en los profiles)');
+      return [];
+    }
+
     // Use pre-resolved permissions if available, otherwise fall back to callback
     const permissions = ctx.knowledgePermissions;
     if (!permissions && !ctx.onKnowledgePermission) return [];

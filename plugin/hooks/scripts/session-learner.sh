@@ -1,6 +1,7 @@
 #!/bin/bash
 # SessionEnd hook: Signal pending errors for next session processing
 # Errors will be processed by onSessionStart() in the next session
+# Uses Node.js instead of jq for cross-platform compatibility (Windows)
 
 set -euo pipefail
 
@@ -11,8 +12,8 @@ if [ ! -f "$SESSION_LOG" ]; then
   exit 0
 fi
 
-# Clean up empty logs
-ERROR_COUNT=$(jq 'length' "$SESSION_LOG" 2>/dev/null || echo "0")
+# Clean up empty logs using Node.js
+ERROR_COUNT=$(node -e "try{const d=JSON.parse(require('fs').readFileSync('$SESSION_LOG','utf8'));console.log(d.length)}catch{console.log('0')}")
 if [ "$ERROR_COUNT" = "0" ]; then
   rm -f "$SESSION_LOG"
 fi

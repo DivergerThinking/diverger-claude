@@ -350,6 +350,513 @@ const API_KEY = process.env.NEXT_PUBLIC_API_KEY // anyone can read this in brows
     ],
     skills: [
       {
+        name: 'nextjs-caching-guide',
+        description: 'Detailed reference for Next.js caching layers, revalidation strategies, and performance optimization',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Next.js Caching — Detailed Reference
+
+## The 4 Caching Layers
+
+Next.js has four distinct caching mechanisms that work together. Understanding when each applies is critical for correct data freshness and performance.
+
+| Layer | Where | Duration | Purpose | Opt-out |
+|-------|-------|----------|---------|---------|
+| **Request Memoization** | Server (per-request) | Single request lifetime | Deduplicate identical fetches in a component tree | \`AbortController.signal\` |
+| **Data Cache** | Server (persistent) | Until revalidated or opted out | Cache fetch responses across requests and deployments | \`{ cache: 'no-store' }\` |
+| **Full Route Cache** | Server (persistent) | Until revalidated or redeployed | Cache rendered HTML and RSC payload for static routes | \`dynamic = 'force-dynamic'\` or dynamic functions |
+| **Router Cache** | Client (in-memory) | Session duration / 5 min (dynamic) / 30s (static) | Cache visited route RSC payloads for instant back/forward | \`router.refresh()\` |
+
+### How They Interact
+1. Request hits the **Router Cache** first (client-side) — if fresh, no server request
+2. On the server, the **Full Route Cache** serves pre-rendered static routes
+3. During rendering, **Request Memoization** deduplicates identical fetch calls within the same request
+4. Each fetch checks the **Data Cache** before hitting the origin
+
+---
+
+## Layer 1: Request Memoization
+
+React and Next.js automatically memoize \`fetch()\` calls with the same URL and options within a single server request. This means you can call the same fetch in multiple Server Components without duplicate network requests.
+
+\\\`\\\`\\\`typescript
+// lib/data.ts
+export async function getProduct(id: string) {
+  // This fetch is automatically memoized per-request
+  // Call it in multiple Server Components — only 1 network request
+  const res = await fetch(\\\`https://api.example.com/products/\\\${id}\\\`);
+  return res.json();
+}
+\\\`\\\`\\\`
+
+For non-fetch data sources (e.g., direct database calls), use \`React.cache()\`:
+
+\\\`\\\`\\\`typescript
+import { cache } from 'react';
+import { db } from '@/lib/db';
+
+// Memoized for the duration of the request
+export const getUser = cache(async (userId: string) => {
+  return db.user.findUnique({ where: { id: userId } });
+});
+
+// Call getUser(id) in multiple Server Components — only 1 DB query per request
+\\\`\\\`\\\`
+
+---
+
+## Layer 2: Data Cache
+
+The Data Cache persists fetch responses across requests and deployments. Control it with fetch options:
+
+### Time-Based Revalidation (ISR)
+\\\`\\\`\\\`typescript
+// Revalidate at most every 60 seconds (stale-while-revalidate)
+const res = await fetch('https://api.example.com/products', {
+  next: { revalidate: 60 },
+});
+\\\`\\\`\\\`
+
+### Tag-Based Revalidation
+\\\`\\\`\\\`typescript
+// Tag the cached data for fine-grained invalidation
+const res = await fetch(\\\`https://api.example.com/products/\\\${id}\\\`, {
+  next: { tags: [\\\`product-\\\${id}\\\`, 'products'] },
+});
+\\\`\\\`\\\`
+
+### Opting Out of the Data Cache
+\\\`\\\`\\\`typescript
+// Skip the data cache entirely — always fetch fresh
+const res = await fetch('https://api.example.com/cart', {
+  cache: 'no-store',
+});
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`typescript
+// BAD: no-store everywhere "just in case" — defeats caching entirely
+const products = await fetch(url, { cache: 'no-store' }); // Is this data truly real-time?
+const categories = await fetch(catUrl, { cache: 'no-store' }); // Categories rarely change!
+
+// CORRECT: use revalidation for data that changes periodically
+const products = await fetch(url, { next: { revalidate: 30, tags: ['products'] } });
+const categories = await fetch(catUrl, { next: { revalidate: 3600, tags: ['categories'] } });
+\\\`\\\`\\\`
+
+---
+
+## Layer 3: Full Route Cache
+
+Static routes (no dynamic functions) are rendered at build time and cached. A route becomes **dynamic** when it accesses:
+- \`cookies()\`, \`headers()\`, \`connection()\`
+- \`searchParams\` prop in Page components
+- \`fetch()\` with \`{ cache: 'no-store' }\`
+- \`export const dynamic = 'force-dynamic'\`
+- \`unstable_noStore()\`
+
+\\\`\\\`\\\`typescript
+// This page is STATIC — rendered at build time, served from cache
+export default async function ProductsPage() {
+  const products = await fetch('https://api.example.com/products', {
+    next: { revalidate: 60 },
+  });
+  return <ProductList products={await products.json()} />;
+}
+
+// This page is DYNAMIC — rendered on every request
+export default async function CartPage() {
+  const session = await cookies(); // Dynamic function → opts out of Full Route Cache
+  const cart = await getCart(session.get('cartId')?.value);
+  return <Cart items={cart.items} />;
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`typescript
+// BAD: force-dynamic on a page that could be statically cached with ISR
+export const dynamic = 'force-dynamic'; // Why? This page shows blog posts that change daily
+export default async function BlogPage() { /* ... */ }
+
+// CORRECT: use time-based or on-demand revalidation instead
+export const revalidate = 3600; // Revalidate at most every hour
+export default async function BlogPage() { /* ... */ }
+\\\`\\\`\\\`
+
+---
+
+## Layer 4: Router Cache (Client-Side)
+
+The Router Cache stores visited route RSC payloads in the browser for instant back/forward navigation. It is **always active** and cannot be fully disabled.
+
+### Invalidating the Router Cache
+\\\`\\\`\\\`typescript
+'use client';
+import { useRouter } from 'next/navigation';
+
+export function RefreshButton() {
+  const router = useRouter();
+  // router.refresh() invalidates the Router Cache for the current route
+  return <button onClick={() => router.refresh()}>Refresh</button>;
+}
+\\\`\\\`\\\`
+
+Server-side revalidation (\`revalidateTag\`, \`revalidatePath\`) also invalidates the Router Cache on the next navigation.
+
+---
+
+## On-Demand Revalidation Patterns
+
+### revalidateTag — Fine-Grained Invalidation
+\\\`\\\`\\\`typescript
+// 1. Tag your fetches
+async function getProduct(id: string) {
+  const res = await fetch(\\\`https://api.example.com/products/\\\${id}\\\`, {
+    next: { tags: [\\\`product-\\\${id}\\\`, 'products'] },
+  });
+  return res.json();
+}
+
+// 2. Invalidate after mutation in a Server Action
+'use server';
+import { revalidateTag } from 'next/cache';
+
+export async function updateProduct(id: string, data: ProductData) {
+  await db.product.update({ where: { id }, data });
+
+  // Invalidate just this product and the product list
+  revalidateTag(\\\`product-\\\${id}\\\`);
+  revalidateTag('products');
+}
+\\\`\\\`\\\`
+
+### revalidatePath — Path-Based Invalidation
+\\\`\\\`\\\`typescript
+'use server';
+import { revalidatePath } from 'next/cache';
+
+export async function publishPost(id: string) {
+  await db.post.update({ where: { id }, data: { published: true } });
+
+  revalidatePath('/blog');           // Revalidate the blog listing page
+  revalidatePath(\\\`/blog/\\\${id}\\\`);    // Revalidate the specific post page
+  revalidatePath('/blog', 'layout'); // Revalidate all pages under /blog layout
+}
+\\\`\\\`\\\`
+
+---
+
+## When to Use Each Strategy
+
+| Scenario | Strategy | Example |
+|----------|----------|---------|
+| Marketing pages, docs | **Static** (no revalidation) | Build-time rendering, redeploy to update |
+| Blog, product catalog | **ISR** (time-based revalidation) | \`next: { revalidate: 60 }\` |
+| After user mutations | **On-demand** (tag/path revalidation) | \`revalidateTag('products')\` in Server Action |
+| User-specific data | **Dynamic** (no cache) | Pages using \`cookies()\` or \`headers()\` |
+| Real-time data | **Dynamic** + client polling/streaming | \`cache: 'no-store'\` + SWR/WebSocket |
+
+## Common Anti-Patterns Summary
+1. **\`force-dynamic\` everywhere** — Use ISR or on-demand revalidation instead
+2. **\`cache: 'no-store'\` on all fetches** — Only opt out when data must be real-time
+3. **No revalidation tags** — Without tags, you cannot do fine-grained on-demand invalidation
+4. **Forgetting \`React.cache()\` for DB calls** — Non-fetch data is NOT auto-memoized
+5. **Calling \`redirect()\` before \`revalidatePath()\`** — Always revalidate first, redirect second
+`,
+      },
+      {
+        name: 'nextjs-server-actions-guide',
+        description: 'Detailed reference for Next.js Server Actions security, validation, and mutation patterns',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Next.js Server Actions — Detailed Reference
+
+## Server Actions Are Public HTTP Endpoints
+
+Every Server Action is exposed as a POST endpoint that anyone can call — with or without your UI. Treat them exactly like API routes: **validate all inputs, authenticate the caller, and authorize the action**.
+
+\\\`\\\`\\\`typescript
+// An attacker can call ANY Server Action directly via POST request:
+// curl -X POST https://your-app.com -H "Next-Action: actionId" -d "..."
+// Never assume only your form will call the action.
+\\\`\\\`\\\`
+
+---
+
+## Complete Validation Pattern with Zod
+
+Always validate inputs with a schema library. Never trust \`formData\` from the client.
+
+### Correct
+\\\`\\\`\\\`typescript
+'use server';
+
+import { z } from 'zod';
+import { revalidateTag } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { auth } from '@/lib/auth';
+import { db } from '@/lib/db';
+
+const CreatePostSchema = z.object({
+  title: z.string().min(1).max(200),
+  content: z.string().min(1).max(10000),
+  categoryId: z.string().uuid(),
+});
+
+type ActionResponse = {
+  success: boolean;
+  error?: string;
+  fieldErrors?: Record<string, string[]>;
+};
+
+export async function createPost(
+  _prevState: ActionResponse,
+  formData: FormData,
+): Promise<ActionResponse> {
+  // 1. Validate inputs
+  const parsed = CreatePostSchema.safeParse({
+    title: formData.get('title'),
+    content: formData.get('content'),
+    categoryId: formData.get('categoryId'),
+  });
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  // 2. Authenticate
+  const session = await auth();
+  if (!session?.user) {
+    return { success: false, error: 'You must be signed in' };
+  }
+
+  // 3. Authorize
+  const canCreate = await checkPermission(session.user.id, 'posts:create');
+  if (!canCreate) {
+    return { success: false, error: 'You do not have permission to create posts' };
+  }
+
+  // 4. Mutate
+  let postId: string;
+  try {
+    const post = await db.post.create({
+      data: {
+        ...parsed.data,
+        authorId: session.user.id,
+      },
+    });
+    postId = post.id;
+  } catch {
+    return { success: false, error: 'Failed to create post. Please try again.' };
+  }
+
+  // 5. Revalidate (BEFORE redirect)
+  revalidateTag('posts');
+
+  // 6. Redirect (AFTER revalidation)
+  redirect(\\\`/posts/\\\${postId}\\\`);
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern
+\\\`\\\`\\\`typescript
+'use server';
+
+// BAD: No validation, no auth, raw errors, redirect before revalidate
+export async function createPost(formData: FormData) {
+  const title = formData.get('title') as string;      // Trusting client data!
+  const content = formData.get('content') as string;   // No validation!
+  // No authentication check!
+  // No authorization check!
+  const post = await db.post.create({                  // Raw DB errors leak to client
+    data: { title, content },
+  });
+  redirect(\\\`/posts/\\\${post.id}\\\`);                       // Redirect BEFORE revalidation!
+  revalidateTag('posts');                              // Never reached after redirect
+}
+\\\`\\\`\\\`
+
+---
+
+## The Correct Order of Operations
+
+Every Server Action should follow this exact sequence:
+
+1. **Validate** — Parse and validate all inputs with Zod/Valibot
+2. **Authenticate** — Verify the user has a valid session
+3. **Authorize** — Check the user has permission for this specific action
+4. **Mutate** — Perform the database operation with error handling
+5. **Revalidate** — Call \`revalidatePath()\` or \`revalidateTag()\` to update cached data
+6. **Redirect** — Call \`redirect()\` AFTER revalidation (redirect throws, so code after it never runs)
+
+---
+
+## useActionState Hook — Form State Management
+
+Use \`useActionState\` (React 19+) to manage Server Action form state, pending status, and error display.
+
+\\\`\\\`\\\`typescript
+'use client';
+
+import { useActionState } from 'react';
+import { createPost } from '@/app/actions';
+
+const initialState = { success: false, error: undefined, fieldErrors: undefined };
+
+export function CreatePostForm() {
+  const [state, formAction, isPending] = useActionState(createPost, initialState);
+
+  return (
+    <form action={formAction}>
+      <div>
+        <label htmlFor="title">Title</label>
+        <input id="title" name="title" required disabled={isPending} />
+        {state.fieldErrors?.title && (
+          <p role="alert" className="text-red-600">{state.fieldErrors.title[0]}</p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="content">Content</label>
+        <textarea id="content" name="content" required disabled={isPending} />
+        {state.fieldErrors?.content && (
+          <p role="alert" className="text-red-600">{state.fieldErrors.content[0]}</p>
+        )}
+      </div>
+
+      {state.error && (
+        <div role="alert" className="text-red-600">{state.error}</div>
+      )}
+
+      <button type="submit" disabled={isPending}>
+        {isPending ? 'Creating...' : 'Create Post'}
+      </button>
+    </form>
+  );
+}
+\\\`\\\`\\\`
+
+---
+
+## Progressive Enhancement
+
+When you use \`<form action={serverAction}>\`, the form works even without JavaScript. This is progressive enhancement — the form submits as a standard HTML form POST, and Next.js handles it server-side.
+
+\\\`\\\`\\\`typescript
+// This form works without JavaScript enabled in the browser
+// The Server Action receives FormData just like a traditional form submission
+<form action={createPost}>
+  <input name="title" required />
+  <textarea name="content" required />
+  <button type="submit">Create</button>
+</form>
+\\\`\\\`\\\`
+
+For enhanced client-side behavior (pending states, optimistic updates), wrap with \`useActionState\` as shown above.
+
+---
+
+## Error Handling: Typed Responses vs Exceptions
+
+### Correct — Typed Response Objects
+\\\`\\\`\\\`typescript
+'use server';
+
+type ActionResponse<T = void> =
+  | { success: true; data: T }
+  | { success: false; error: string; fieldErrors?: Record<string, string[]> };
+
+export async function deletePost(postId: string): Promise<ActionResponse> {
+  const session = await auth();
+  if (!session?.user) {
+    return { success: false, error: 'Authentication required' };
+  }
+
+  const post = await db.post.findUnique({ where: { id: postId } });
+  if (!post) {
+    return { success: false, error: 'Post not found' };
+  }
+
+  if (post.authorId !== session.user.id) {
+    return { success: false, error: 'You can only delete your own posts' };
+  }
+
+  try {
+    await db.post.delete({ where: { id: postId } });
+  } catch {
+    return { success: false, error: 'Failed to delete post. Please try again.' };
+  }
+
+  revalidateTag('posts');
+  return { success: true, data: undefined };
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern — Throwing Raw Errors
+\\\`\\\`\\\`typescript
+'use server';
+
+// BAD: throwing exposes internal details and breaks progressive enhancement
+export async function deletePost(postId: string) {
+  const post = await db.post.delete({ where: { id: postId } }); // Raw Prisma error on failure!
+  // Unhandled: "Record to delete does not exist" leaks to client
+}
+\\\`\\\`\\\`
+
+---
+
+## Authentication and Authorization Inside Actions
+
+Never rely on client-side auth checks. Always verify server-side inside every action.
+
+\\\`\\\`\\\`typescript
+'use server';
+
+export async function updateUserRole(userId: string, newRole: string) {
+  // ALWAYS check auth inside the action — client checks can be bypassed
+  const session = await auth();
+  if (!session?.user) {
+    return { success: false, error: 'Authentication required' };
+  }
+
+  // Authorization: only admins can change roles
+  if (session.user.role !== 'admin') {
+    return { success: false, error: 'Only administrators can change user roles' };
+  }
+
+  // Validate the role value
+  const validRoles = ['user', 'editor', 'admin'] as const;
+  if (!validRoles.includes(newRole as typeof validRoles[number])) {
+    return { success: false, error: 'Invalid role' };
+  }
+
+  await db.user.update({ where: { id: userId }, data: { role: newRole } });
+  revalidateTag('users');
+  return { success: true, data: undefined };
+}
+\\\`\\\`\\\`
+
+---
+
+## Anti-Patterns Summary
+
+| Anti-Pattern | Why It Is Dangerous | Correct Approach |
+|---|---|---|
+| Trusting \`formData\` without validation | Attackers can send any data via POST | Validate with Zod \`safeParse\` |
+| No authentication check | Actions are public endpoints | Call \`auth()\` in every action |
+| No authorization check | Authenticated !== authorized | Check roles/permissions after auth |
+| \`redirect()\` before \`revalidatePath()\` | Redirect throws — revalidation never runs | Always revalidate first |
+| Throwing raw exceptions | Internal errors leak to client | Return typed \`{ success, error }\` objects |
+| Inline \`'use server'\` in client component | Creates action without separate file discipline | Use \`'use server'\` at file top, import in client |
+| Missing \`isPending\` UI feedback | User clicks submit multiple times | Use \`useActionState\` with disabled button |
+| No rate limiting on sensitive actions | Brute-force attacks on login/password reset | Add rate limiting middleware |
+`,
+      },
+      {
         name: 'nextjs-route-generator',
         description: 'Generate complete Next.js App Router route segments with all conventions',
         context: 'fork',
@@ -436,7 +943,7 @@ export default function Loading() {
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/page\\.(tsx|jsx)$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -458,7 +965,7 @@ if (!hasUseClient && /export (default )?(async )?function/.test(c) && !/export (
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.(tsx|jsx)$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -477,7 +984,7 @@ if (/<a\\s+href=/.test(c) && /href=[\"\\x27]\\//.test(c) && !/next\\/link/.test(
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/actions?\\.ts$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');

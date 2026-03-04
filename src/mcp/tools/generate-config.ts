@@ -16,8 +16,9 @@ export function registerGenerateConfigTool(server: McpServer): void {
       projectDir: z.string().describe('Absolute path to the project root directory'),
       pluginMode: z.boolean().optional().default(true).describe('Exclude universal components provided by plugin (default: true)'),
       dryRun: z.boolean().optional().default(false).describe('Show what would be generated without writing (default: false)'),
+      fetchKnowledge: z.boolean().optional().default(false).describe('Fetch best practices from Claude API (requires ANTHROPIC_API_KEY, default: false — profiles include embedded best practices)'),
     },
-    async ({ projectDir, pluginMode, dryRun }) => {
+    async ({ projectDir, pluginMode, dryRun, fetchKnowledge }) => {
       if (!(await fileExists(projectDir))) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: 'DIRECTORY_NOT_FOUND', message: `Directory not found: ${projectDir}` }) }],
@@ -36,6 +37,8 @@ export function registerGenerateConfigTool(server: McpServer): void {
             targetDir: projectDir,
             pluginMode,
           },
+          // C1: Knowledge is opt-in. When enabled, grant blanket permission for all techs.
+          ...(fetchKnowledge ? { onKnowledgePermission: async () => true } : {}),
         };
 
         const result = await engine.init(ctx);

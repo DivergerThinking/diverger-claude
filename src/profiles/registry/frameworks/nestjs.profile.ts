@@ -417,6 +417,955 @@ TypeOrmModule.forRoot({
     ],
     skills: [
       {
+        name: 'nestjs-di-guide',
+        description: 'Detailed reference for NestJS dependency injection patterns, custom providers, and module encapsulation',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# NestJS Dependency Injection — Detailed Reference
+
+## How NestJS DI Works
+NestJS uses an Inversion of Control (IoC) container that manages the lifecycle of providers.
+When a module is loaded, the container resolves all declared providers, inspects constructor
+parameters, and injects the correct instances automatically. Providers are registered in a
+module's \`providers\` array and can be exported for use by other modules.
+
+## Constructor Injection
+The standard and recommended injection pattern. Declare dependencies as constructor parameters
+with \`private readonly\` for immutability:
+
+\\\`\\\`\\\`typescript
+@Injectable()
+export class OrdersService {
+  constructor(
+    private readonly ordersRepository: OrdersRepository,
+    private readonly usersService: UsersService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
+
+  async createOrder(dto: CreateOrderDto): Promise<Order> {
+    const user = await this.usersService.findOneOrFail(dto.userId);
+    const order = this.ordersRepository.create({ ...dto, user });
+    const saved = await this.ordersRepository.save(order);
+    this.eventEmitter.emit('order.created', saved);
+    return saved;
+  }
+}
+\\\`\\\`\\\`
+
+## Custom Providers — useClass, useFactory, useValue, useExisting
+
+### useClass — Swap implementations (strategy pattern, testing)
+\\\`\\\`\\\`typescript
+// Swap payment processor based on environment
+@Module({
+  providers: [
+    {
+      provide: PAYMENT_PROCESSOR,
+      useClass:
+        process.env.NODE_ENV === 'production'
+          ? StripePaymentProcessor
+          : MockPaymentProcessor,
+    },
+  ],
+})
+export class PaymentsModule {}
+\\\`\\\`\\\`
+
+### useFactory — Async setup, conditional logic, inject other providers
+\\\`\\\`\\\`typescript
+@Module({
+  providers: [
+    {
+      provide: CACHE_CLIENT,
+      useFactory: async (config: ConfigService) => {
+        const client = new Redis({
+          host: config.getOrThrow('REDIS_HOST'),
+          port: config.getOrThrow<number>('REDIS_PORT'),
+        });
+        await client.ping();
+        return client;
+      },
+      inject: [ConfigService],
+    },
+  ],
+})
+export class CacheModule {}
+\\\`\\\`\\\`
+
+### useValue — Static config, constants, mock replacements in tests
+\\\`\\\`\\\`typescript
+@Module({
+  providers: [
+    {
+      provide: APP_CONFIG,
+      useValue: {
+        maxRetries: 3,
+        timeoutMs: 5000,
+        features: { newDashboard: true },
+      },
+    },
+  ],
+})
+export class ConfigModule {}
+\\\`\\\`\\\`
+
+### useExisting — Alias a provider under a different token
+\\\`\\\`\\\`typescript
+@Module({
+  providers: [
+    ConcreteLogger,
+    { provide: LOGGER, useExisting: ConcreteLogger },
+  ],
+})
+export class LoggingModule {}
+\\\`\\\`\\\`
+
+## Interface-Based Injection with Symbol Tokens
+TypeScript interfaces are erased at runtime, so use Symbol tokens with \`@Inject()\`:
+
+\\\`\\\`\\\`typescript
+// tokens.ts
+export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
+
+// users.module.ts
+@Module({
+  providers: [
+    UsersService,
+    { provide: USER_REPOSITORY, useClass: TypeOrmUserRepository },
+  ],
+  exports: [UsersService],
+})
+export class UsersModule {}
+
+// users.service.ts
+@Injectable()
+export class UsersService {
+  constructor(
+    @Inject(USER_REPOSITORY)
+    private readonly userRepo: IUserRepository,
+  ) {}
+}
+\\\`\\\`\\\`
+
+## Async Providers with ConfigService
+Use \`useFactory\` with \`inject\` to access ConfigService or other async dependencies:
+
+\\\`\\\`\\\`typescript
+{
+  provide: DATABASE_CONNECTION,
+  useFactory: async (config: ConfigService): Promise<DataSource> => {
+    const dataSource = new DataSource({
+      type: 'postgres',
+      host: config.getOrThrow('DB_HOST'),
+      port: config.getOrThrow<number>('DB_PORT'),
+      username: config.getOrThrow('DB_USER'),
+      password: config.getOrThrow('DB_PASSWORD'),
+      database: config.getOrThrow('DB_NAME'),
+    });
+    return dataSource.initialize();
+  },
+  inject: [ConfigService],
+}
+\\\`\\\`\\\`
+
+## Provider Scopes
+
+### DEFAULT (Singleton) — One instance shared across the entire application
+- Best performance, lowest memory usage
+- Use for stateless services (most services)
+
+### REQUEST — New instance per incoming request
+- Use when you need request-specific data (e.g., tenant context, current user)
+- **Warning**: REQUEST scope bubbles up — any provider that depends on a request-scoped
+  provider also becomes request-scoped, which impacts performance
+
+### TRANSIENT — New instance every time it is injected
+- Use for providers that must maintain isolated internal state per consumer
+- Rarely needed — consider whether you really need it
+
+\\\`\\\`\\\`typescript
+// Request-scoped: new instance per HTTP request
+@Injectable({ scope: Scope.REQUEST })
+export class TenantContext {
+  constructor(@Inject(REQUEST) private readonly request: Request) {}
+
+  get tenantId(): string {
+    return this.request.headers['x-tenant-id'] as string;
+  }
+}
+
+// Transient: new instance per injection point
+@Injectable({ scope: Scope.TRANSIENT })
+export class TaskLogger {
+  private logs: string[] = [];
+  log(msg: string) { this.logs.push(msg); }
+  flush() { return this.logs.splice(0); }
+}
+\\\`\\\`\\\`
+
+## Module Encapsulation — Exports, Imports, Dynamic Modules
+- Providers are private to their module by default
+- Only providers listed in \`exports\` are accessible to importing modules
+- \`imports\` brings in exported providers from other modules
+
+\\\`\\\`\\\`typescript
+@Module({
+  imports: [DatabaseModule],          // access DatabaseModule's exports
+  providers: [UsersService, UsersRepository],
+  controllers: [UsersController],
+  exports: [UsersService],            // only UsersService is available outside
+})
+export class UsersModule {}
+\\\`\\\`\\\`
+
+## forRoot / forRootAsync Pattern for Configurable Modules
+Use for modules that need one-time global configuration:
+
+\\\`\\\`\\\`typescript
+@Module({})
+export class MailModule {
+  static forRoot(options: MailModuleOptions): DynamicModule {
+    return {
+      module: MailModule,
+      global: true,
+      providers: [
+        { provide: MAIL_OPTIONS, useValue: options },
+        MailService,
+      ],
+      exports: [MailService],
+    };
+  }
+
+  static forRootAsync(options: MailModuleAsyncOptions): DynamicModule {
+    return {
+      module: MailModule,
+      global: true,
+      imports: options.imports || [],
+      providers: [
+        {
+          provide: MAIL_OPTIONS,
+          useFactory: options.useFactory,
+          inject: options.inject || [],
+        },
+        MailService,
+      ],
+      exports: [MailService],
+    };
+  }
+}
+
+// Usage in AppModule
+@Module({
+  imports: [
+    MailModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        host: config.getOrThrow('SMTP_HOST'),
+        port: config.getOrThrow<number>('SMTP_PORT'),
+        auth: {
+          user: config.getOrThrow('SMTP_USER'),
+          pass: config.getOrThrow('SMTP_PASS'),
+        },
+      }),
+      inject: [ConfigService],
+    }),
+  ],
+})
+export class AppModule {}
+\\\`\\\`\\\`
+
+## @Optional() and @Inject() for Optional Dependencies
+Use \`@Optional()\` when a dependency may not be registered:
+
+\\\`\\\`\\\`typescript
+@Injectable()
+export class NotificationService {
+  constructor(
+    private readonly mailService: MailService,
+    @Optional() @Inject(SLACK_CLIENT)
+    private readonly slackClient?: SlackClient,
+  ) {}
+
+  async notify(message: string): Promise<void> {
+    await this.mailService.send(message);
+    if (this.slackClient) {
+      await this.slackClient.postMessage(message);
+    }
+  }
+}
+\\\`\\\`\\\`
+
+## Circular Dependency Resolution with forwardRef()
+Use \`forwardRef()\` as a last resort when two providers depend on each other:
+
+\\\`\\\`\\\`typescript
+// users.service.ts
+@Injectable()
+export class UsersService {
+  constructor(
+    @Inject(forwardRef(() => AuthService))
+    private readonly authService: AuthService,
+  ) {}
+}
+
+// auth.service.ts
+@Injectable()
+export class AuthService {
+  constructor(
+    @Inject(forwardRef(() => UsersService))
+    private readonly usersService: UsersService,
+  ) {}
+}
+
+// Also needed at module level for circular module imports
+@Module({
+  imports: [forwardRef(() => AuthModule)],
+})
+export class UsersModule {}
+\\\`\\\`\\\`
+
+**Better approach**: Extract the shared logic into a third service to avoid the circular
+dependency entirely.
+
+## Testing with overrideProvider() — DI Makes Testing Easy
+\\\`\\\`\\\`typescript
+const module = await Test.createTestingModule({
+  providers: [
+    OrdersService,
+    { provide: USER_REPOSITORY, useValue: mockUserRepo },
+  ],
+})
+  .overrideProvider(OrdersRepository)
+  .useValue(mockOrdersRepo)
+  .compile();
+
+const service = module.get(OrdersService);
+\\\`\\\`\\\`
+
+## Common Anti-Patterns
+
+### Anti-Pattern: Field injection or manual instantiation
+\\\`\\\`\\\`typescript
+// WRONG: bypasses DI — not testable, not manageable
+@Injectable()
+export class OrdersService {
+  private repo = new OrdersRepository(); // hardcoded dependency
+
+  @Autowired() // does not exist in NestJS
+  private usersService: UsersService;
+}
+
+// CORRECT: constructor injection
+@Injectable()
+export class OrdersService {
+  constructor(
+    private readonly repo: OrdersRepository,
+    private readonly usersService: UsersService,
+  ) {}
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern: Using REQUEST scope unnecessarily
+\\\`\\\`\\\`typescript
+// WRONG: makes every dependent provider request-scoped too
+@Injectable({ scope: Scope.REQUEST })
+export class UtilityService {
+  format(date: Date) { return date.toISOString(); }
+}
+
+// CORRECT: stateless service should be singleton (default scope)
+@Injectable()
+export class UtilityService {
+  format(date: Date) { return date.toISOString(); }
+}
+\\\`\\\`\\\`
+
+### Anti-Pattern: Over-exporting from modules
+\\\`\\\`\\\`typescript
+// WRONG: exposes internal implementation details
+@Module({
+  providers: [UsersService, UsersRepository, PasswordHasher, UserMapper],
+  exports: [UsersService, UsersRepository, PasswordHasher, UserMapper],
+})
+export class UsersModule {}
+
+// CORRECT: export only the public API
+@Module({
+  providers: [UsersService, UsersRepository, PasswordHasher, UserMapper],
+  exports: [UsersService], // only the facade
+})
+export class UsersModule {}
+\\\`\\\`\\\`
+`,
+      },
+      {
+        name: 'nestjs-testing-guide',
+        description: 'Detailed reference for NestJS testing patterns with @nestjs/testing, mocking, guards, pipes, and e2e',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# NestJS Testing — Detailed Reference
+
+## Test.createTestingModule() Setup
+The \`@nestjs/testing\` package provides \`Test.createTestingModule()\` to create an isolated
+DI container for each test. This lets you replace real dependencies with mocks while the
+container handles wiring everything together.
+
+\\\`\\\`\\\`typescript
+import { Test, TestingModule } from '@nestjs/testing';
+
+describe('UsersService', () => {
+  let service: UsersService;
+  let mockRepo: jest.Mocked<UsersRepository>;
+
+  beforeEach(async () => {
+    mockRepo = {
+      findOne: jest.fn(),
+      save: jest.fn(),
+      create: jest.fn(),
+      delete: jest.fn(),
+    } as any;
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UsersService,
+        { provide: UsersRepository, useValue: mockRepo },
+      ],
+    }).compile();
+
+    service = module.get(UsersService);
+  });
+
+  afterEach(() => jest.clearAllMocks());
+});
+\\\`\\\`\\\`
+
+## Unit Testing Services — Complete Example
+\\\`\\\`\\\`typescript
+describe('UsersService', () => {
+  let service: UsersService;
+  let mockRepo: jest.Mocked<Repository<User>>;
+
+  beforeEach(async () => {
+    mockRepo = {
+      findOne: jest.fn(),
+      save: jest.fn(),
+      create: jest.fn(),
+      remove: jest.fn(),
+    } as any;
+
+    const module = await Test.createTestingModule({
+      providers: [
+        UsersService,
+        { provide: getRepositoryToken(User), useValue: mockRepo },
+      ],
+    }).compile();
+
+    service = module.get(UsersService);
+  });
+
+  describe('findOneOrFail', () => {
+    it('should return user when found', async () => {
+      const user = { id: '1', name: 'Alice', email: 'alice@test.com' } as User;
+      mockRepo.findOne.mockResolvedValue(user);
+
+      const result = await service.findOneOrFail('1');
+
+      expect(result).toEqual(expect.objectContaining({ id: '1', name: 'Alice' }));
+      expect(mockRepo.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+    });
+
+    it('should throw NotFoundException when user not found', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.findOneOrFail('999')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('create', () => {
+    it('should create and return a new user', async () => {
+      const dto: CreateUserDto = { name: 'Bob', email: 'bob@test.com' };
+      const entity = { id: '2', ...dto } as User;
+      mockRepo.create.mockReturnValue(entity);
+      mockRepo.save.mockResolvedValue(entity);
+
+      const result = await service.create(dto);
+
+      expect(result.id).toBe('2');
+      expect(mockRepo.create).toHaveBeenCalledWith(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(entity);
+    });
+
+    it('should throw ConflictException on duplicate email', async () => {
+      const dto: CreateUserDto = { name: 'Bob', email: 'existing@test.com' };
+      mockRepo.create.mockReturnValue(dto as any);
+      mockRepo.save.mockRejectedValue({ code: '23505' }); // unique violation
+
+      await expect(service.create(dto)).rejects.toThrow(ConflictException);
+    });
+  });
+});
+\\\`\\\`\\\`
+
+## Unit Testing Controllers — Complete Example
+\\\`\\\`\\\`typescript
+describe('UsersController', () => {
+  let controller: UsersController;
+  let mockService: jest.Mocked<UsersService>;
+
+  beforeEach(async () => {
+    mockService = {
+      findAll: jest.fn(),
+      findOneOrFail: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      remove: jest.fn(),
+    } as any;
+
+    const module = await Test.createTestingModule({
+      controllers: [UsersController],
+      providers: [{ provide: UsersService, useValue: mockService }],
+    }).compile();
+
+    controller = module.get(UsersController);
+  });
+
+  describe('findOne', () => {
+    it('should delegate to service with correct id', async () => {
+      const expected = { id: '1', name: 'Alice' } as UserResponseDto;
+      mockService.findOneOrFail.mockResolvedValue(expected);
+
+      const result = await controller.findOne('1');
+
+      expect(result).toBe(expected);
+      expect(mockService.findOneOrFail).toHaveBeenCalledWith('1');
+    });
+
+    it('should propagate NotFoundException from service', async () => {
+      mockService.findOneOrFail.mockRejectedValue(new NotFoundException());
+
+      await expect(controller.findOne('999')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('create', () => {
+    it('should delegate to service and return created user', async () => {
+      const dto: CreateUserDto = { name: 'Bob', email: 'bob@test.com' };
+      const expected = { id: '2', ...dto } as UserResponseDto;
+      mockService.create.mockResolvedValue(expected);
+
+      const result = await controller.create(dto);
+
+      expect(result).toBe(expected);
+      expect(mockService.create).toHaveBeenCalledWith(dto);
+    });
+  });
+});
+\\\`\\\`\\\`
+
+## Testing Guards — JwtAuthGuard and RolesGuard
+
+### Testing JwtAuthGuard with @Public() support
+\\\`\\\`\\\`typescript
+describe('JwtAuthGuard', () => {
+  let guard: JwtAuthGuard;
+  let reflector: Reflector;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [JwtAuthGuard, Reflector],
+    }).compile();
+
+    guard = module.get(JwtAuthGuard);
+    reflector = module.get(Reflector);
+  });
+
+  function createMockContext(handler?: Function): ExecutionContext {
+    return {
+      getHandler: () => handler || (() => {}),
+      getClass: () => ({}),
+      switchToHttp: () => ({
+        getRequest: () => ({ user: { id: '1', roles: ['user'] } }),
+      }),
+    } as unknown as ExecutionContext;
+  }
+
+  it('should allow access when route is marked @Public()', () => {
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(true);
+    const ctx = createMockContext();
+
+    expect(guard.canActivate(ctx)).toBe(true);
+  });
+});
+\\\`\\\`\\\`
+
+### Testing RolesGuard
+\\\`\\\`\\\`typescript
+describe('RolesGuard', () => {
+  let guard: RolesGuard;
+  let reflector: Reflector;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [RolesGuard, Reflector],
+    }).compile();
+
+    guard = module.get(RolesGuard);
+    reflector = module.get(Reflector);
+  });
+
+  function createMockContext(user: { roles: string[] }): ExecutionContext {
+    return {
+      getHandler: () => () => {},
+      getClass: () => ({}),
+      switchToHttp: () => ({
+        getRequest: () => ({ user }),
+      }),
+    } as unknown as ExecutionContext;
+  }
+
+  it('should allow when no roles required', () => {
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
+    const ctx = createMockContext({ roles: ['user'] });
+
+    expect(guard.canActivate(ctx)).toBe(true);
+  });
+
+  it('should allow when user has required role', () => {
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['admin']);
+    const ctx = createMockContext({ roles: ['admin', 'user'] });
+
+    expect(guard.canActivate(ctx)).toBe(true);
+  });
+
+  it('should deny when user lacks required role', () => {
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['admin']);
+    const ctx = createMockContext({ roles: ['user'] });
+
+    expect(guard.canActivate(ctx)).toBe(false);
+  });
+});
+\\\`\\\`\\\`
+
+## Testing Pipes — Custom Validation and Transformation
+\\\`\\\`\\\`typescript
+describe('ParseOrderStatusPipe', () => {
+  let pipe: ParseOrderStatusPipe;
+
+  beforeEach(() => {
+    pipe = new ParseOrderStatusPipe();
+  });
+
+  it('should accept valid status values', () => {
+    expect(pipe.transform('pending')).toBe('pending');
+    expect(pipe.transform('shipped')).toBe('shipped');
+    expect(pipe.transform('delivered')).toBe('delivered');
+  });
+
+  it('should throw BadRequestException for invalid status', () => {
+    expect(() => pipe.transform('invalid')).toThrow(BadRequestException);
+    expect(() => pipe.transform('')).toThrow(BadRequestException);
+  });
+
+  it('should normalize case', () => {
+    expect(pipe.transform('PENDING')).toBe('pending');
+    expect(pipe.transform('Shipped')).toBe('shipped');
+  });
+});
+\\\`\\\`\\\`
+
+## Testing Interceptors with Mock CallHandler
+\\\`\\\`\\\`typescript
+describe('LoggingInterceptor', () => {
+  let interceptor: LoggingInterceptor;
+
+  beforeEach(() => {
+    interceptor = new LoggingInterceptor();
+  });
+
+  it('should log request timing', (done) => {
+    const mockContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({ method: 'GET', url: '/users' }),
+      }),
+      getClass: () => ({ name: 'UsersController' }),
+      getHandler: () => ({ name: 'findAll' }),
+    } as unknown as ExecutionContext;
+
+    const mockCallHandler: CallHandler = {
+      handle: () => of({ data: 'test' }),
+    };
+
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+    interceptor.intercept(mockContext, mockCallHandler).subscribe({
+      next: (value) => {
+        expect(value).toEqual({ data: 'test' });
+      },
+      complete: () => {
+        expect(consoleSpy).toHaveBeenCalled();
+        consoleSpy.mockRestore();
+        done();
+      },
+    });
+  });
+});
+\\\`\\\`\\\`
+
+## E2E Testing with supertest and INestApplication
+\\\`\\\`\\\`typescript
+describe('UsersController (e2e)', () => {
+  let app: INestApplication;
+  let mockUsersService: Partial<UsersService>;
+
+  beforeAll(async () => {
+    mockUsersService = {
+      findAll: jest.fn().mockResolvedValue([
+        { id: '1', name: 'Alice', email: 'alice@test.com' },
+      ]),
+      findOneOrFail: jest.fn().mockImplementation(async (id: string) => {
+        if (id === '1') return { id: '1', name: 'Alice', email: 'alice@test.com' };
+        throw new NotFoundException();
+      }),
+      create: jest.fn().mockImplementation(async (dto) => ({
+        id: '2', ...dto,
+      })),
+    };
+
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    })
+      .overrideProvider(UsersService)
+      .useValue(mockUsersService)
+      .compile();
+
+    app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
+    );
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  describe('GET /users', () => {
+    it('should return list of users', () => {
+      return request(app.getHttpServer())
+        .get('/users')
+        .expect(200)
+        .expect((res) => {
+          expect(res.body).toHaveLength(1);
+          expect(res.body[0].name).toBe('Alice');
+        });
+    });
+  });
+
+  describe('GET /users/:id', () => {
+    it('should return user by id', () => {
+      return request(app.getHttpServer())
+        .get('/users/1')
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.id).toBe('1');
+        });
+    });
+
+    it('should return 404 for non-existent user', () => {
+      return request(app.getHttpServer())
+        .get('/users/999')
+        .expect(404);
+    });
+  });
+
+  describe('POST /users', () => {
+    it('should create a user with valid data', () => {
+      return request(app.getHttpServer())
+        .post('/users')
+        .send({ name: 'Bob', email: 'bob@test.com' })
+        .expect(201)
+        .expect((res) => {
+          expect(res.body.id).toBe('2');
+          expect(res.body.name).toBe('Bob');
+        });
+    });
+
+    it('should reject request with missing required fields', () => {
+      return request(app.getHttpServer())
+        .post('/users')
+        .send({ name: 'Bob' }) // missing email
+        .expect(400);
+    });
+
+    it('should reject request with unknown fields', () => {
+      return request(app.getHttpServer())
+        .post('/users')
+        .send({ name: 'Bob', email: 'bob@test.com', isAdmin: true })
+        .expect(400); // forbidNonWhitelisted rejects unknown properties
+    });
+  });
+});
+\\\`\\\`\\\`
+
+## Overriding Providers for Test Doubles
+\\\`\\\`\\\`typescript
+// Override a single provider
+const module = await Test.createTestingModule({
+  imports: [UsersModule],
+})
+  .overrideProvider(UsersRepository)
+  .useValue(mockRepository)
+  .compile();
+
+// Override a guard globally
+const module = await Test.createTestingModule({
+  imports: [AppModule],
+})
+  .overrideGuard(JwtAuthGuard)
+  .useValue({ canActivate: () => true })
+  .compile();
+
+// Override an interceptor
+const module = await Test.createTestingModule({
+  imports: [AppModule],
+})
+  .overrideInterceptor(LoggingInterceptor)
+  .useValue({ intercept: (_, next) => next.handle() })
+  .compile();
+\\\`\\\`\\\`
+
+## Testing Async Operations and Error Cases
+\\\`\\\`\\\`typescript
+describe('OrdersService — async and errors', () => {
+  it('should handle concurrent order creation', async () => {
+    mockRepo.save.mockResolvedValueOnce(order1).mockResolvedValueOnce(order2);
+
+    const [result1, result2] = await Promise.all([
+      service.create(dto1),
+      service.create(dto2),
+    ]);
+
+    expect(result1.id).not.toBe(result2.id);
+    expect(mockRepo.save).toHaveBeenCalledTimes(2);
+  });
+
+  it('should wrap database errors in domain exceptions', async () => {
+    mockRepo.save.mockRejectedValue(new Error('Connection refused'));
+
+    await expect(service.create(dto)).rejects.toThrow(InternalServerErrorException);
+  });
+
+  it('should handle timeout scenarios', async () => {
+    mockRepo.findOne.mockImplementation(
+      () => new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout')), 100),
+      ),
+    );
+
+    await expect(service.findOneOrFail('1')).rejects.toThrow();
+  });
+});
+\\\`\\\`\\\`
+
+## Database Testing Patterns
+
+### In-Memory Database
+\\\`\\\`\\\`typescript
+// Use SQLite in-memory for fast integration tests
+const module = await Test.createTestingModule({
+  imports: [
+    TypeOrmModule.forRoot({
+      type: 'sqlite',
+      database: ':memory:',
+      entities: [User, Order],
+      synchronize: true, // OK for in-memory test DB
+    }),
+    TypeOrmModule.forFeature([User, Order]),
+  ],
+  providers: [UsersService],
+}).compile();
+\\\`\\\`\\\`
+
+### Transaction Rollback Pattern
+\\\`\\\`\\\`typescript
+// Wrap each test in a transaction that rolls back
+describe('UsersService (integration)', () => {
+  let service: UsersService;
+  let dataSource: DataSource;
+  let queryRunner: QueryRunner;
+
+  beforeEach(async () => {
+    queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+  });
+
+  afterEach(async () => {
+    await queryRunner.rollbackTransaction();
+    await queryRunner.release();
+  });
+
+  it('should persist user to database', async () => {
+    const user = await service.create({ name: 'Test', email: 'test@test.com' });
+    const found = await service.findOneOrFail(user.id);
+    expect(found.name).toBe('Test');
+  });
+});
+\\\`\\\`\\\`
+
+## Common Anti-Patterns
+
+### Anti-Pattern: Testing implementation details
+\\\`\\\`\\\`typescript
+// WRONG: testing internal method calls instead of behavior
+it('should call hashPassword', async () => {
+  const spy = jest.spyOn(service as any, 'hashPassword');
+  await service.create(dto);
+  expect(spy).toHaveBeenCalled(); // brittle — breaks if you refactor internals
+});
+
+// CORRECT: test the observable behavior
+it('should not store plain-text password', async () => {
+  const result = await service.create({ ...dto, password: 'secret123' });
+  const stored = await repo.findOne({ where: { id: result.id } });
+  expect(stored.password).not.toBe('secret123');
+});
+\\\`\\\`\\\`
+
+### Anti-Pattern: Not mocking dependencies
+\\\`\\\`\\\`typescript
+// WRONG: real dependencies make tests slow, flaky, and coupled
+const module = await Test.createTestingModule({
+  imports: [UsersModule, DatabaseModule, MailModule], // real DB, real mail
+}).compile();
+
+// CORRECT: mock external dependencies
+const module = await Test.createTestingModule({
+  providers: [
+    UsersService,
+    { provide: getRepositoryToken(User), useValue: mockRepo },
+    { provide: MailService, useValue: { send: jest.fn() } },
+  ],
+}).compile();
+\\\`\\\`\\\`
+
+### Anti-Pattern: Missing global pipe configuration in e2e
+\\\`\\\`\\\`typescript
+// WRONG: e2e tests without production-like configuration
+const app = moduleFixture.createNestApplication();
+await app.init(); // no global pipes — validation is skipped!
+
+// CORRECT: replicate production setup
+const app = moduleFixture.createNestApplication();
+app.useGlobalPipes(
+  new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
+);
+app.useGlobalFilters(new AllExceptionsFilter());
+await app.init();
+\\\`\\\`\\\`
+`,
+      },
+      {
         name: 'nestjs-module-generator',
         description: 'Generate complete NestJS feature modules with controller, service, DTOs, entity, and tests',
         context: 'fork',
@@ -534,7 +1483,7 @@ Generate a complete authentication setup with:
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.controller\\.ts$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -553,7 +1502,7 @@ if (/@Body\\(\\)\\s+\\w+:\\s*any\\b/.test(c)) {
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.service\\.ts$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -569,7 +1518,7 @@ if (/@Req\\(\\)|@Res\\(\\)|Request|Response/.test(c) && /@Injectable/.test(c)) {
         matcher: 'Write',
         hooks: [{
           type: 'command' as const,
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.dto\\.ts$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');

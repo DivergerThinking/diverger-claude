@@ -483,7 +483,7 @@ where
             type: 'command',
             statusMessage: 'Checking for colon path parameters in Axum routes',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "\\broute\\s*\\(\\s*\"[^\"]*:[^\"]*\"" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: colon path parameters detected — Axum 0.8+ requires brace syntax: /{param} not /:param" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "\\broute\\s*\\(\\s*\"[^\"]*:[^\"]*\"" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: colon path parameters detected — Axum 0.8+ requires brace syntax: /{param} not /:param" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -496,7 +496,7 @@ where
             type: 'command',
             statusMessage: 'Checking for CorsLayer::permissive() in Axum code',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "CorsLayer\\s*::\\s*permissive\\s*\\(\\)" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: CorsLayer::permissive() detected — use specific allowed origins in production" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "CorsLayer\\s*::\\s*permissive\\s*\\(\\)" "$FILE_PATH" | head -3 | grep -q "." && { echo "Warning: CorsLayer::permissive() detected — use specific allowed origins in production" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],
@@ -509,7 +509,7 @@ where
             type: 'command',
             statusMessage: 'Checking for Extension<T> usage in Axum code',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "Extension\\s*<" "$FILE_PATH" | grep -v "extensions_mut" | head -3 | grep -q "." && { echo "Warning: Extension<T> detected — prefer State<T> with Router::with_state() for compile-time safety" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.rs$" && grep -nE "Extension\\s*<" "$FILE_PATH" | grep -v "extensions_mut" | head -3 | grep -q "." && { echo "Warning: Extension<T> detected — prefer State<T> with Router::with_state() for compile-time safety" >&2; exit 2; } || exit 0',
             timeout: 10,
           },
         ],

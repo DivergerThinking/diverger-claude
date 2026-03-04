@@ -131,6 +131,9 @@ async function askKnowledgePermissions(
   const permissions = new Map<string, boolean>();
   if (options.force || options.output !== 'rich') return permissions;
 
+  // C1: Skip knowledge prompts when API key is not available — profiles already include embedded best practices
+  if (!process.env.ANTHROPIC_API_KEY) return permissions;
+
   const eligibleTechs = engine.getKnowledgeTechs(confirmed);
   if (eligibleTechs.length === 0) return permissions;
 

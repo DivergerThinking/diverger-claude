@@ -134,8 +134,13 @@ describe('DivergerEngine', () => {
   let mockFetchBestPractices: ReturnType<typeof vi.fn>;
   let mockLoadMeta: ReturnType<typeof vi.fn>;
 
+  // C1: Knowledge tests need ANTHROPIC_API_KEY set to pass the early guard
+  const originalApiKey = process.env.ANTHROPIC_API_KEY;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // Set a dummy API key so knowledge tests reach the permission/fetch logic
+    process.env.ANTHROPIC_API_KEY = 'test-key-for-engine-tests';
 
     engine = new DivergerEngine();
 
@@ -154,6 +159,15 @@ describe('DivergerEngine', () => {
     mockInitCache = knowledgeInstance.initCache;
     mockFetchBestPractices = knowledgeInstance.fetchBestPractices;
     mockLoadMeta = vi.mocked(loadMeta);
+  });
+
+  afterAll(() => {
+    // Restore original ANTHROPIC_API_KEY
+    if (originalApiKey === undefined) {
+      delete process.env.ANTHROPIC_API_KEY;
+    } else {
+      process.env.ANTHROPIC_API_KEY = originalApiKey;
+    }
   });
 
   // ── 1. confirmDetection with force=true ──────────────────────────────
@@ -323,6 +337,48 @@ describe('DivergerEngine', () => {
 
       const composeArg = mockCompose.mock.calls[0]![0] as DetectionResult;
       expect(composeArg.technologies).toHaveLength(1);
+    });
+  });
+
+  // ── C1. fetchKnowledge skips when ANTHROPIC_API_KEY is missing ───────
+
+  describe('fetchKnowledge without ANTHROPIC_API_KEY', () => {
+    it('should skip knowledge fetch entirely and log progress when API key is absent', async () => {
+      // Temporarily remove the API key
+      const savedKey = process.env.ANTHROPIC_API_KEY;
+      delete process.env.ANTHROPIC_API_KEY;
+
+      try {
+        const tech = makeTech({ id: 'react', name: 'React', confidence: 95, category: 'framework' });
+        const detection = makeDetection([tech]);
+        const composed = makeComposedConfig();
+        const genResult = makeGenerationResult(detection, composed);
+
+        mockCompose.mockReturnValue(composed);
+        mockGenerate.mockResolvedValue(genResult);
+
+        const onKnowledgePermission = vi.fn().mockResolvedValue(true);
+        const onProgress = vi.fn();
+        const ctx = makeCtx({ onKnowledgePermission, onProgress });
+
+        const result = await engine.initWithDetection(detection, ctx);
+
+        // Knowledge should be skipped entirely — no permissions asked, no cache, no fetch
+        expect(onKnowledgePermission).not.toHaveBeenCalled();
+        expect(mockInitCache).not.toHaveBeenCalled();
+        expect(mockFetchBestPractices).not.toHaveBeenCalled();
+
+        // Progress message should indicate the skip
+        expect(onProgress).toHaveBeenCalledWith(
+          expect.stringContaining('Knowledge API: omitida'),
+        );
+
+        // Pipeline should still complete successfully
+        expect(result).toBe(genResult);
+      } finally {
+        // Restore the key
+        process.env.ANTHROPIC_API_KEY = savedKey;
+      }
     });
   });
 

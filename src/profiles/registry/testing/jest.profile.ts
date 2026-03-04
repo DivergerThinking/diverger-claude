@@ -21,7 +21,7 @@ function buildJestHookScripts(): HookScriptDefinition[] {
       content: `#!/bin/bash
 # Warn on jest.mock() inside test blocks (not hoisted correctly)
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+FILE_PATH=$(echo "$INPUT" | node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}")
 if [ -z "$FILE_PATH" ]; then exit 0; fi
 echo "$FILE_PATH" | grep -qE '\\.(test|spec)\\.(ts|tsx|js|jsx)$' || exit 0
 grep -nE "jest\\.mock\\(" "$FILE_PATH" 2>/dev/null | while read line; do

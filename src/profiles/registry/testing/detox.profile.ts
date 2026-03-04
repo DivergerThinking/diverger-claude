@@ -306,7 +306,7 @@ it('should open product detail via deep link', async () => {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "e2e/.*\\.(test|spec)\\.(ts|js)$" && grep -cE "\\b(test\\.only|describe\\.only|fit|fdescribe)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test detected (.only) in Detox E2E test — remove before committing to avoid skipping other E2E tests" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "e2e/.*\\.(test|spec)\\.(ts|js)$" && grep -cE "\\b(test\\.only|describe\\.only|fit|fdescribe)\\b" "$FILE_PATH" | grep -v "^0$" > /dev/null 2>&1 && { echo "Focused test detected (.only) in Detox E2E test — remove before committing to avoid skipping other E2E tests" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for .only in Detox E2E tests',
           },
@@ -319,7 +319,7 @@ it('should open product detail via deep link', async () => {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "e2e/.*\\.(test|spec)\\.(ts|js)$" && grep -nE "waitFor\\(" "$FILE_PATH" | while read line; do linenum=$(echo "$line" | cut -d: -f1); context=$(sed -n "${linenum},$((linenum+3))p" "$FILE_PATH"); echo "$context" | grep -q "withTimeout" || { echo "Warning: waitFor() without .withTimeout() at line $linenum — without a timeout, waitFor does nothing in Detox" >&2; exit 2; }; done 2>/dev/null || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "e2e/.*\\.(test|spec)\\.(ts|js)$" && grep -nE "waitFor\\(" "$FILE_PATH" | while read line; do linenum=$(echo "$line" | cut -d: -f1); context=$(sed -n "${linenum},$((linenum+3))p" "$FILE_PATH"); echo "$context" | grep -q "withTimeout" || { echo "Warning: waitFor() without .withTimeout() at line $linenum — without a timeout, waitFor does nothing in Detox" >&2; exit 2; }; done 2>/dev/null || exit 0',
             timeout: 10,
             statusMessage: 'Checking for waitFor() without .withTimeout() in Detox tests',
           },

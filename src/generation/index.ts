@@ -65,7 +65,7 @@ export class GenerationEngine {
 
     // 2. CLAUDE.md
     onProgress?.('Generando CLAUDE.md...');
-    files.push(generateClaudeMd(mergedConfig, projectRoot));
+    files.push(generateClaudeMd(mergedConfig, projectRoot, detection));
 
     // 3. settings.json (now includes hooks and security overlay)
     onProgress?.('Generando settings.json...');

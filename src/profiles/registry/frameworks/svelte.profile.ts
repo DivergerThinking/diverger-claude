@@ -349,7 +349,7 @@ Generate a complete SvelteKit route with:
           {
             type: 'command' as const,
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.svelte\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/export\\s+let\\s/.test(c))issues.push(\'export let detected — use $props() in Svelte 5\');if(/\\$:\\s/.test(c)&&!/\\$:\\/\\//.test(c))issues.push(\'$: reactive label detected — use $derived or $effect in Svelte 5\');if(/on:click|on:input|on:change|on:submit/.test(c))issues.push(\'on: event directive detected — use onclick/oninput in Svelte 5\');if(/<slot/.test(c)&&!/<slot\\s/.test(c)||/<slot\\s/.test(c))issues.push(\'<slot> detected — use {#snippet} and {@render} in Svelte 5\');if(issues.length)console.log(\'Warning: \'+issues.join(\'; \'))" -- "$FILE_PATH"',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.svelte\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const issues=[];if(/export\\s+let\\s/.test(c))issues.push(\'export let detected — use $props() in Svelte 5\');if(/\\$:\\s/.test(c)&&!/\\$:\\/\\//.test(c))issues.push(\'$: reactive label detected — use $derived or $effect in Svelte 5\');if(/on:click|on:input|on:change|on:submit/.test(c))issues.push(\'on: event directive detected — use onclick/oninput in Svelte 5\');if(/<slot/.test(c)&&!/<slot\\s/.test(c)||/<slot\\s/.test(c))issues.push(\'<slot> detected — use {#snippet} and {@render} in Svelte 5\');if(issues.length)console.log(\'Warning: \'+issues.join(\'; \'))" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -361,7 +361,7 @@ Generate a complete SvelteKit route with:
           {
             type: 'command' as const,
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\+page\\.server\\.(ts|js)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/actions/.test(c)&&!/fail\\(/.test(c))console.log(\'Warning: form actions without fail() — add validation error handling with fail() from @sveltejs/kit\')" -- "$FILE_PATH"',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!/\\+page\\.server\\.(ts|js)$/.test(f))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/actions/.test(c)&&!/fail\\(/.test(c))console.log(\'Warning: form actions without fail() — add validation error handling with fail() from @sveltejs/kit\')" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -373,7 +373,7 @@ Generate a complete SvelteKit route with:
           {
             type: 'command' as const,
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.svelte\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/\\$effect\\s*\\(/.test(c)){const lines=c.split(\'\\n\');let hasCleanup=false;let inEffect=false;let depth=0;for(const l of lines){if(/\\$effect\\s*\\(/.test(l)){inEffect=true;depth=0;}if(inEffect){depth+=(l.match(/\\{/g)||[]).length-(l.match(/\\}/g)||[]).length;if(/return\\s*\\(\\)\\s*=>/.test(l)||/return\\s*\\(\\)\\s*\\{/.test(l)||/return\\s+function/.test(l))hasCleanup=true;if(depth<=0&&inEffect){inEffect=false;}}}if(!hasCleanup&&/fetch|addEventListener|subscribe|setInterval|setTimeout/.test(c))console.log(\'Warning: $effect with async/subscription pattern but no cleanup return detected — add return () => cleanup()\')}" -- "$FILE_PATH"',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.svelte\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/\\$effect\\s*\\(/.test(c)){const lines=c.split(\'\\n\');let hasCleanup=false;let inEffect=false;let depth=0;for(const l of lines){if(/\\$effect\\s*\\(/.test(l)){inEffect=true;depth=0;}if(inEffect){depth+=(l.match(/\\{/g)||[]).length-(l.match(/\\}/g)||[]).length;if(/return\\s*\\(\\)\\s*=>/.test(l)||/return\\s*\\(\\)\\s*\\{/.test(l)||/return\\s+function/.test(l))hasCleanup=true;if(depth<=0&&inEffect){inEffect=false;}}}if(!hasCleanup&&/fetch|addEventListener|subscribe|setInterval|setTimeout/.test(c))console.log(\'Warning: $effect with async/subscription pattern but no cleanup return detected — add return () => cleanup()\')}" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

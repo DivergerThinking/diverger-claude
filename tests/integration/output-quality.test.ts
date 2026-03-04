@@ -238,14 +238,16 @@ describe('v0.5.0 Output Quality', () => {
 
   // ── Hook Script Content Protocol ──────────────────────────────────────────
 
-  it('should use stdin JSON protocol in hook scripts (jq extraction)', () => {
+  it('should use stdin JSON protocol in hook scripts (node extraction)', () => {
     const hookScripts = files.filter(
       (f) => f.path.includes(path.join('.claude', 'hooks')) && f.path.endsWith('.sh'),
     );
 
     for (const script of hookScripts) {
-      // All scripts should read from stdin using jq
-      expect(script.content).toContain('jq');
+      // All scripts should read from stdin using node (cross-platform, no jq dependency)
+      expect(script.content).toContain('node -e');
+      // Should NOT use jq (not available on Windows by default)
+      expect(script.content).not.toMatch(/\bjq\s+-r\b/);
     }
   });
 
@@ -261,7 +263,7 @@ describe('v0.5.0 Output Quality', () => {
 
     for (const script of preToolUseScripts) {
       expect(script.content).toContain('hookSpecificOutput');
-      expect(script.content).toContain('"deny"');
+      expect(script.content).toContain('deny');
       // Should NOT use old format
       expect(script.content).not.toContain('"decision":"block"');
     }
@@ -303,3 +305,252 @@ describe('v0.5.0 Output Quality', () => {
     expect(lineCount).toBeLessThanOrEqual(100);
   });
 }, 60_000);
+
+// ── v3.0 Multi-stack scenarios ──────────────────────────────────────────────
+
+describe('v3.0 Python + FastAPI output', () => {
+  const engine = new DivergerEngine();
+  let pyDir: string;
+  let pyFiles: GeneratedFile[];
+
+  beforeAll(async () => {
+    pyDir = await fs.mkdtemp(path.join(os.tmpdir(), 'diverger-py-'));
+
+    // Python + FastAPI project
+    await fs.writeFile(
+      path.join(pyDir, 'requirements.txt'),
+      'fastapi==0.109.0\nuvicorn==0.27.0\npydantic==2.5.0\n',
+    );
+    await fs.writeFile(
+      path.join(pyDir, 'pyproject.toml'),
+      '[project]\nname = "myapp"\nrequires-python = ">=3.11"\n',
+    );
+
+    const ctx = makeCtx(pyDir);
+    const result = await engine.init(ctx);
+    pyFiles = result.files;
+    await engine.writeFiles(pyFiles, pyDir, { force: true });
+  }, 30_000);
+
+  afterAll(async () => {
+    try {
+      await fs.rm(pyDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  it('should detect Python and FastAPI', async () => {
+    const claudeMd = await fs.readFile(path.join(pyDir, 'CLAUDE.md'), 'utf-8');
+    expect(claudeMd).toContain('Python');
+    expect(claudeMd).toContain('FastAPI');
+  });
+
+  it('should generate reference guide skills for FastAPI', () => {
+    const guideSkills = pyFiles.filter(
+      (f) => f.path.includes('-guide') && f.path.includes('skills'),
+    );
+    const names = guideSkills.map((f) => path.basename(path.dirname(f.path)));
+    expect(names).toContain('fastapi-di-guide');
+    expect(names).toContain('fastapi-testing-guide');
+    expect(names).toContain('python-typing-guide');
+    expect(names).toContain('python-async-guide');
+  });
+
+  it('should generate security rules for Python + FastAPI', () => {
+    const ruleFiles = pyFiles.filter((f) => f.path.includes('rules'));
+    const ruleNames = ruleFiles.map((f) => path.basename(f.path, '.md'));
+    const hasSecurityRule = ruleNames.some((n) => n.includes('security'));
+    expect(hasSecurityRule).toBe(true);
+  });
+}, 60_000);
+
+describe('v3.0 Go project output', () => {
+  const engine = new DivergerEngine();
+  let goDir: string;
+  let goFiles: GeneratedFile[];
+
+  beforeAll(async () => {
+    goDir = await fs.mkdtemp(path.join(os.tmpdir(), 'diverger-go-'));
+
+    // Go project
+    await fs.writeFile(
+      path.join(goDir, 'go.mod'),
+      'module github.com/example/myapp\n\ngo 1.22\n',
+    );
+    await fs.writeFile(path.join(goDir, 'main.go'), 'package main\n\nfunc main() {}\n');
+
+    const ctx = makeCtx(goDir);
+    const result = await engine.init(ctx);
+    goFiles = result.files;
+    await engine.writeFiles(goFiles, goDir, { force: true });
+  }, 30_000);
+
+  afterAll(async () => {
+    try {
+      await fs.rm(goDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  it('should detect Go', async () => {
+    const claudeMd = await fs.readFile(path.join(goDir, 'CLAUDE.md'), 'utf-8');
+    expect(claudeMd).toContain('Go');
+  });
+
+  it('should generate Go reference guide skills', () => {
+    const guideSkills = goFiles.filter(
+      (f) => f.path.includes('-guide') && f.path.includes('skills'),
+    );
+    const names = guideSkills.map((f) => path.basename(path.dirname(f.path)));
+    expect(names).toContain('go-concurrency-guide');
+    expect(names).toContain('go-error-handling-guide');
+  });
+
+  it('should generate Go-specific rules', () => {
+    const ruleFiles = goFiles.filter((f) => f.path.includes('rules'));
+    expect(ruleFiles.length).toBeGreaterThanOrEqual(3);
+  });
+}, 60_000);
+
+describe('v3.0 Java + Spring Boot output', () => {
+  const engine = new DivergerEngine();
+  let javaDir: string;
+  let javaFiles: GeneratedFile[];
+
+  beforeAll(async () => {
+    javaDir = await fs.mkdtemp(path.join(os.tmpdir(), 'diverger-java-'));
+
+    // Java + Spring Boot project
+    await fs.writeFile(
+      path.join(javaDir, 'pom.xml'),
+      `<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>demo</artifactId>
+  <version>1.0.0</version>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.0</version>
+  </parent>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+  </dependencies>
+</project>`,
+    );
+
+    const ctx = makeCtx(javaDir);
+    const result = await engine.init(ctx);
+    javaFiles = result.files;
+    await engine.writeFiles(javaFiles, javaDir, { force: true });
+  }, 30_000);
+
+  afterAll(async () => {
+    try {
+      await fs.rm(javaDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  it('should detect Java and Spring Boot', async () => {
+    const claudeMd = await fs.readFile(path.join(javaDir, 'CLAUDE.md'), 'utf-8');
+    expect(claudeMd).toContain('Java');
+    expect(claudeMd).toContain('Spring Boot');
+  });
+
+  it('should generate Spring Boot reference guide skills', () => {
+    const guideSkills = javaFiles.filter(
+      (f) => f.path.includes('-guide') && f.path.includes('skills'),
+    );
+    const names = guideSkills.map((f) => path.basename(path.dirname(f.path)));
+    expect(names).toContain('spring-di-guide');
+    expect(names).toContain('spring-testing-guide');
+    expect(names).toContain('java-patterns-guide');
+    expect(names).toContain('java-concurrency-guide');
+  });
+
+  it('should generate security rules for Java + Spring Boot', () => {
+    const ruleFiles = javaFiles.filter((f) => f.path.includes('rules'));
+    const ruleNames = ruleFiles.map((f) => path.basename(f.path, '.md'));
+    const hasSecurityRule = ruleNames.some((n) => n.includes('security'));
+    expect(hasSecurityRule).toBe(true);
+  });
+}, 60_000);
+
+// ── D.4 — Doctor Skill structure test ──────────────────────────────────────
+
+describe('diverger-doctor skill structure', () => {
+  it('should exist in plugin/skills/', async () => {
+    const skillPath = path.join(
+      path.resolve(__dirname, '../../plugin'),
+      'skills',
+      'diverger-doctor',
+      'SKILL.md',
+    );
+    await expect(fs.access(skillPath).then(() => true).catch(() => false)).resolves.toBe(true);
+  });
+
+  it('should have correct frontmatter fields', async () => {
+    const skillPath = path.join(
+      path.resolve(__dirname, '../../plugin'),
+      'skills',
+      'diverger-doctor',
+      'SKILL.md',
+    );
+    const content = await fs.readFile(skillPath, 'utf-8');
+
+    expect(content).toContain('name: diverger-doctor');
+    expect(content).toContain('user-invocable: true');
+    // Doctor uses allowedTools (not disableModelInvocation) because it runs MCP tools
+    expect(content).toContain('allowed-tools:');
+  });
+
+  it('should reference expected MCP tools', async () => {
+    const skillPath = path.join(
+      path.resolve(__dirname, '../../plugin'),
+      'skills',
+      'diverger-doctor',
+      'SKILL.md',
+    );
+    const content = await fs.readFile(skillPath, 'utf-8');
+
+    // Doctor should reference these MCP tools for health checks
+    expect(content).toContain('check_config');
+    expect(content).toContain('check_plugin_health');
+  });
+
+  it('should define weighted scoring categories', async () => {
+    const skillPath = path.join(
+      path.resolve(__dirname, '../../plugin'),
+      'skills',
+      'diverger-doctor',
+      'SKILL.md',
+    );
+    const content = await fs.readFile(skillPath, 'utf-8');
+
+    // Should contain scoring categories
+    expect(content).toMatch(/config.*health|health.*config/i);
+    expect(content).toMatch(/security/i);
+    expect(content).toMatch(/test.*coverage|coverage/i);
+    expect(content).toMatch(/score|0-100|semáforo/i);
+  });
+
+  it('should have substantial content (>50 lines)', async () => {
+    const skillPath = path.join(
+      path.resolve(__dirname, '../../plugin'),
+      'skills',
+      'diverger-doctor',
+      'SKILL.md',
+    );
+    const content = await fs.readFile(skillPath, 'utf-8');
+    const lineCount = content.split('\n').length;
+    expect(lineCount).toBeGreaterThan(50);
+  });
+});

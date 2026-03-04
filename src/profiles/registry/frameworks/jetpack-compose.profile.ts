@@ -452,7 +452,7 @@ private fun UserCardPreview(@PreviewParameter(UserPreviewProvider::class) user: 
         hooks: [
           {
             type: 'command',
-            command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/@Composable/.test(lines[i])&&/fun\\s+[A-Z]/.test(lines[i+1]||\'\')){let j=i+1;let braceCount=0;let started=false;let hasModifier=false;for(;j<lines.length;j++){if(lines[j].includes(\'{\'))braceCount++;if(lines[j].includes(\'}\'))braceCount--;if(braceCount>0)started=true;if(started&&braceCount===0)break;if(/modifier\\s*:\\s*Modifier/.test(lines[j]))hasModifier=true}if(!hasModifier&&(j-i)>5)console.log(\'WARNING: Composable at line \'+(i+2)+\' emits UI but has no Modifier parameter — add modifier: Modifier = Modifier as the first optional parameter\')}}" -- "$FILE_PATH"',
+            command: 'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/@Composable/.test(lines[i])&&/fun\\s+[A-Z]/.test(lines[i+1]||\'\')){let j=i+1;let braceCount=0;let started=false;let hasModifier=false;for(;j<lines.length;j++){if(lines[j].includes(\'{\'))braceCount++;if(lines[j].includes(\'}\'))braceCount--;if(braceCount>0)started=true;if(started&&braceCount===0)break;if(/modifier\\s*:\\s*Modifier/.test(lines[j]))hasModifier=true}if(!hasModifier&&(j-i)>5)console.log(\'WARNING: Composable at line \'+(i+2)+\' emits UI but has no Modifier parameter — add modifier: Modifier = Modifier as the first optional parameter\')}}" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -463,7 +463,7 @@ private fun UserCardPreview(@PreviewParameter(UserPreviewProvider::class) user: 
         hooks: [
           {
             type: 'command',
-            command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@Composable/.test(c)){const m=c.match(/\\.collectAsState\\s*\\(/g);if(m&&m.length>0&&!c.includes(\'collectAsStateWithLifecycle\'))console.log(\'WARNING: Found collectAsState() — prefer collectAsStateWithLifecycle() for lifecycle-aware state collection in UI\')}" -- "$FILE_PATH"',
+            command: 'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@Composable/.test(c)){const m=c.match(/\\.collectAsState\\s*\\(/g);if(m&&m.length>0&&!c.includes(\'collectAsStateWithLifecycle\'))console.log(\'WARNING: Found collectAsState() — prefer collectAsStateWithLifecycle() for lifecycle-aware state collection in UI\')}" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],
@@ -474,7 +474,7 @@ private fun UserCardPreview(@PreviewParameter(UserPreviewProvider::class) user: 
         hooks: [
           {
             type: 'command',
-            command: 'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@Composable/.test(c)){const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/rememberCoroutineScope/.test(lines[i])){for(let j=i+1;j<Math.min(i+5,lines.length);j++){if(/\\.launch\\s*\\{/.test(lines[j])&&!/onClick|onPress|on[A-Z]/.test(lines[j-1]||\'\')){console.log(\'WARNING: coroutine launched at line \'+(j+1)+\' may run on every recomposition — use LaunchedEffect for composition-scoped coroutines or ensure launch is inside a callback\');break}}}}}" -- "$FILE_PATH"',
+            command: 'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.kt\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/@Composable/.test(c)){const lines=c.split(\'\\n\');for(let i=0;i<lines.length;i++){if(/rememberCoroutineScope/.test(lines[i])){for(let j=i+1;j<Math.min(i+5,lines.length);j++){if(/\\.launch\\s*\\{/.test(lines[j])&&!/onClick|onPress|on[A-Z]/.test(lines[j-1]||\'\')){console.log(\'WARNING: coroutine launched at line \'+(j+1)+\' may run on every recomposition — use LaunchedEffect for composition-scoped coroutines or ensure launch is inside a callback\');break}}}}}" -- "$FILE_PATH"',
             timeout: 5,
           },
         ],

@@ -1,12 +1,48 @@
 # Changelog
 
+## [3.0.0] - 2026-03-03
+
+### Añadido — Conocimiento embebido en 15 tecnologías
+- **30+ reference guide skills** estáticos por tecnología — guías de ~100-200 líneas con patrones correctos, anti-patrones y ejemplos de código. No consumen API:
+  - Go: `/go-concurrency-guide`, `/go-error-handling-guide`
+  - Python: `/python-typing-guide`, `/python-async-guide`
+  - Next.js: `/nextjs-caching-guide`, `/nextjs-server-actions-guide`
+  - Django: `/django-orm-guide`, `/django-security-guide`
+  - NestJS: `/nestjs-di-guide`, `/nestjs-testing-guide`
+  - Vue: `/vue-composition-guide`, `/vue-reactivity-guide`
+  - Angular: `/angular-signals-guide`, `/angular-testing-guide`
+  - Express: `/express-middleware-guide`, `/express-security-guide`
+  - FastAPI: `/fastapi-di-guide`, `/fastapi-testing-guide`
+  - Spring Boot: `/spring-di-guide`, `/spring-testing-guide`
+  - Rust: `/rust-ownership-guide`, `/rust-error-handling-guide`
+  - Java: `/java-patterns-guide`, `/java-concurrency-guide`
+  - Docker: `/docker-security-guide`, `/dockerfile-best-practices`
+  - Kubernetes: `/k8s-security-guide`, `/k8s-debugging-guide`
+  - GitHub Actions: `/github-actions-guide`
+- **Skill `/diverger-doctor`**: Score de salud del proyecto 0-100 con 6 categorías ponderadas (Config Health 25%, Plugin Health 15%, Dependencies 15%, Test Coverage 20%, Security 15%, Code Quality 10%) y recomendaciones accionables
+- **Skill `/diverger-quickstart`**: Guía post-init de 5 minutos — 7 pasos para sacar partido a la configuración generada
+- **Reglas de seguridad** para Vue, Angular, Express, FastAPI, Spring Boot, Rust, Java, Docker, Kubernetes, GitHub Actions
+- **Reglas de performance** para Vue
+- **Agent enrichments** para los 15 profiles: code-reviewer, test-writer, security-checker y refactor-assistant adaptan su checklist al stack detectado
+- **PostToolUse hooks** en Express y Spring Boot para detectar errores comunes
+- **Tests de contenido**: 108 tests validando la estructura y calidad de los 15 profiles enriquecidos
+- **Tests de integración**: Escenarios Python+FastAPI, Go, Java+Spring Boot
+
+### Cambiado
+- **Knowledge module ahora 100% opcional**: Sin `ANTHROPIC_API_KEY`, el plugin funciona completamente — los profiles ya contienen todo el conocimiento experto embebido
+- **MCP `generate_config`**: Parámetro `fetchKnowledge` ahora es opt-in (default `false`) en lugar de opt-out
+- **Health check post-instalación**: Tras `diverger plugin install`, se ejecuta automáticamente un diagnóstico del plugin
+- **Cross-platform**: Reemplazado `jq` por `node -e` en todos los hook scripts (60+ archivos) — funciona en Windows sin dependencias adicionales
+- **Skills utilitarios enriquecidos**: `/diverger-init`, `/diverger-status`, `/diverger-sync` ampliados con edge cases, error recovery y sugerencias contextuales
+- 20 skills universales (era 18), 30+ reference skills por tecnología, 1334 tests (era 1070)
+
 ## [2.4.0] - 2026-03-03
 
 ### Añadido
 - **Validación preventiva pre-commit**: Hook `pre-commit-validator.sh` que bloquea `git commit` si el plugin build está desactualizado o hay errores TypeScript
 - **Aprendizaje de CI**: Parser de logs de GitHub Actions y GitLab CI (`src/learning/ci-error-parser.ts`)
 - **MCP `ingest_ci_errors`**: Nueva tool MCP para ingestar errores de CI al sistema de aprendizaje (→ 14 MCP tools total)
-- **Skill `/diverger-ci-learn`**: Skill para analizar fallos de CI recientes y extraer aprendizajes (→ 16 skills total)
+- **Skill `/diverger-ci-learn`**: Skill para analizar fallos de CI recientes y extraer aprendizajes (→ 18 skills total)
 - **Detección de tecnologías desconocidas**: `src/detection/unknown-tech-tracker.ts` identifica frameworks no soportados y abre GitHub Issues automáticamente
 - **Filtros de frameworks**: `src/detection/unknown-tech-filters.ts` distingue frameworks/tools de utilidades comunes (~80 exclusiones)
 - **Health check de consistencia**: `checkConstantsConsistency` valida que UNIVERSAL_* constants coincidan con el contenido real del plugin (→ 9 health checks total)
@@ -19,7 +55,7 @@
 - **Release skill mejorado**: `/diverger-release` incluye paso obligatorio de validación de consistencia (paso 3)
 - **Evolution advisor**: Detecta tecnologías desconocidas y sugiere abrir GitHub Issues
 - **EvolutionAdvice type**: Nuevo tipo `'unknown-technology'` con campo `data` opcional
-- 7 hooks (era 6), 14 MCP tools (era 13), 16 skills (era 15), 9 health checks (era 8)
+- 7 hooks (era 6), 14 MCP tools (era 13), 18 skills (era 15), 9 health checks (era 8)
 
 ## [2.3.0] - 2026-03-03
 

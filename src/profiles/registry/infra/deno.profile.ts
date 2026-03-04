@@ -514,7 +514,7 @@ Generate .env.example with all required environment variables and placeholder va
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "deno\\.jsonc?$" && grep -nE "\"--allow-all\"|\"\\-A\"|--allow-all|\\s-A\\s" "$FILE_PATH" 2>/dev/null | head -1 | grep -q "." && { echo "WARNING: --allow-all or -A flag found in deno.json tasks — use specific permissions (--allow-net, --allow-read, etc.) for production safety" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "deno\\.jsonc?$" && grep -nE "\"--allow-all\"|\"\\-A\"|--allow-all|\\s-A\\s" "$FILE_PATH" 2>/dev/null | head -1 | grep -q "." && { echo "WARNING: --allow-all or -A flag found in deno.json tasks — use specific permissions (--allow-net, --allow-read, etc.) for production safety" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for overly permissive --allow-all in deno.json tasks',
           },

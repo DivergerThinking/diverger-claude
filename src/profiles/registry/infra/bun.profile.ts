@@ -456,7 +456,7 @@ Generate .env.example with placeholder values and .gitignore entry for .env file
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.(ts|tsx)$" && grep -nE "Bun\\.spawn(Sync)?\\s*\\(" "$FILE_PATH" 2>/dev/null | grep -qE "\\$|\\`|\\buser|\\breq\\b|\\binput\\b|\\bparams\\b|\\bquery\\b|\\bbody\\b" && { echo "WARNING: Potential unsafe user input in Bun.spawn() — validate and sanitize all inputs, use array form for arguments" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE "\\.(ts|tsx)$" && grep -nE "Bun\\.spawn(Sync)?\\s*\\(" "$FILE_PATH" 2>/dev/null | grep -qE "\\$|\\`|\\buser|\\breq\\b|\\binput\\b|\\bparams\\b|\\bquery\\b|\\bbody\\b" && { echo "WARNING: Potential unsafe user input in Bun.spawn() — validate and sanitize all inputs, use array form for arguments" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for unsafe Bun.spawn usage with user input',
           },

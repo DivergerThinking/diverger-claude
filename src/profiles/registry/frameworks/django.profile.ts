@@ -334,6 +334,688 @@ class ArticleModelTest(TestCase):
     ],
     skills: [
       {
+        name: 'django-orm-guide',
+        description: 'Detailed reference for Django ORM and QuerySet optimization patterns',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Django ORM & QuerySet Optimization — Detailed Reference
+
+## QuerySet Evaluation and Lazy Loading
+QuerySets are lazy — they do not hit the database until evaluated. Evaluation happens when you:
+iterate, slice with a step, call \`len()\`, \`list()\`, \`bool()\`, \`repr()\`, or pickle.
+
+\`\`\`python
+# This does NOT hit the database — just builds the query
+qs = Article.objects.filter(status="published").order_by("-created_at")
+
+# These trigger evaluation:
+for article in qs:        # iteration
+    print(article.title)
+articles = list(qs)       # conversion to list
+count = qs.count()        # COUNT query (efficient)
+exists = qs.exists()      # EXISTS query (efficient)
+\`\`\`
+
+## select_related vs prefetch_related
+
+### select_related — ForeignKey / OneToOne (SQL JOIN)
+Use when following a single-valued relationship. Produces one query with a JOIN.
+
+\`\`\`python
+# CORRECT: one query with JOIN — no N+1
+articles = Article.objects.select_related("author", "category").all()
+for article in articles:
+    print(article.author.name)      # no extra query
+    print(article.category.title)   # no extra query
+
+# ANTI-PATTERN: N+1 queries — one per article for author
+articles = Article.objects.all()
+for article in articles:
+    print(article.author.name)      # extra query each iteration!
+\`\`\`
+
+### prefetch_related — Reverse FK / ManyToMany (separate query + Python join)
+Use for multi-valued relationships. Produces two queries: one for the main objects, one for related.
+
+\`\`\`python
+# CORRECT: two queries total — articles + all related tags
+articles = Article.objects.prefetch_related("tags").all()
+for article in articles:
+    for tag in article.tags.all():  # no extra query
+        print(tag.name)
+
+# Advanced: Prefetch with custom queryset
+from django.db.models import Prefetch
+
+articles = Article.objects.prefetch_related(
+    Prefetch(
+        "comments",
+        queryset=Comment.objects.filter(is_approved=True).select_related("author"),
+        to_attr="approved_comments",
+    )
+)
+for article in articles:
+    for comment in article.approved_comments:  # filtered and pre-loaded
+        print(comment.author.name)
+\`\`\`
+
+## F() Expressions — Database-Level Operations
+Use F() to reference field values in the database without loading them into Python.
+
+\`\`\`python
+from django.db.models import F
+
+# Atomic increment — no race condition
+Article.objects.filter(pk=article_id).update(view_count=F("view_count") + 1)
+
+# Compare two fields in the same row
+Article.objects.filter(updated_at__gt=F("published_at"))
+
+# Arithmetic between fields
+Product.objects.annotate(profit=F("price") - F("cost"))
+
+# ANTI-PATTERN: loading into Python then saving — race condition
+article = Article.objects.get(pk=article_id)
+article.view_count += 1   # another request could increment between get and save
+article.save()
+\`\`\`
+
+## Q() Objects — Complex Queries
+Use Q() for OR, AND, NOT combinations that cannot be expressed with keyword arguments.
+
+\`\`\`python
+from django.db.models import Q
+
+# OR query
+Article.objects.filter(Q(status="published") | Q(author=current_user))
+
+# AND + NOT
+Article.objects.filter(
+    Q(status="published") & ~Q(category__name="Internal")
+)
+
+# Dynamic filter composition
+filters = Q()
+if search_term:
+    filters &= Q(title__icontains=search_term) | Q(body__icontains=search_term)
+if category_id:
+    filters &= Q(category_id=category_id)
+Article.objects.filter(filters)
+\`\`\`
+
+## Aggregation — annotate() and aggregate()
+
+\`\`\`python
+from django.db.models import Count, Avg, Sum, Max
+
+# aggregate() returns a dict — single row result
+stats = Article.objects.aggregate(
+    total=Count("id"),
+    avg_views=Avg("view_count"),
+    total_views=Sum("view_count"),
+)
+# {'total': 150, 'avg_views': 42.5, 'total_views': 6375}
+
+# annotate() adds a computed column to each row
+authors = User.objects.annotate(
+    article_count=Count("articles"),
+    avg_views=Avg("articles__view_count"),
+).filter(article_count__gte=5).order_by("-article_count")
+
+for author in authors:
+    print(f"{author.username}: {author.article_count} articles, avg {author.avg_views} views")
+
+# Conditional aggregation
+from django.db.models import Case, When, IntegerField
+
+User.objects.annotate(
+    published_count=Count(
+        Case(When(articles__status="published", then=1), output_field=IntegerField())
+    ),
+    draft_count=Count(
+        Case(When(articles__status="draft", then=1), output_field=IntegerField())
+    ),
+)
+\`\`\`
+
+## Subqueries — Subquery() and OuterRef()
+
+\`\`\`python
+from django.db.models import Subquery, OuterRef
+
+# Get the latest comment date for each article
+latest_comment = Comment.objects.filter(
+    article=OuterRef("pk")
+).order_by("-created_at").values("created_at")[:1]
+
+articles = Article.objects.annotate(
+    latest_comment_date=Subquery(latest_comment)
+)
+
+# Exists subquery — efficient boolean check
+from django.db.models import Exists
+
+has_comments = Comment.objects.filter(article=OuterRef("pk"))
+articles = Article.objects.annotate(has_comments=Exists(has_comments))
+for article in articles:
+    if article.has_comments:
+        print(f"{article.title} has comments")
+\`\`\`
+
+## Bulk Operations — bulk_create / bulk_update
+
+\`\`\`python
+# bulk_create — insert many rows in few queries
+articles = [
+    Article(title=f"Article {i}", author=user, status="draft")
+    for i in range(1000)
+]
+Article.objects.bulk_create(articles, batch_size=250)
+
+# bulk_update — update specific fields in batches
+for article in articles:
+    article.status = "published"
+Article.objects.bulk_update(articles, fields=["status"], batch_size=250)
+
+# ANTI-PATTERN: saving one by one in a loop — 1000 queries
+for i in range(1000):
+    Article.objects.create(title=f"Article {i}", author=user)
+\`\`\`
+
+## Custom Managers and QuerySet Chaining
+
+\`\`\`python
+class ArticleQuerySet(models.QuerySet):
+    def published(self):
+        return self.filter(status="published")
+
+    def by_author(self, user):
+        return self.filter(author=user)
+
+    def recent(self, days=30):
+        cutoff = timezone.now() - timedelta(days=days)
+        return self.filter(created_at__gte=cutoff)
+
+    def with_stats(self):
+        return self.annotate(
+            comment_count=Count("comments"),
+            avg_rating=Avg("ratings__score"),
+        )
+
+
+class ArticleManager(models.Manager):
+    def get_queryset(self):
+        return ArticleQuerySet(self.model, using=self._db)
+
+    def published(self):
+        return self.get_queryset().published()
+
+
+class Article(models.Model):
+    # ... fields ...
+    objects = ArticleManager()
+
+# Chainable usage:
+Article.objects.published().by_author(user).recent(7).with_stats()
+\`\`\`
+
+## N+1 Query Detection and Prevention
+
+\`\`\`python
+# ANTI-PATTERN: N+1 — one query per iteration for author
+articles = Article.objects.all()  # 1 query
+for article in articles:
+    print(article.author.name)    # N queries (one per article)
+
+# CORRECT: select_related eliminates N+1 for FK
+articles = Article.objects.select_related("author").all()  # 1 query with JOIN
+for article in articles:
+    print(article.author.name)    # no extra query
+
+# ANTI-PATTERN: N+1 on reverse relation / M2M
+articles = Article.objects.all()          # 1 query
+for article in articles:
+    for tag in article.tags.all():        # N queries
+        print(tag.name)
+
+# CORRECT: prefetch_related for reverse FK / M2M
+articles = Article.objects.prefetch_related("tags").all()  # 2 queries total
+for article in articles:
+    for tag in article.tags.all():        # no extra query
+        print(tag.name)
+
+# Tip: use django-debug-toolbar or django-silk in development
+# to see actual query counts per request
+\`\`\`
+
+## Raw SQL — Last Resort with Parameterization
+
+\`\`\`python
+from django.db import connection
+
+# CORRECT: parameterized query — safe from SQL injection
+with connection.cursor() as cursor:
+    cursor.execute(
+        "SELECT id, title FROM articles WHERE status = %s AND views > %s",
+        [status, min_views],
+    )
+    rows = cursor.fetchall()
+
+# CORRECT: raw() with params on a model
+Article.objects.raw(
+    "SELECT * FROM articles WHERE MATCH(title, body) AGAINST (%s IN BOOLEAN MODE)",
+    [search_term],
+)
+
+# ANTI-PATTERN: string formatting — SQL injection vulnerability
+cursor.execute(f"SELECT * FROM articles WHERE status = '{status}'")  # NEVER
+cursor.execute("SELECT * FROM articles WHERE status = %s" % status)  # NEVER
+\`\`\`
+
+## Common Anti-Patterns
+
+\`\`\`python
+# ANTI-PATTERN: filtering in Python instead of the database
+all_articles = Article.objects.all()
+published = [a for a in all_articles if a.status == "published"]  # loads ALL rows
+
+# CORRECT: filter at database level
+published = Article.objects.filter(status="published")
+
+# ANTI-PATTERN: len(queryset) loads all rows into memory
+total = len(Article.objects.all())  # fetches every row
+
+# CORRECT: use count() for a COUNT query
+total = Article.objects.count()
+
+# ANTI-PATTERN: saving in a loop
+for article in articles:
+    article.status = "archived"
+    article.save()  # one UPDATE per article
+
+# CORRECT: single UPDATE query
+Article.objects.filter(pk__in=article_ids).update(status="archived")
+
+# ANTI-PATTERN: checking existence by fetching
+try:
+    article = Article.objects.get(slug=slug)
+    exists = True
+except Article.DoesNotExist:
+    exists = False
+
+# CORRECT: use exists() — no data transfer
+exists = Article.objects.filter(slug=slug).exists()
+\`\`\`
+`,
+      },
+      {
+        name: 'django-security-guide',
+        description: 'Detailed reference for Django security hardening and production configuration',
+        userInvocable: true,
+        disableModelInvocation: true,
+        content: `# Django Security Hardening — Detailed Reference
+
+## Production Settings Checklist
+
+\`\`\`python
+# settings/production.py
+import os
+
+DEBUG = False  # NEVER True in production — exposes settings, SQL, stack traces
+
+SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]  # NEVER hardcode
+
+ALLOWED_HOSTS = ["www.example.com", "example.com"]  # explicit list, NEVER ["*"]
+
+# HTTPS enforcement
+SECURE_SSL_REDIRECT = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# HSTS — tell browsers to always use HTTPS
+SECURE_HSTS_SECONDS = 31536000       # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+# Cookie security
+SESSION_COOKIE_SECURE = True          # only send over HTTPS
+SESSION_COOKIE_HTTPONLY = True         # no JavaScript access
+SESSION_COOKIE_AGE = 1209600          # 2 weeks
+CSRF_COOKIE_SECURE = True             # only send over HTTPS
+CSRF_COOKIE_HTTPONLY = True            # no JavaScript access
+
+# Content security
+SECURE_CONTENT_TYPE_NOSNIFF = True     # prevent MIME-type sniffing
+SECURE_REFERRER_POLICY = "same-origin"
+X_FRAME_OPTIONS = "DENY"              # prevent clickjacking
+
+# Database
+CONN_MAX_AGE = 600                    # persistent connections
+\`\`\`
+
+### Anti-Pattern: Insecure Production Settings
+\`\`\`python
+# NEVER do this in production
+DEBUG = True                           # exposes everything
+SECRET_KEY = "django-insecure-abc123"  # hardcoded and predictable
+ALLOWED_HOSTS = ["*"]                  # allows any host header attack
+SESSION_COOKIE_SECURE = False          # cookies sent over HTTP
+\`\`\`
+
+## CSRF Protection
+
+Django's CsrfViewMiddleware protects against Cross-Site Request Forgery by requiring a token
+on all POST/PUT/PATCH/DELETE requests.
+
+### Template Forms
+\`\`\`html
+<!-- CORRECT: always include csrf_token in POST forms -->
+<form method="post" action="{% url 'articles:create' %}">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Create</button>
+</form>
+\`\`\`
+
+### AJAX Requests
+\`\`\`python
+# In JavaScript — read CSRF token and send as header
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+fetch("/api/articles/", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"),
+    },
+    body: JSON.stringify(data),
+});
+\`\`\`
+
+### When csrf_exempt is Acceptable
+\`\`\`python
+from django.views.decorators.csrf import csrf_exempt
+
+# ONLY acceptable for:
+# 1. Webhook endpoints from external services (Stripe, GitHub, etc.)
+#    — verify via signature instead (e.g., Stripe webhook secret)
+# 2. Token-authenticated API endpoints (DRF TokenAuthentication / JWT)
+#    — session-based APIs still need CSRF
+
+@csrf_exempt
+def stripe_webhook(request):
+    payload = request.body
+    sig_header = request.META.get("HTTP_STRIPE_SIGNATURE", "")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except (ValueError, stripe.error.SignatureVerificationError):
+        return HttpResponse(status=400)
+    # process event...
+\`\`\`
+
+## XSS Prevention
+
+### Template Auto-Escaping
+Django templates auto-escape HTML by default. This is your primary defense against XSS.
+
+\`\`\`python
+# CORRECT: auto-escaped by default — safe
+# Template: <p>{{ user_input }}</p>
+# If user_input = "<script>alert('xss')</script>"
+# Renders as: <p>&lt;script&gt;alert('xss')&lt;/script&gt;</p>
+
+# ANTI-PATTERN: mark_safe on user input — XSS vulnerability
+from django.utils.safestring import mark_safe
+content = mark_safe(user_comment)  # NEVER on user-generated content
+
+# ANTI-PATTERN: |safe filter on user content in templates
+# Template: {{ user_comment|safe }}  — NEVER on untrusted data
+
+# CORRECT: only use mark_safe on content YOU control
+from django.utils.html import format_html
+safe_link = format_html(
+    '<a href="{}">Back to {}</a>',
+    url,       # auto-escaped
+    page_name, # auto-escaped
+)
+\`\`\`
+
+### Sanitization for Rich Content
+\`\`\`python
+# If you MUST allow some HTML (rich text editor output), sanitize it
+import bleach
+
+ALLOWED_TAGS = ["p", "br", "strong", "em", "ul", "ol", "li", "a", "h2", "h3"]
+ALLOWED_ATTRS = {"a": ["href", "title"]}
+
+def sanitize_html(raw_html):
+    return bleach.clean(
+        raw_html,
+        tags=ALLOWED_TAGS,
+        attributes=ALLOWED_ATTRS,
+        strip=True,
+    )
+
+# Use in the model's save() or serializer validate()
+class Article(models.Model):
+    body_html = models.TextField()
+
+    def save(self, *args, **kwargs):
+        self.body_html = sanitize_html(self.body_html)
+        super().save(*args, **kwargs)
+\`\`\`
+
+## SQL Injection Prevention
+
+\`\`\`python
+# CORRECT: ORM handles parameterization automatically
+Article.objects.filter(title__icontains=user_input)
+
+# CORRECT: raw SQL with parameterized placeholders
+from django.db import connection
+with connection.cursor() as cursor:
+    cursor.execute(
+        "SELECT * FROM articles WHERE title ILIKE %s",
+        [f"%{user_input}%"],
+    )
+
+# ANTI-PATTERN: string formatting in SQL — injection vulnerability
+cursor.execute(f"SELECT * FROM articles WHERE title = '{user_input}'")
+cursor.execute("SELECT * FROM articles WHERE title = '%s'" % user_input)
+cursor.execute("SELECT * FROM articles WHERE title = '" + user_input + "'")
+\`\`\`
+
+## Authentication Security
+
+\`\`\`python
+# settings.py — password validation
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+     "OPTIONS": {"min_length": 12}},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+# Session security
+SESSION_COOKIE_AGE = 1209600          # 2 weeks max
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+
+# Login throttling with django-axes
+INSTALLED_APPS += ["axes"]
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+AXES_FAILURE_LIMIT = 5                # lock after 5 failed attempts
+AXES_COOLOFF_TIME = 1                 # 1 hour cooloff
+AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
+\`\`\`
+
+## File Upload Security
+
+\`\`\`python
+from django.core.validators import FileExtensionValidator
+from django.core.exceptions import ValidationError
+
+def validate_file_size(value):
+    max_size = 10 * 1024 * 1024  # 10 MB
+    if value.size > max_size:
+        raise ValidationError(f"File size must not exceed {max_size // (1024*1024)} MB.")
+
+class Document(models.Model):
+    file = models.FileField(
+        upload_to="documents/%Y/%m/",
+        validators=[
+            FileExtensionValidator(allowed_extensions=["pdf", "docx", "xlsx", "csv"]),
+            validate_file_size,
+        ],
+    )
+    uploaded_by = models.ForeignKey("auth.User", on_delete=models.CASCADE)
+
+    def filename(self):
+        return os.path.basename(self.file.name)
+
+# IMPORTANT: serve uploads from a separate domain or CDN
+# to prevent same-origin XSS attacks
+# e.g., uploads.example.com instead of example.com/media/
+
+# In nginx — restrict upload size at the web server level
+# client_max_body_size 10m;
+\`\`\`
+
+## Security Headers — SecurityMiddleware and django-csp
+
+\`\`\`python
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    # ... other middleware ...
+]
+
+# SecurityMiddleware settings (already covered in production checklist)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+
+# Content Security Policy via django-csp
+# pip install django-csp
+MIDDLEWARE += ["csp.middleware.CSPMiddleware"]
+
+# CSP configuration
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_SCRIPT_SRC = ("'self'", "https://cdn.example.com")
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'")  # minimize unsafe-inline
+CSP_IMG_SRC = ("'self'", "data:", "https://images.example.com")
+CSP_FONT_SRC = ("'self'", "https://fonts.googleapis.com", "https://fonts.gstatic.com")
+CSP_CONNECT_SRC = ("'self'", "https://api.example.com")
+CSP_FRAME_ANCESTORS = ("'none'",)       # prevent framing
+CSP_REPORT_URI = "/csp-report/"          # collect violations
+\`\`\`
+
+## CORS Configuration — django-cors-headers
+
+\`\`\`python
+# pip install django-cors-headers
+INSTALLED_APPS += ["corsheaders"]
+MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",  # must be before CommonMiddleware
+    "django.middleware.common.CommonMiddleware",
+    # ...
+]
+
+# CORRECT: explicit whitelist
+CORS_ALLOWED_ORIGINS = [
+    "https://www.example.com",
+    "https://app.example.com",
+]
+CORS_ALLOW_CREDENTIALS = True  # only if cookies/session needed cross-origin
+
+# For development only:
+# CORS_ALLOWED_ORIGINS = ["http://localhost:3000"]
+
+# ANTI-PATTERN: allow all origins in production
+# CORS_ALLOW_ALL_ORIGINS = True  # NEVER in production — defeats CORS entirely
+\`\`\`
+
+## manage.py check --deploy
+
+Run before every production deployment to catch security misconfigurations:
+
+\`\`\`bash
+python manage.py check --deploy --settings=config.settings.production
+
+# Common warnings and fixes:
+# security.W004 — SECURE_HSTS_SECONDS not set or too low
+# security.W008 — SECURE_SSL_REDIRECT not True
+# security.W012 — SESSION_COOKIE_SECURE not True
+# security.W016 — CSRF_COOKIE_SECURE not True
+# security.W018 — DEBUG is True
+# security.W019 — X_FRAME_OPTIONS not DENY
+# security.W021 — SECURE_HSTS_PRELOAD not True
+
+# Integrate into CI pipeline:
+# python manage.py check --deploy --fail-level WARNING
+\`\`\`
+
+## Common Security Anti-Patterns
+
+\`\`\`python
+# ANTI-PATTERN: hardcoded secret key
+SECRET_KEY = "my-secret-key-12345"
+# CORRECT:
+SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
+
+# ANTI-PATTERN: wildcard allowed hosts
+ALLOWED_HOSTS = ["*"]
+# CORRECT:
+ALLOWED_HOSTS = ["www.example.com", "example.com"]
+
+# ANTI-PATTERN: disabling CSRF without alternative protection
+@csrf_exempt
+def api_view(request):
+    # no signature or token verification...
+    pass
+# CORRECT: use DRF with TokenAuthentication or verify webhook signature
+
+# ANTI-PATTERN: using |safe on user content
+# {{ comment.body|safe }}
+# CORRECT: sanitize first or use auto-escaping
+# {{ comment.body }}
+
+# ANTI-PATTERN: accessing settings at import time
+from django.conf import settings
+MY_VALUE = settings.SOME_SETTING  # fails if settings not configured yet
+# CORRECT: lazy access
+def get_my_value():
+    from django.conf import settings
+    return settings.SOME_SETTING
+
+# ANTI-PATTERN: default admin URL
+urlpatterns = [
+    path("admin/", admin.site.urls),  # bots scan /admin/ first
+]
+# CORRECT: obscure admin URL (security through depth, not obscurity alone)
+urlpatterns = [
+    path("manage-site-8x7k/", admin.site.urls),
+]
+\`\`\`
+`,
+      },
+      {
         name: 'django-model-generator',
         description: 'Generate Django models with full admin, serializer, and migration setup',
         context: 'fork',
@@ -445,7 +1127,7 @@ path("appname/", include("apps.appname.urls")),
         hooks: [{
           type: 'command' as const,
           statusMessage: 'Checking for raw SQL with string formatting in Django code',
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.py$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -468,7 +1150,7 @@ if (/raw\\s*\\(|connection\\.cursor|execute\\s*\\(/.test(c) && !/migration|test/
         hooks: [{
           type: 'command' as const,
           statusMessage: 'Checking for ForeignKey without on_delete',
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.py$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -486,7 +1168,7 @@ if (/models\\.ForeignKey/.test(c) && !/on_delete/.test(c)) {
         hooks: [{
           type: 'command' as const,
           statusMessage: 'Checking Django settings for security issues',
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/settings.*\\.py$/.test(f)) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');
@@ -512,7 +1194,7 @@ if (warnings.length) { console.error('Warning: ' + warnings.join(' | ')); proces
         hooks: [{
           type: 'command' as const,
           statusMessage: 'Checking for N+1 query patterns in Django code',
-          command: `FILE_PATH=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
+          command: `FILE_PATH=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}" 2>/dev/null); [ -n "$FILE_PATH" ] && node -e "
 const f = process.argv[1] || '';
 if (!/\\.py$/.test(f) || /test|migration/.test(f.toLowerCase())) process.exit(0);
 const c = require('fs').readFileSync(f, 'utf8');

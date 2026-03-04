@@ -515,7 +515,7 @@ dart run pigeon --input pigeons/<name>_api.dart
         hooks: [{
           type: 'command',
           statusMessage: 'Checking for setState in large Flutter widgets',
-          command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/setState\\s*\\(/.test(c)&&c.split(\'\\n\').length>120){console.error(\'WARNING: setState in a large widget (>120 lines). Consider extracting state management to a ViewModel or ChangeNotifier for better testability and separation of concerns.\');process.exit(2)}" -- "$FILE_PATH" || true',
+          command: 'FILE_PATH=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/setState\\s*\\(/.test(c)&&c.split(\'\\n\').length>120){console.error(\'WARNING: setState in a large widget (>120 lines). Consider extracting state management to a ViewModel or ChangeNotifier for better testability and separation of concerns.\');process.exit(2)}" -- "$FILE_PATH" || true',
           timeout: 5,
         }],
       },
@@ -525,7 +525,7 @@ dart run pigeon --input pigeons/<name>_api.dart
         hooks: [{
           type: 'command',
           statusMessage: 'Checking for sensitive data in SharedPreferences',
-          command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/SharedPreferences/.test(c)&&/(token|password|secret|credential|apiKey|api_key|auth)/i.test(c)){console.error(\'SECURITY: Storing sensitive data in SharedPreferences (unencrypted). Use flutter_secure_storage for credentials and tokens.\');process.exit(2)}" -- "$FILE_PATH" || true',
+          command: 'FILE_PATH=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/SharedPreferences/.test(c)&&/(token|password|secret|credential|apiKey|api_key|auth)/i.test(c)){console.error(\'SECURITY: Storing sensitive data in SharedPreferences (unencrypted). Use flutter_secure_storage for credentials and tokens.\');process.exit(2)}" -- "$FILE_PATH" || true',
           timeout: 5,
         }],
       },
@@ -535,7 +535,7 @@ dart run pigeon --input pigeons/<name>_api.dart
         hooks: [{
           type: 'command',
           statusMessage: 'Checking for excessive private widget helper methods in Flutter code',
-          command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const m=c.match(/Widget\\s+_\\w+\\s*\\(/g);if(m&&m.length>=3){console.error(\'WARNING: \'+m.length+\' private helper methods returning widgets detected. Extract them as separate StatelessWidget classes for better performance and reusability.\');process.exit(2)}" -- "$FILE_PATH" || true',
+          command: 'FILE_PATH=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');const m=c.match(/Widget\\s+_\\w+\\s*\\(/g);if(m&&m.length>=3){console.error(\'WARNING: \'+m.length+\' private helper methods returning widgets detected. Extract them as separate StatelessWidget classes for better performance and reusability.\');process.exit(2)}" -- "$FILE_PATH" || true',
           timeout: 5,
         }],
       },
@@ -545,7 +545,7 @@ dart run pigeon --input pigeons/<name>_api.dart
         hooks: [{
           type: 'command',
           statusMessage: 'Checking for eager ListView with children in Flutter code',
-          command: 'FILE_PATH=$(cat | jq -r \'.tool_input.file_path // empty\'); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/ListView\\s*\\(/.test(c)&&/children\\s*:/.test(c)&&/List\\.generate|map\\s*\\(/.test(c)){console.error(\'WARNING: Eager ListView with children detected. Use ListView.builder for lazy construction and better performance with large lists.\');process.exit(2)}" -- "$FILE_PATH" || true',
+          command: 'FILE_PATH=$(cat | node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}"); [ -n "$FILE_PATH" ] && node -e "const f=process.argv[1]||\'\';if(!f.endsWith(\'.dart\'))process.exit(0);const c=require(\'fs\').readFileSync(f,\'utf8\');if(/ListView\\s*\\(/.test(c)&&/children\\s*:/.test(c)&&/List\\.generate|map\\s*\\(/.test(c)){console.error(\'WARNING: Eager ListView with children detected. Use ListView.builder for lazy construction and better performance with large lists.\');process.exit(2)}" -- "$FILE_PATH" || true',
           timeout: 5,
         }],
       },

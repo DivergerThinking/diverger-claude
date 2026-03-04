@@ -594,7 +594,7 @@ func fetchUser(id: String) async throws -> User {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.swift$" && grep -nE "\\![[:space:]]*$|as!|try!|\\bfirst!|\\blast!" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: force unwrap (!) detected — verify this is intentional and safe" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.swift$" && grep -nE "\\![[:space:]]*$|as!|try!|\\bfirst!|\\blast!" "$FILE_PATH" | head -5 | grep -q "." && { echo "Warning: force unwrap (!) detected — verify this is intentional and safe" >&2; exit 2; } || exit 0',
             timeout: 10,
             statusMessage: 'Checking for force unwrap usage',
           },
@@ -607,7 +607,7 @@ func fetchUser(id: String) async throws -> User {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.swift$" && grep -nE "@unchecked Sendable" "$FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$FILE_PATH" | grep -qiE "SAFETY:|safety:" || { echo "Warning: @unchecked Sendable at line $line missing // SAFETY: comment" >&2; exit 2; }; done || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.swift$" && grep -nE "@unchecked Sendable" "$FILE_PATH" | while IFS=: read -r line _; do prev=$((line - 1)); sed -n "${prev}p" "$FILE_PATH" | grep -qiE "SAFETY:|safety:" || { echo "Warning: @unchecked Sendable at line $line missing // SAFETY: comment" >&2; exit 2; }; done || exit 0',
             timeout: 10,
             statusMessage: 'Checking for @unchecked Sendable without SAFETY comment',
           },
@@ -620,7 +620,7 @@ func fetchUser(id: String) async throws -> User {
           {
             type: 'command',
             command:
-              'FILE_PATH=$(jq -r \'.tool_input.file_path // empty\') && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.swift$" && command -v swiftlint >/dev/null 2>&1 && swiftlint lint --quiet --path "$FILE_PATH" 2>/dev/null | head -10 | grep -q "." && { echo "SwiftLint issues detected — review and fix" >&2; exit 2; } || exit 0',
+              'FILE_PATH=$(node -e "try{console.log(JSON.parse(require(\'fs\').readFileSync(0,\'utf8\')).tool_input?.file_path||\'\')}catch{console.log(\'\')}") && [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -q "\\.swift$" && command -v swiftlint >/dev/null 2>&1 && swiftlint lint --quiet --path "$FILE_PATH" 2>/dev/null | head -10 | grep -q "." && { echo "SwiftLint issues detected — review and fix" >&2; exit 2; } || exit 0',
             timeout: 15,
             statusMessage: 'Running SwiftLint checks',
           },
