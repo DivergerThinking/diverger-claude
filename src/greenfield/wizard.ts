@@ -1,5 +1,6 @@
 import { select } from '@inquirer/prompts';
 import type { DetectionResult } from '../core/types.js';
+import { ValidationError } from '../core/errors.js';
 import { PROJECT_TEMPLATES, type ProjectTemplate } from './templates.js';
 import { parseArchitectureDoc } from './document-parser.js';
 
@@ -29,7 +30,7 @@ export async function runGreenfieldWizard(
 
   const template = PROJECT_TEMPLATES.find((t) => t.id === templateId);
   if (!template) {
-    throw new Error('Template no encontrado');
+    throw new ValidationError('Template no encontrado');
   }
 
   return templateToDetection(template, projectRoot);
