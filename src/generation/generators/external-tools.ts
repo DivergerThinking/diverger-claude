@@ -38,8 +38,41 @@ function isYamlFile(filePath: string): boolean {
   return filePath.endsWith('.yml') || filePath.endsWith('.yaml');
 }
 
+/** Generate ESLint flat config (eslint.config.js) from rules data */
+function serializeEslintFlatConfig(config: Record<string, unknown>): string {
+  const rules = config['rules'] as Record<string, unknown> | undefined;
+  const rulesStr = rules
+    ? JSON.stringify(rules, null, 2).replace(/\n/g, '\n      ').replace(/^/, '      ').trimStart()
+    : '{}';
+
+  return `import eslint from '@eslint/js';
+import tseslint from 'typescript-eslint';
+
+export default tseslint.config(
+  eslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: ${rulesStr},
+  },
+  {
+    ignores: ['dist/', 'plugin/', 'node_modules/', '*.config.*'],
+  },
+);
+`;
+}
+
 /** Serialize config to the appropriate format based on file extension */
-function serializeConfig(config: Record<string, unknown>, filePath: string): string {
+function serializeConfig(config: Record<string, unknown>, filePath: string, toolType?: string): string {
+  if (toolType === 'eslint' && filePath.endsWith('.js')) {
+    return serializeEslintFlatConfig(config);
+  }
   if (isYamlFile(filePath)) {
     return configToYaml(config) + '\n';
   }
@@ -75,7 +108,7 @@ async function generateToolConfig(
       if (existingRaw !== null) return null;
       return {
         path: filePath,
-        content: serializeConfig(tool.config, filePath),
+        content: serializeConfig(tool.config, filePath, tool.type),
       };
     }
 
@@ -85,7 +118,7 @@ async function generateToolConfig(
       if (existingRaw === null) {
         return {
           path: filePath,
-          content: serializeConfig(tool.config, filePath),
+          content: serializeConfig(tool.config, filePath, tool.type),
         };
       }
       // Only merge if existing file is valid JSON; skip non-JSON files (e.g. YAML configs)
@@ -99,14 +132,14 @@ async function generateToolConfig(
       const merged = deepmerge(tool.config, existing);
       return {
         path: filePath,
-        content: serializeConfig(merged as Record<string, unknown>, filePath),
+        content: serializeConfig(merged as Record<string, unknown>, filePath, tool.type),
       };
     }
 
     case 'overwrite': {
       return {
         path: filePath,
-        content: serializeConfig(tool.config, filePath),
+        content: serializeConfig(tool.config, filePath, tool.type),
       };
     }
   }

@@ -251,10 +251,10 @@ export class ProfileComposer {
 
     if (eslintConfigs.length <= 1) return tools;
 
-    // Deep-merge all ESLint configs into one targeting .eslintrc.json
+    // Deep-merge all ESLint configs into one targeting eslint.config.js (flat config)
     const merged: ExternalToolConfig = {
       type: 'eslint',
-      filePath: '.eslintrc.json',
+      filePath: 'eslint.config.js',
       mergeStrategy: 'create-only',
       config: {},
     };

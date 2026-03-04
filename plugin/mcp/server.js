@@ -49424,7 +49424,7 @@ var ProfileComposer = class {
     if (eslintConfigs.length <= 1) return tools;
     const merged = {
       type: "eslint",
-      filePath: ".eslintrc.json",
+      filePath: "eslint.config.js",
       mergeStrategy: "create-only",
       config: {}
     };
@@ -51780,14 +51780,9 @@ function add(a: number, b: number): number {
       },
       {
         type: "eslint",
-        filePath: ".eslintrc.json",
+        filePath: "eslint.config.js",
         mergeStrategy: "create-only",
         config: {
-          extends: [
-            "eslint:recommended",
-            "plugin:@typescript-eslint/strict-type-checked",
-            "plugin:@typescript-eslint/stylistic-type-checked"
-          ],
           rules: {
             "@typescript-eslint/no-explicit-any": "error",
             "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
@@ -86927,7 +86922,35 @@ function configToYaml(config2, indent = 0) {
 function isYamlFile(filePath) {
   return filePath.endsWith(".yml") || filePath.endsWith(".yaml");
 }
-function serializeConfig(config2, filePath) {
+function serializeEslintFlatConfig(config2) {
+  const rules = config2["rules"];
+  const rulesStr = rules ? JSON.stringify(rules, null, 2).replace(/\n/g, "\n      ").replace(/^/, "      ").trimStart() : "{}";
+  return `import eslint from '@eslint/js';
+import tseslint from 'typescript-eslint';
+
+export default tseslint.config(
+  eslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: ${rulesStr},
+  },
+  {
+    ignores: ['dist/', 'plugin/', 'node_modules/', '*.config.*'],
+  },
+);
+`;
+}
+function serializeConfig(config2, filePath, toolType) {
+  if (toolType === "eslint" && filePath.endsWith(".js")) {
+    return serializeEslintFlatConfig(config2);
+  }
   if (isYamlFile(filePath)) {
     return configToYaml(config2) + "\n";
   }
@@ -86950,7 +86973,7 @@ async function generateToolConfig(tool, projectRoot) {
       if (existingRaw !== null) return null;
       return {
         path: filePath,
-        content: serializeConfig(tool.config, filePath)
+        content: serializeConfig(tool.config, filePath, tool.type)
       };
     }
     case "align": {
@@ -86958,7 +86981,7 @@ async function generateToolConfig(tool, projectRoot) {
       if (existingRaw === null) {
         return {
           path: filePath,
-          content: serializeConfig(tool.config, filePath)
+          content: serializeConfig(tool.config, filePath, tool.type)
         };
       }
       let existing;
@@ -86970,13 +86993,13 @@ async function generateToolConfig(tool, projectRoot) {
       const merged = deepmerge(tool.config, existing);
       return {
         path: filePath,
-        content: serializeConfig(merged, filePath)
+        content: serializeConfig(merged, filePath, tool.type)
       };
     }
     case "overwrite": {
       return {
         path: filePath,
-        content: serializeConfig(tool.config, filePath)
+        content: serializeConfig(tool.config, filePath, tool.type)
       };
     }
   }

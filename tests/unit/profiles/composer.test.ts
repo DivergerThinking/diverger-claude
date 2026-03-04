@@ -731,7 +731,7 @@ describe('ProfileComposer', () => {
   // ── compose: ESLint config merging ──────────────────────────────────
 
   describe('compose - ESLint config merging', () => {
-    it('should merge multiple ESLint configs into a single .eslintrc.json', () => {
+    it('should merge multiple ESLint configs into a single eslint.config.js', () => {
       const profiles: Profile[] = [
         makeProfile({
           id: 'languages/typescript',
@@ -741,7 +741,7 @@ describe('ProfileComposer', () => {
             externalTools: [
               {
                 type: 'eslint',
-                filePath: '.eslintrc.json',
+                filePath: 'eslint.config.js',
                 mergeStrategy: 'create-only',
                 config: {
                   extends: ['eslint:recommended', 'plugin:@typescript-eslint/strict'],
@@ -759,7 +759,7 @@ describe('ProfileComposer', () => {
             externalTools: [
               {
                 type: 'eslint',
-                filePath: '.eslintrc.json',
+                filePath: 'eslint.config.js',
                 mergeStrategy: 'create-only',
                 config: {
                   extends: ['plugin:react/recommended', 'plugin:react-hooks/recommended'],
@@ -784,7 +784,7 @@ describe('ProfileComposer', () => {
       expect(eslintConfigs).toHaveLength(1);
 
       const merged = eslintConfigs[0]!;
-      expect(merged.filePath).toBe('.eslintrc.json');
+      expect(merged.filePath).toBe('eslint.config.js');
       expect(merged.config.extends).toContain('eslint:recommended');
       expect(merged.config.extends).toContain('plugin:react/recommended');
       expect(merged.config.plugins).toContain('react');
@@ -803,7 +803,7 @@ describe('ProfileComposer', () => {
             externalTools: [
               {
                 type: 'eslint',
-                filePath: '.eslintrc.json',
+                filePath: 'eslint.config.js',
                 mergeStrategy: 'create-only',
                 config: { extends: ['eslint:recommended'] },
               },
@@ -836,7 +836,7 @@ describe('ProfileComposer', () => {
               },
               {
                 type: 'eslint',
-                filePath: '.eslintrc.json',
+                filePath: 'eslint.config.js',
                 mergeStrategy: 'create-only',
                 config: { extends: ['eslint:recommended'] },
               },
@@ -851,7 +851,7 @@ describe('ProfileComposer', () => {
             externalTools: [
               {
                 type: 'eslint',
-                filePath: '.eslintrc.json',
+                filePath: 'eslint.config.js',
                 mergeStrategy: 'create-only',
                 config: { extends: ['plugin:react/recommended'] },
               },

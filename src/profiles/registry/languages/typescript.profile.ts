@@ -867,14 +867,9 @@ function add(a: number, b: number): number {
       },
       {
         type: 'eslint',
-        filePath: '.eslintrc.json',
+        filePath: 'eslint.config.js',
         mergeStrategy: 'create-only',
         config: {
-          extends: [
-            'eslint:recommended',
-            'plugin:@typescript-eslint/strict-type-checked',
-            'plugin:@typescript-eslint/stylistic-type-checked',
-          ],
           rules: {
             '@typescript-eslint/no-explicit-any': 'error',
             '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
