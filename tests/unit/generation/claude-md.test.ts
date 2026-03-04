@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { generateClaudeMd } from '../../../src/generation/generators/claude-md.js';
-import type { ComposedConfig, ClaudeMdSection } from '../../../src/core/types.js';
+import { generateClaudeMd, fixRuleCrossReferences } from '../../../src/generation/generators/claude-md.js';
+import type { ComposedConfig, ClaudeMdSection, RuleDefinition } from '../../../src/core/types.js';
 
 function makeConfig(
   sections: ClaudeMdSection[] = [],
@@ -136,5 +136,58 @@ describe('generateClaudeMd', () => {
     // Should contain the section content
     expect(result.content).toContain('- Rule 1');
     expect(result.content).toContain('- Rule 2');
+  });
+});
+
+describe('fixRuleCrossReferences', () => {
+  const makeRule = (rulePath: string): RuleDefinition => ({
+    path: rulePath,
+    content: '',
+    governance: 'mandatory',
+    description: 'test',
+  });
+
+  it('should fix testing/ cross-references (e.g., vitest → testing/)', () => {
+    const rules = [
+      makeRule('testing/vitest-conventions.md'),
+      makeRule('testing/vitest-patterns.md'),
+    ];
+    const content = '**Detailed rules:** see `.claude/rules/vitest/` directory.';
+    const result = fixRuleCrossReferences(content, rules);
+    expect(result).toBe('**Detailed rules:** see `.claude/rules/testing/` directory.');
+  });
+
+  it('should fix infra/ cross-references (e.g., docker → infra/)', () => {
+    const rules = [
+      makeRule('infra/docker-security.md'),
+      makeRule('infra/docker-compose-patterns.md'),
+    ];
+    const content = '**Detailed rules:** see `.claude/rules/docker/` directory.';
+    const result = fixRuleCrossReferences(content, rules);
+    expect(result).toBe('**Detailed rules:** see `.claude/rules/infra/` directory.');
+  });
+
+  it('should NOT change already-correct references (e.g., typescript/)', () => {
+    const rules = [
+      makeRule('typescript/conventions.md'),
+      makeRule('typescript/async-patterns.md'),
+    ];
+    const content = '**Detailed rules:** see `.claude/rules/typescript/` directory.';
+    const result = fixRuleCrossReferences(content, rules);
+    expect(result).toBe('**Detailed rules:** see `.claude/rules/typescript/` directory.');
+  });
+
+  it('should handle content with no cross-references', () => {
+    const rules = [makeRule('testing/vitest-conventions.md')];
+    const content = 'No cross-references here.';
+    const result = fixRuleCrossReferences(content, rules);
+    expect(result).toBe('No cross-references here.');
+  });
+
+  it('should handle empty rules array', () => {
+    const content = '**Detailed rules:** see `.claude/rules/vitest/` directory.';
+    const result = fixRuleCrossReferences(content, []);
+    // No rules to match against — leave as-is
+    expect(result).toBe(content);
   });
 });

@@ -3,6 +3,49 @@ import path from 'path';
 import { readFileOrNull, assertPathWithin } from '../../utils/fs.js';
 import { deepmerge } from 'deepmerge-ts';
 
+/** Simple YAML serializer for shallow config objects (e.g., SwiftLint, flat YAML configs) */
+function configToYaml(config: Record<string, unknown>, indent = 0): string {
+  const prefix = '  '.repeat(indent);
+  const lines: string[] = [];
+
+  for (const [key, value] of Object.entries(config)) {
+    if (Array.isArray(value)) {
+      lines.push(`${prefix}${key}:`);
+      for (const item of value) {
+        if (typeof item === 'object' && item !== null) {
+          lines.push(`${prefix}  - ${configToYaml(item as Record<string, unknown>, indent + 2).trimStart()}`);
+        } else {
+          lines.push(`${prefix}  - ${String(item)}`);
+        }
+      }
+    } else if (typeof value === 'object' && value !== null) {
+      lines.push(`${prefix}${key}:`);
+      lines.push(configToYaml(value as Record<string, unknown>, indent + 1));
+    } else if (typeof value === 'string') {
+      // Quote strings that need it (contain special YAML chars)
+      const needsQuote = /[:#{}[\],&*?|>!%@`]/.test(value) || value === '' || value === 'true' || value === 'false';
+      lines.push(`${prefix}${key}: ${needsQuote ? `"${value}"` : value}`);
+    } else {
+      lines.push(`${prefix}${key}: ${String(value)}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/** Check if a file path is a YAML file */
+function isYamlFile(filePath: string): boolean {
+  return filePath.endsWith('.yml') || filePath.endsWith('.yaml');
+}
+
+/** Serialize config to the appropriate format based on file extension */
+function serializeConfig(config: Record<string, unknown>, filePath: string): string {
+  if (isYamlFile(filePath)) {
+    return configToYaml(config) + '\n';
+  }
+  return JSON.stringify(config, null, 2) + '\n';
+}
+
 /** Generate external tool configuration files (ESLint, Prettier, tsconfig) */
 export async function generateExternalTools(
   config: ComposedConfig,
@@ -32,7 +75,7 @@ async function generateToolConfig(
       if (existingRaw !== null) return null;
       return {
         path: filePath,
-        content: JSON.stringify(tool.config, null, 2) + '\n',
+        content: serializeConfig(tool.config, filePath),
       };
     }
 
@@ -42,7 +85,7 @@ async function generateToolConfig(
       if (existingRaw === null) {
         return {
           path: filePath,
-          content: JSON.stringify(tool.config, null, 2) + '\n',
+          content: serializeConfig(tool.config, filePath),
         };
       }
       // Only merge if existing file is valid JSON; skip non-JSON files (e.g. YAML configs)
@@ -56,14 +99,14 @@ async function generateToolConfig(
       const merged = deepmerge(tool.config, existing);
       return {
         path: filePath,
-        content: JSON.stringify(merged, null, 2) + '\n',
+        content: serializeConfig(merged as Record<string, unknown>, filePath),
       };
     }
 
     case 'overwrite': {
       return {
         path: filePath,
-        content: JSON.stringify(tool.config, null, 2) + '\n',
+        content: serializeConfig(tool.config, filePath),
       };
     }
   }

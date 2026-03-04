@@ -13,10 +13,11 @@ function validateAgentName(name: string): void {
 
 /** Inject project context into agent prompt if metadata is available */
 export function injectProjectContext(agent: AgentDefinition, metadata: ProjectMetadata): AgentDefinition {
-  if (!metadata.name && !metadata.description) return agent;
+  if (!metadata.name && !metadata.description && !metadata.readmeSummary && metadata.keyDirectories.length === 0 && !metadata.architecture) return agent;
 
+  const descriptionText = metadata.description ?? metadata.readmeSummary;
   const ctx: string[] = ['## Project Context'];
-  ctx.push(`You are working on **${metadata.name ?? 'this project'}**${metadata.description ? ` — ${metadata.description}` : ''}.`);
+  ctx.push(`You are working on **${metadata.name ?? 'this project'}**${descriptionText ? ` — ${descriptionText}` : ''}.`);
 
   if (metadata.keyDirectories.length > 0) {
     ctx.push(`Key directories: ${metadata.keyDirectories.map(d => '`' + d + '/`').join(', ')}`);

@@ -50,7 +50,7 @@ export function interpolateDynamicRule(content: string, metadata: ProjectMetadat
   // Fallback if no commands found
   const buildCommandsText = buildCommands.length > 0
     ? buildCommands.join('\n')
-    : '1. The project builds without errors (run the build command from package.json/Makefile)\n2. Type checking passes (if applicable)\n3. Tests pass\n4. Linting passes (if configured)';
+    : '1. The project builds without errors\n2. Type checking passes (if applicable)\n3. Tests pass\n4. Linting passes (if configured)';
 
   return content.replace('{{BUILD_COMMANDS}}', buildCommandsText);
 }

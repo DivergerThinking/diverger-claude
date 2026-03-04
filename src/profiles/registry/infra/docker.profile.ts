@@ -21,7 +21,7 @@ Multi-stage builds, minimal images, security-first container design.
 - Multi-stage builds: separate build and runtime stages, copy only artifacts
 - Use specific base image tags (not \`latest\`), prefer distroless or Alpine
 - Non-root user (\`USER\`) in production, read-only filesystem where possible
-- \`.dockerignore\` to exclude \`node_modules\`, \`.git\`, secrets from build context`,
+- \`.dockerignore\` to exclude dependency directories (e.g., \`node_modules\`, \`__pycache__\`, \`.venv\`), \`.git\`, secrets from build context`,
       },
     ],
     settings: {

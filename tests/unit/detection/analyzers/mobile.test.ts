@@ -600,4 +600,56 @@ describe('MobileAnalyzer', () => {
       expect(rnEntries[0]!.evidence.length).toBeGreaterThan(1);
     });
   });
+
+  describe('Flutter boilerplate Swift suppression', () => {
+    it('should suppress Swift when all Swift files are boilerplate ios/macos runners in a Flutter project', async () => {
+      const files = makeFiles({
+        'pubspec.yaml': PUBSPEC_FLUTTER,
+        'lib/main.dart': 'import "package:flutter/material.dart";',
+        'ios/Runner/AppDelegate.swift': 'import UIKit\n@main\nclass AppDelegate: UIResponder {}',
+        'ios/Runner/Runner-Bridging-Header.h': '',
+        'ios/Runner.xcodeproj': '',
+        'macos/Runner/AppDelegate.swift': 'import Cocoa\nclass AppDelegate: NSObject {}',
+      });
+      const result = await analyzer.analyze(files, '/project');
+
+      expect(result.technologies.some((t) => t.id === 'flutter')).toBe(true);
+      expect(result.technologies.some((t) => t.id === 'dart')).toBe(true);
+      // Swift should be suppressed — it's just boilerplate
+      expect(result.technologies.some((t) => t.id === 'swift')).toBe(false);
+      expect(result.technologies.some((t) => t.id === 'swiftui')).toBe(false);
+    });
+
+    it('should NOT suppress Swift when Swift files exist outside ios/macos directories', async () => {
+      const files = makeFiles({
+        'pubspec.yaml': PUBSPEC_FLUTTER,
+        'lib/main.dart': 'import "package:flutter/material.dart";',
+        'ios/Runner/AppDelegate.swift': 'import UIKit',
+        'src/native/Plugin.swift': 'import Foundation\nclass Plugin {}',
+      });
+      const result = await analyzer.analyze(files, '/project');
+
+      expect(result.technologies.some((t) => t.id === 'flutter')).toBe(true);
+      // Swift should NOT be suppressed — there are Swift files outside ios/macos
+      expect(result.technologies.some((t) => t.id === 'swift')).toBe(true);
+    });
+
+    it('should NOT suppress Swift when more than 5 Swift files exist', async () => {
+      const files = makeFiles({
+        'pubspec.yaml': PUBSPEC_FLUTTER,
+        'lib/main.dart': 'import "package:flutter/material.dart";',
+        'ios/Runner/AppDelegate.swift': 'import UIKit',
+        'ios/Runner/SceneDelegate.swift': 'import UIKit',
+        'ios/Runner/ViewController.swift': 'import UIKit',
+        'ios/Runner/CustomView.swift': 'import UIKit',
+        'ios/Runner/Helpers.swift': 'import Foundation',
+        'ios/Runner/Extensions.swift': 'import Foundation',
+      });
+      const result = await analyzer.analyze(files, '/project');
+
+      expect(result.technologies.some((t) => t.id === 'flutter')).toBe(true);
+      // Swift should NOT be suppressed — more than 5 files
+      expect(result.technologies.some((t) => t.id === 'swift')).toBe(true);
+    });
+  });
 });

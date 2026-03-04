@@ -1,4 +1,4 @@
-import type { ComposedConfig, DetectionResult, GeneratedFile, ProjectMetadata } from '../../core/types.js';
+import type { ComposedConfig, DetectionResult, GeneratedFile, ProjectMetadata, RuleDefinition } from '../../core/types.js';
 import { CLAUDE_MD } from '../../core/constants.js';
 import path from 'path';
 
@@ -37,8 +37,6 @@ function buildProjectContext(metadata: ProjectMetadata): string | null {
     }
     lines.push('');
   }
-
-  lines.push('<!-- Add more project-specific context: architecture decisions, dev workflow, deployment, etc. -->');
 
   return lines.join('\n');
 }
@@ -94,6 +92,35 @@ function buildEntryPointsSection(metadata: ProjectMetadata): string | null {
   return lines.join('\n');
 }
 
+/**
+ * Fix cross-reference paths in CLAUDE.md content.
+ * Profiles reference `.claude/rules/{techname}/` but rules may live under
+ * a layer directory (e.g., `testing/vitest-*.md`, `infra/docker-*.md`).
+ * This replaces incorrect references with the actual directory from rule paths.
+ */
+export function fixRuleCrossReferences(content: string, rules: RuleDefinition[]): string {
+  // Match patterns like `.claude/rules/vitest/` (backtick-wrapped)
+  return content.replace(/`\.claude\/rules\/([a-zA-Z0-9_-]+)\/`/g, (_match, name: string) => {
+    // Check if any rule path starts with this name directly (e.g., `typescript/`)
+    const directMatch = rules.some((r) => r.path.startsWith(`${name}/`));
+    if (directMatch) return _match; // Already correct
+
+    // Find the actual directory from rules that contain this tech name
+    const matchingRule = rules.find((r) => {
+      const dir = r.path.split('/')[0];
+      const file = r.path.split('/').pop() ?? '';
+      return dir !== name && file.startsWith(`${name}-`);
+    });
+
+    if (matchingRule) {
+      const actualDir = matchingRule.path.split('/')[0];
+      return `\`.claude/rules/${actualDir}/\``;
+    }
+
+    return _match; // No fix found, leave as-is
+  });
+}
+
 /** Generate the CLAUDE.md file at the project root */
 export function generateClaudeMd(
   config: ComposedConfig,
@@ -135,7 +162,7 @@ export function generateClaudeMd(
   }
 
   for (const section of sections) {
-    parts.push(section.content);
+    parts.push(fixRuleCrossReferences(section.content, config.rules));
     parts.push('');
   }
 

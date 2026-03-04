@@ -23,29 +23,32 @@ export function extractProjectMetadata(
   // 1. package.json
   extractFromPackageJson(projectRoot, metadata);
 
-  // 2. pyproject.toml (fallback for name/description, plus scripts)
+  // 2. pubspec.yaml (Flutter/Dart projects)
+  extractFromPubspec(projectRoot, metadata);
+
+  // 3. pyproject.toml (fallback for name/description, plus scripts)
   extractFromPyproject(projectRoot, metadata);
 
-  // 3. Cargo.toml (fallback for name/description)
+  // 4. Cargo.toml (fallback for name/description)
   extractFromCargo(projectRoot, metadata);
 
-  // 4. README summary
+  // 5. README summary
   metadata.readmeSummary = extractReadmeSummary(projectRoot);
 
-  // 5. Key directories
+  // 6. Key directories
   metadata.keyDirectories = detectKeyDirectories(projectRoot);
 
-  // 6. Architecture from detection
+  // 7. Architecture from detection
   if (detection?.architecture) {
     metadata.architecture = detection.architecture;
   }
 
-  // 7. Package manager detection
+  // 8. Package manager detection
   if (!metadata.packageManager) {
     metadata.packageManager = detectPackageManager(projectRoot);
   }
 
-  // 8. Makefile targets
+  // 9. Makefile targets
   extractMakeTargets(projectRoot, metadata);
 
   return metadata;
@@ -97,6 +100,27 @@ function extractFromPackageJson(projectRoot: string, metadata: ProjectMetadata):
     }
   } catch {
     // ignore malformed package.json
+  }
+}
+
+function extractFromPubspec(projectRoot: string, metadata: ProjectMetadata): void {
+  const pubspecPath = path.join(projectRoot, 'pubspec.yaml');
+  if (!existsSync(pubspecPath)) return;
+
+  try {
+    const content = readFileSync(pubspecPath, 'utf-8');
+
+    // Parse top-level flat keys with simple regex (pubspec.yaml is flat enough)
+    if (!metadata.name) {
+      const nameMatch = content.match(/^name:\s*(.+)$/m);
+      if (nameMatch?.[1]) metadata.name = nameMatch[1].trim().replace(/^['"]|['"]$/g, '');
+    }
+    if (!metadata.description) {
+      const descMatch = content.match(/^description:\s*(.+)$/m);
+      if (descMatch?.[1]) metadata.description = descMatch[1].trim().replace(/^['"]|['"]$/g, '');
+    }
+  } catch {
+    // ignore
   }
 }
 
@@ -245,12 +269,12 @@ function extractMakeTargets(projectRoot: string, metadata: ProjectMetadata): voi
   try {
     const content = readFileSync(makefilePath, 'utf-8');
     const targets: string[] = [];
-    const targetRe = /^([a-zA-Z_][\w-]*)\s*:/gm;
+    const targetRe = /^([a-zA-Z_][\w-]*)\s*:(?!=)/gm;
     let match: RegExpExecArray | null;
     while ((match = targetRe.exec(content)) !== null) {
       const target = match[1];
-      // Skip internal targets (starting with _) and common noise
-      if (target && !target.startsWith('_') && target !== 'all') {
+      // Skip internal targets, 'all', and ALL_CAPS variable names (e.g., PYTHONPATH, SHELL)
+      if (target && !target.startsWith('_') && target !== 'all' && !/^[A-Z_]+$/.test(target)) {
         targets.push(target);
       }
     }

@@ -53,6 +53,9 @@ export class MobileAnalyzer extends BaseAnalyzer {
     this.detectSwiftUI(files, technologies, analyzedFiles);
     this.detectJetpackCompose(files, technologies, analyzedFiles);
 
+    // Suppress Swift/SwiftUI when they are just Flutter boilerplate (ios/macos runners)
+    this.suppressFlutterBoilerplateSwift(files, technologies);
+
     return { technologies, analyzedFiles };
   }
 
@@ -722,6 +725,47 @@ export class MobileAnalyzer extends BaseAnalyzer {
             }
             break;
           }
+        }
+      }
+    }
+  }
+
+  // ── Flutter Boilerplate Swift Suppression ───────────────────────────
+
+  /**
+   * When both Flutter and Swift are detected, check if Swift files are just
+   * boilerplate iOS/macOS runners. If all Swift files live under ios/ or macos/
+   * and total count is <= 5, remove Swift and SwiftUI from detections.
+   */
+  private suppressFlutterBoilerplateSwift(
+    files: Map<string, string>,
+    technologies: DetectedTechnology[],
+  ): void {
+    const hasFlutter = technologies.some((t) => t.id === 'flutter');
+    const hasSwift = technologies.some((t) => t.id === 'swift');
+    if (!hasFlutter || !hasSwift) return;
+
+    // Collect all Swift file paths (excluding Package.swift)
+    const swiftFiles: string[] = [];
+    for (const [filePath] of files) {
+      if (filePath.endsWith('.swift') && !filePath.endsWith('Package.swift')) {
+        swiftFiles.push(filePath);
+      }
+    }
+
+    // Check if all Swift files are under ios/ or macos/ directories and count is small
+    const allBoilerplate = swiftFiles.length <= 5 && swiftFiles.every((f) => {
+      const normalized = f.replace(/\\/g, '/');
+      return normalized.includes('/ios/') || normalized.includes('/macos/') ||
+             normalized.startsWith('ios/') || normalized.startsWith('macos/');
+    });
+
+    if (allBoilerplate && swiftFiles.length > 0) {
+      // Remove Swift and SwiftUI technologies
+      const idsToRemove = new Set(['swift', 'swiftui']);
+      for (let i = technologies.length - 1; i >= 0; i--) {
+        if (idsToRemove.has(technologies[i]!.id)) {
+          technologies.splice(i, 1);
         }
       }
     }

@@ -110,6 +110,41 @@ migrate = "alembic upgrade head"
     });
   });
 
+  it('extracts name and description from pubspec.yaml', () => {
+    writeFileSync(path.join(tmpDir, 'pubspec.yaml'), `
+name: imbx_front
+description: A Flutter application for iMBx
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+`);
+
+    const meta = extractProjectMetadata(tmpDir);
+    expect(meta.name).toBe('imbx_front');
+    expect(meta.description).toBe('A Flutter application for iMBx');
+  });
+
+  it('package.json takes precedence over pubspec.yaml for name/description', () => {
+    writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({
+      name: 'js-name',
+      description: 'JS description',
+    }));
+    writeFileSync(path.join(tmpDir, 'pubspec.yaml'), `
+name: dart_name
+description: Dart description
+`);
+
+    const meta = extractProjectMetadata(tmpDir);
+    expect(meta.name).toBe('js-name');
+    expect(meta.description).toBe('JS description');
+  });
+
   it('extracts name and description from Cargo.toml', () => {
     writeFileSync(path.join(tmpDir, 'Cargo.toml'), `
 [package]
@@ -142,6 +177,26 @@ all: build test
 
     const meta = extractProjectMetadata(tmpDir);
     expect(meta.makeTargets).toEqual(['build', 'test', 'lint']);
+  });
+
+  it('excludes Makefile variable assignments and ALL_CAPS names', () => {
+    writeFileSync(path.join(tmpDir, 'Makefile'), `
+PYTHONPATH := .
+SHELL := /bin/bash
+DOCKER_IMAGE = myapp
+
+build:
+\tpython -m build
+
+test:
+\tpytest
+
+deploy:
+\tdocker push
+`);
+
+    const meta = extractProjectMetadata(tmpDir);
+    expect(meta.makeTargets).toEqual(['build', 'test', 'deploy']);
   });
 
   it('detects key directories', () => {
