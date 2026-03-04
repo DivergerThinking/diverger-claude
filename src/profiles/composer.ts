@@ -332,8 +332,12 @@ export class ProfileComposer {
     }
 
     // Check for duplicate rule paths
-    const rulePaths = config.rules.map((r) => r.path);
-    const dups = rulePaths.filter((p, i) => rulePaths.indexOf(p) !== i);
+    const rulePathSet = new Set<string>();
+    const dups: string[] = [];
+    for (const r of config.rules) {
+      if (rulePathSet.has(r.path)) dups.push(r.path);
+      else rulePathSet.add(r.path);
+    }
     if (dups.length > 0) {
       throw new CompositionError(
         `Rutas de reglas duplicadas: ${dups.join(', ')}`,

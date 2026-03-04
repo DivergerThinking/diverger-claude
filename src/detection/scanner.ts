@@ -90,6 +90,7 @@ export class FileScanner {
       followSymbolicLinks: false,
       ignore: IGNORE_PATTERNS,
       onlyFiles: true,
+      deep: 3,
     });
 
     const readResults = await Promise.all(

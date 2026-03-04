@@ -72,8 +72,8 @@ export async function writeFileAtomic(filePath: string, content: string): Promis
     // Cleanup temp file on failure (may already be removed in EXDEV path)
     try {
       await fs.unlink(tempPath);
-    } catch {
-      // Ignore cleanup errors
+    } catch (cleanupErr: unknown) {
+      if (process.env.DEBUG) console.error('[diverger] writeFileAtomic cleanup failed:', cleanupErr);
     }
     throw err;
   }
