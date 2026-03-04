@@ -66,21 +66,6 @@ jobs:
               labels: [label],
             });
 
-            // Welcome comment
-            const author = issue.user.login;
-            const comment = [
-              `Thanks for opening this issue, @${author}! 👋`,
-              '',
-              `It has been auto-labeled as **${label}**. A maintainer will review it shortly.`,
-              '',
-              'If this is a feature request for a new technology/framework, check our',
-              '[supported technologies](https://github.com/DivergerThinking/diverger-claude#tecnolog%C3%ADas-soportadas-59-profiles)',
-              'to see what\'s already available.',
-            ].join('\n');
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issue.number,
-              body: comment,
-            });
+            // No auto-comment — intelligent responses are handled by
+            // /diverger-triage skill during manual review sessions.
+            // The auto-label above is sufficient for initial classification.

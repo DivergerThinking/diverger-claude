@@ -50841,74 +50841,95 @@ Branch: [branch] | Last commit: [time-ago] by [author]
       },
       {
         name: "diverger-triage",
-        description: "Triage open GitHub issues: classify, evaluate, and generate implementation plans",
+        description: "Triage open GitHub issues: analyze codebase, respond intelligently, generate local implementation plans",
         userInvocable: true,
         disableModelInvocation: true,
         content: `# Triage de Issues de GitHub
 
-Evalua todas las issues abiertas del proyecto y genera planes de implementacion: $ARGUMENTS
+Analiza issues abiertas, responde con conocimiento del codebase y genera planes locales accionables: $ARGUMENTS
+
+## Objetivo
+
+Convertir cada issue abierta en una **respuesta inteligente** (comment en GitHub) + un **plan local accionable** (archivo en \\\`docs/plans/partners_contributions/\\\`). El plan debe ser lo suficientemente detallado para que otra sesion de Claude lo ejecute sin ambiguedad.
 
 ## Pasos
 
-1. **Listar issues abiertas**:
-   - Ejecuta: \\\`gh issue list --state open --json number,title,body,author,labels,createdAt,comments\\\`
-   - Si no hay issues abiertas, informa al usuario y termina
-   - Muestra resumen: N issues abiertas con numero y titulo
+### 1. Verificar prerrequisitos
 
-2. **Para cada issue, clasificar**:
-   - Lee titulo y body completo con \\\`gh issue view {number}\\\`
-   - Clasifica en una de estas categorias:
-     - **feature-request**: Nueva funcionalidad solicitada
-     - **bug**: Error o comportamiento inesperado reportado
-     - **profile-request**: Soporte para nueva tecnologia/framework/CI
-     - **question**: Pregunta sobre uso o documentacion
-     - **already-implemented**: La funcionalidad ya existe en el sistema
-     - **duplicate**: Duplicado de otra issue abierta
-   - Para clasificar \\\`already-implemented\\\`: busca en el codebase si la funcionalidad
-     descrita ya existe (busca en src/profiles/registry/, src/generation/, CHANGELOG.md)
-   - Para clasificar \\\`duplicate\\\`: compara contra otras issues abiertas
+- Ejecuta: \\\`gh auth status\\\` \u2014 si falla, informa al usuario y termina
+- Verifica que existe directorio \\\`docs/plans/partners_contributions/\\\` \u2014 si no, crealo
 
-3. **Issues ya implementadas** (\\\`already-implemented\\\`):
-   - Anade comment con \\\`gh issue comment {number}\\\` explicando que existe,
-     con referencias a archivos, profiles o versiones relevantes
-   - Anade label \\\`already-implemented\\\`
-   - Sugiere cerrar la issue
+### 2. Listar issues abiertas
 
-4. **Issues de tipo question**:
-   - Responde con referencia a documentacion existente (docs/guia-*.md, README.md)
-   - Anade label \\\`question\\\` si no la tiene
+- Ejecuta: \\\`gh issue list --state open --json number,title,body,author,labels,createdAt,comments\\\`
+- Si se paso un numero de issue como argumento ($ARGUMENTS), filtra solo esa issue
+- Si no hay issues abiertas, informa al usuario y termina
+- Muestra resumen: N issues abiertas con numero y titulo
 
-5. **Issues accionables** (\\\`feature-request\\\`, \\\`bug\\\`, \\\`profile-request\\\`):
-   - Llama a \\\`detect_stack\\\` MCP tool para conocer el stack del proyecto
-   - Llama a \\\`get_memory\\\` MCP tool con section "all" para contexto
-   - Analiza el codebase para entender el estado actual relevante a la issue
-   - Genera un plan detallado en \\\`docs/plans/issue-{number}-{slug}.md\\\` con esta estructura:
-     * **Contexto**: issue link, autor, fecha, labels, descripcion resumida
-     * **Analisis del estado actual**: que existe hoy relacionado con la peticion
-     * **Plan de implementacion**: pasos numerados con archivos concretos a crear/modificar
-     * **Archivos a modificar**: tabla con archivo, accion (NUEVO/MODIFICAR), descripcion
-     * **Tests**: que tests unitarios/integracion crear
-     * **Verificacion**: pasos para validar (typecheck, test, build)
-     * **Complejidad estimada**: Baja/Media/Alta con justificacion
-   - El plan debe ser lo suficientemente detallado para que otra sesion de Claude
-     pueda ejecutarlo sin ambiguedad
-   - Anade comment en la issue con link al plan generado
-   - Anade label \\\`planned\\\`
+### 3. Para cada issue, analizar en profundidad
 
-6. **Resumen final**:
-   - Muestra tabla con cada issue procesada: numero, titulo, clasificacion, accion tomada
-   - Destaca issues con plan generado
+**3a. Leer la issue completa:**
+- \\\`gh issue view {number} --json number,title,body,author,labels,comments\\\`
+- Identifica: que pide exactamente, que contexto da, que preguntas hace
 
-7. **Registrar en memoria**:
-   - Llama a \\\`record_learning\\\` MCP tool con tipo \\\`best-practice\\\`
-     documentando el triage realizado (fecha, issues procesadas, planes generados)
+**3b. Clasificar:**
+- **feature-request**: Nueva funcionalidad o extension de arquitectura
+- **bug**: Error o comportamiento inesperado
+- **profile-request**: Soporte para nueva tecnologia/framework
+- **question**: Pregunta sobre uso o documentacion
+- **already-implemented**: La funcionalidad ya existe (verificar buscando en el codebase)
+- **duplicate**: Duplicado de otra issue abierta (comparar con las demas)
+
+**3c. Investigar el codebase:**
+- Busca archivos, modulos y tests relevantes a lo que pide la issue
+- Entiende la arquitectura actual relacionada con la peticion
+- Identifica que existe hoy, que falta, y que habria que cambiar
+- Si es \\\`already-implemented\\\`: localiza exactamente donde esta implementado
+
+### 4. Responder en la issue (comment inteligente)
+
+El comment debe demostrar que **entendemos el codebase y la peticion**:
+
+- NUNCA uses respuestas genericas tipo "un mantenedor lo revisara"
+- Siempre referencia archivos reales del codebase (paths relativos)
+- Si la issue hace preguntas, responde CADA una
+- Si clasificas como \\\`already-implemented\\\`, da instrucciones exactas de uso
+- Incluye: saludo contextual, respuesta a preguntas, estado actual de la arquitectura,
+  propuesta o siguiente paso
+- Ejecuta: \\\`gh issue comment {number} --body "..."\\\`
+
+### 5. Generar plan local (para issues accionables)
+
+Solo para issues clasificadas como \\\`feature-request\\\`, \\\`bug\\\`, o \\\`profile-request\\\`.
+
+Crea archivo: \\\`docs/plans/partners_contributions/issue-{number}-{slug}.md\\\`
+donde slug = titulo en kebab-case (max 40 chars)
+
+El plan debe incluir:
+- **Tabla de contexto**: issue link, autor, fecha, labels, clasificacion
+- **Resumen de la peticion**: 2-3 frases
+- **Analisis del estado actual**: archivos, modulos, tipos relevantes con paths concretos
+- **Plan de implementacion**: fases con tabla de archivos a crear/modificar
+- **Tests**: que tests crear y que validan
+- **Verificacion**: pasos para validar (typecheck, test, build)
+- **Complejidad estimada**: Baja/Media/Alta con justificacion
+
+### 6. Actualizar labels
+
+- Si clasificaste como \\\`already-implemented\\\`: anade label, sugiere cerrar con comment
+- Si generaste plan: anade label \\\`planned\\\`
+- Ejecuta: \\\`gh issue edit {number} --add-label {label}\\\`
+
+### 7. Resumen final
+
+Muestra tabla con cada issue procesada: numero, titulo, clasificacion, plan generado, accion tomada
 
 ## Notas importantes
-- Usa \\\`gh\\\` CLI para toda interaccion con GitHub (issues, labels, comments)
-- No cierres issues automaticamente \u2014 solo sugiere cerrar con comment
-- Los planes en docs/plans/ deben usar el formato: \\\`issue-{number}-{slug}.md\\\`
-  donde slug es el titulo en kebab-case (max 40 chars)
-- Si \\\`gh\\\` no esta disponible o no esta autenticado, informa al usuario y termina
+- Usa \\\`gh\\\` CLI para toda interaccion con GitHub
+- **No cierres issues automaticamente** \u2014 solo sugiere cerrar con comment
+- Los planes van en \\\`docs/plans/partners_contributions/\\\` (NO en docs/plans/ raiz)
+- Invierte tiempo en investigar el codebase ANTES de responder
+- Si no puedes acceder al repo con \\\`gh\\\`, informa y termina
 `
       }
     ]
