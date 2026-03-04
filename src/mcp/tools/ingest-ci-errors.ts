@@ -59,7 +59,7 @@ export function registerIngestCIErrorsTool(server: McpServer): void {
             conclusion: parseResult.conclusion,
           }) }],
         };
-      } catch (err) {
+      } catch (err: unknown) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: 'CI_INGESTION_ERROR', message: extractErrorMessage(err) }) }],
           isError: true,

@@ -130,7 +130,7 @@ export class ClaudeApiClient {
         content: fullText,
         sources: uniqueSources,
       };
-    } catch (err) {
+    } catch (err: unknown) {
       if (err instanceof ApiKeyError || err instanceof KnowledgeError) throw err;
 
       // Handle specific Anthropic SDK errors

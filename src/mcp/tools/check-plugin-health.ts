@@ -25,7 +25,7 @@ export function registerCheckPluginHealthTool(server: McpServer): void {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(report) }],
         };
-      } catch (err) {
+      } catch (err: unknown) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: 'HEALTH_CHECK_ERROR', message: extractErrorMessage(err) }) }],
           isError: true,

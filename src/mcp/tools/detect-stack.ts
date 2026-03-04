@@ -44,7 +44,7 @@ export function registerDetectStackTool(server: McpServer): void {
             }),
           }],
         };
-      } catch (err) {
+      } catch (err: unknown) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: 'DETECTION_ERROR', message: extractErrorMessage(err) }) }],
           isError: true,

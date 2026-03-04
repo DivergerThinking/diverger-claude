@@ -67,7 +67,7 @@ export async function writeFileAtomic(filePath: string, content: string): Promis
         throw renameErr;
       }
     }
-  } catch (err) {
+  } catch (err: unknown) {
     // Cleanup temp file on failure (may already be removed in EXDEV path)
     try {
       await fs.unlink(tempPath);

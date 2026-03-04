@@ -113,7 +113,7 @@ export function registerStatusCommand(program: Command): void {
             },
           });
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {

@@ -51,7 +51,7 @@ export class DetectionEngine {
           const result = await analyzer.analyze(files, projectRoot);
           allTechnologies.push(...result.technologies);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         options?.onWarning?.(`[diverger] Warning: ${analyzer.name} analyzer failed: ${extractErrorMessage(err)}`);
       }
     }

@@ -38,7 +38,7 @@ export function registerDiffCommand(program: Command): void {
         if (options.output === 'json') {
           log.jsonOutput({ diffs });
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {

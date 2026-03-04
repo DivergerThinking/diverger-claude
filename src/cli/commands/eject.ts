@@ -89,7 +89,7 @@ export function registerEjectCommand(program: Command): void {
         if (outputMode === 'json') {
           log.jsonOutput({ ejected, removed });
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {

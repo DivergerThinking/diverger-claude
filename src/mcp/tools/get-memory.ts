@@ -52,7 +52,7 @@ export function registerGetMemoryTool(server: McpServer): void {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
         };
-      } catch (err) {
+      } catch (err: unknown) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: 'MEMORY_ERROR', message: extractErrorMessage(err) }) }],
           isError: true,

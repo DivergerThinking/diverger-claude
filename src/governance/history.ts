@@ -20,7 +20,7 @@ export async function loadMeta(projectRoot: string): Promise<DivergentMeta | nul
     parsed.fileContents ??= {};
     parsed.trackedDependencies ??= [];
     return parsed;
-  } catch (err) {
+  } catch (err: unknown) {
     throw new GovernanceError(
       `${META_FILE} está corrupto: ${extractErrorMessage(err)}. Elimina el archivo y ejecuta 'diverger init --force' para regenerar.`,
       META_FILE,

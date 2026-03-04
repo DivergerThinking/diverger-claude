@@ -394,7 +394,7 @@ export function registerCleanupCommand(program: Command): void {
             skipped: force ? [] : modified.map((t) => t.relativePath),
           });
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {

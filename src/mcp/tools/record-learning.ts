@@ -93,7 +93,7 @@ export function registerRecordLearningTool(server: McpServer): void {
             };
           }
         }
-      } catch (err) {
+      } catch (err: unknown) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: 'MEMORY_ERROR', message: extractErrorMessage(err) }) }],
           isError: true,

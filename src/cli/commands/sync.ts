@@ -190,7 +190,7 @@ export function registerSyncCommand(program: Command): void {
           profileCount: finalMeta.appliedProfiles?.length ?? 0,
           durationMs: Date.now() - startTime,
         }).catch(() => {}); // fire-and-forget, never block CLI
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {

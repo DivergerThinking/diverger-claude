@@ -118,7 +118,7 @@ export class ThreeWayMerge {
         // Use relative key with fallback to absolute path for backward-compat
         const base = (relKey ? meta?.fileContents?.[relKey] : undefined) ?? meta?.fileContents?.[file.path] ?? null;
         results.push(await this.mergeFile(file, meta, base, governance, projectRoot));
-      } catch (err) {
+      } catch (err: unknown) {
         results.push({
           path: file.path,
           outcome: 'error',

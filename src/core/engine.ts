@@ -217,7 +217,7 @@ export class DivergerEngine {
             ctx.onProgress?.(`Best practices de ${tech.name} (caché)`);
           }
           results.push(result);
-        } catch (err) {
+        } catch (err: unknown) {
           ctx.onWarning?.(extractErrorMessage(err));
           // Stop trying remaining techs if the error is account-level (not transient)
           if (err instanceof ApiKeyError || err instanceof BillingError) {

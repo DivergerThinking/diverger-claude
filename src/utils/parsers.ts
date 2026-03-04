@@ -7,7 +7,7 @@ import { stripBom } from './fs.js';
 export function parseJson<T = unknown>(content: string, source?: string): T {
   try {
     return JSON.parse(stripBom(content)) as T;
-  } catch (err) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     throw new Error(`Error parsing JSON${source ? ` from ${source}` : ''}: ${msg}`);
   }
@@ -21,7 +21,7 @@ export function parseYaml<T = unknown>(content: string, source?: string): T {
       return {} as T;
     }
     return result as T;
-  } catch (err) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     throw new Error(`Error parsing YAML${source ? ` from ${source}` : ''}: ${msg}`);
   }
@@ -31,7 +31,7 @@ export function parseYaml<T = unknown>(content: string, source?: string): T {
 export function parseTOML<T = Record<string, unknown>>(content: string, source?: string): T {
   try {
     return parseToml(stripBom(content)) as T;
-  } catch (err) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     throw new Error(`Error parsing TOML${source ? ` from ${source}` : ''}: ${msg}`);
   }
@@ -45,7 +45,7 @@ export function parseXml<T = Record<string, unknown>>(content: string, source?: 
       attributeNamePrefix: '@_',
     });
     return parser.parse(stripBom(content)) as T;
-  } catch (err) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     throw new Error(`Error parsing XML${source ? ` from ${source}` : ''}: ${msg}`);
   }

@@ -31,7 +31,7 @@ function getLatestVersion(): { version: string | null; error?: string } {
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
     return { version };
-  } catch (err) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     // Extract useful hint from npm error output
     if (msg.includes('401') || msg.includes('ENEEDAUTH')) {

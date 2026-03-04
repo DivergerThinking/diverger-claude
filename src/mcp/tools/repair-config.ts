@@ -27,7 +27,7 @@ export function registerRepairConfigTool(server: McpServer): void {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(report) }],
         };
-      } catch (err) {
+      } catch (err: unknown) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: 'REPAIR_ERROR', message: extractErrorMessage(err) }) }],
           isError: true,

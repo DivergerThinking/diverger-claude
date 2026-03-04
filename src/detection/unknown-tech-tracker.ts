@@ -76,7 +76,7 @@ export async function fileGitHubIssue(
     );
     const created = JSON.parse(createResult) as { number: number; url: string };
     return { issueNumber: created.number, issueUrl: created.url };
-  } catch (err) {
+  } catch (err: unknown) {
     // gh CLI not available or no auth — return null
     const msg = extractErrorMessage(err);
     if (msg.includes('command not found') || msg.includes('not recognized')) {

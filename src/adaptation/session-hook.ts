@@ -115,7 +115,7 @@ export async function onSessionStart(projectRoot: string, options?: { onError?: 
     if (messages.length === 0) return null;
 
     return `[diverger-claude] ${messages.join(' | ')}`;
-  } catch (err) {
+  } catch (err: unknown) {
     (options?.onError ?? console.error)(`[diverger-claude] SessionStart hook error: ${extractErrorMessage(err)}`);
     return null;
   }

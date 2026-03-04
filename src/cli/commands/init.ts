@@ -106,7 +106,7 @@ async function handleDryRun(
   try {
     result = await engine.initWithDetection(confirmed, ctx);
     spinner.succeed('Cambios calculados');
-  } catch (err) {
+  } catch (err: unknown) {
     const message = extractErrorMessage(err);
     spinner.fail(`Calculando cambios... - ${message}`);
     throw err;
@@ -175,7 +175,7 @@ async function generateAndWrite(
   try {
     result = await engine.initWithDetection(confirmed, ctx);
     spinner.succeed('Configuración generada');
-  } catch (err) {
+  } catch (err: unknown) {
     const message = extractErrorMessage(err);
     spinner.fail(`Generando configuración... - ${message}`);
     throw err;
@@ -384,7 +384,7 @@ export function registerInitCommand(program: Command): void {
           profileCount: initResult.composed.appliedProfiles?.length ?? 0,
           durationMs: Date.now() - startTime,
         }).catch(() => {}); // fire-and-forget, never block CLI
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {

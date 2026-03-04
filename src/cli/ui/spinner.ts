@@ -31,7 +31,7 @@ export async function withSpinner<T>(
     const result = await fn();
     spinner.succeed(successText ?? text);
     return result;
-  } catch (err) {
+  } catch (err: unknown) {
     const message = extractErrorMessage(err);
     spinner.fail(`${text} - ${message}`);
     throw err;

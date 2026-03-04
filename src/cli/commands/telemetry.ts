@@ -23,7 +23,7 @@ export function registerTelemetryCommand(program: Command): void {
       try {
         await enableTelemetry();
         log.success('Telemetría activada. Los eventos se guardan localmente en ~/.diverger/telemetry.json');
-      } catch (err) {
+      } catch (err: unknown) {
         log.error(`No se pudo activar la telemetría: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
       }
@@ -36,7 +36,7 @@ export function registerTelemetryCommand(program: Command): void {
       try {
         await disableTelemetry();
         log.success('Telemetría desactivada.');
-      } catch (err) {
+      } catch (err: unknown) {
         log.error(`No se pudo desactivar la telemetría: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
       }
@@ -110,7 +110,7 @@ export function registerTelemetryCommand(program: Command): void {
           log.blank();
           log.dim(`Mostrando ${TABLE_DISPLAY_LIMIT} de ${store.events.length} eventos. Usa --json para ver todos.`);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         log.error(`No se pudo leer la telemetría: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
       }
@@ -144,7 +144,7 @@ export function registerTelemetryCommand(program: Command): void {
 
         await clearTelemetry();
         log.success(`${store.events.length} eventos borrados.`);
-      } catch (err) {
+      } catch (err: unknown) {
         log.error(`No se pudieron borrar los eventos: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
       }

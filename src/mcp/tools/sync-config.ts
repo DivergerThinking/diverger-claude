@@ -111,7 +111,7 @@ export function registerSyncConfigTool(server: McpServer): void {
             }),
           }],
         };
-      } catch (err) {
+      } catch (err: unknown) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: 'SYNC_ERROR', message: extractErrorMessage(err) }) }],
           isError: true,

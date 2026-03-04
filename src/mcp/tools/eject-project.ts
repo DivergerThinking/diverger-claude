@@ -31,7 +31,7 @@ export function registerEjectProjectTool(server: McpServer): void {
             }),
           }],
         };
-      } catch (err) {
+      } catch (err: unknown) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: 'EJECT_ERROR', message: extractErrorMessage(err) }) }],
           isError: true,

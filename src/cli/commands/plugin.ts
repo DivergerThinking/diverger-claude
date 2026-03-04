@@ -118,7 +118,7 @@ export async function getLatestReleaseTag(): Promise<{ tag: string | null; error
     const assetName = `${PLUGIN_NAME}-plugin-${tag}.tar.gz`;
     const asset = data.assets?.find((a) => a.name === assetName);
     return { tag, assetUrl: asset?.url };
-  } catch (err) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('ENOTFOUND') || msg.includes('EAI_AGAIN') || msg.includes('fetch failed')) {
       return { tag: null, error: 'No se pudo conectar a GitHub. Verifica tu conexión a internet.' };
@@ -236,7 +236,7 @@ export async function doPluginInstall(opts?: { tag?: string; quiet?: boolean }):
 
     try {
       await downloadFile(downloadUrl, tarballPath);
-    } catch (err) {
+    } catch (err: unknown) {
       if (!quiet) {
         log.error('Error al descargar el plugin.');
         log.dim(`  ${extractErrorMessage(err)}`);
@@ -254,7 +254,7 @@ export async function doPluginInstall(opts?: { tag?: string; quiet?: boolean }):
         await fs.rm(PLUGIN_DIR, { recursive: true });
       }
       await extractPlugin(tarballPath, PLUGIN_DIR);
-    } catch (err) {
+    } catch (err: unknown) {
       if (!quiet) {
         log.error('Error al extraer el plugin.');
         log.dim(`  ${extractErrorMessage(err)}`);
@@ -382,7 +382,7 @@ export function registerPluginCommand(program: Command): void {
         if (outputMode === 'json') {
           log.jsonOutput({ installed: true, version: installedVersion, path: result.path, tag: result.tag });
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {
@@ -437,7 +437,7 @@ export function registerPluginCommand(program: Command): void {
             synced: pluginVersion === cliVersion,
           });
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {
@@ -492,7 +492,7 @@ export function registerPluginCommand(program: Command): void {
         if (outputMode === 'json') {
           log.jsonOutput({ uninstalled: true, path: pluginPath });
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {

@@ -63,7 +63,7 @@ export function registerCheckCommand(program: Command): void {
         if (!result.valid) {
           process.exit(1);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof DivergerError) {
           log.error(`[${err.code}] ${err.message}`);
         } else {
