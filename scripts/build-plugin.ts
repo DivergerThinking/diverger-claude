@@ -5,7 +5,8 @@
  *   plugin/
  *   ├── .claude-plugin/plugin.json
  *   ├── agents/{name}.md
- *   ├── skills/{name}/SKILL.md
+ *   ├── commands/{name}.md        (user-invocable skills)
+ *   ├── skills/{name}/SKILL.md    (model-invoked skills)
  *   ├── hooks/hooks.json
  *   └── hooks/scripts/{name}.sh
  *
@@ -18,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { universalProfile } from '../src/profiles/registry/base/universal.profile.js';
 import { ProfileComposer } from '../src/profiles/composer.js';
 import { formatAgentFile } from '../src/generation/generators/agents.js';
-import { formatSkillFile } from '../src/generation/generators/skills.js';
+import { formatSkillFile, formatCommandFile } from '../src/generation/generators/skills.js';
 import type { DetectionResult, HookDefinition } from '../src/core/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -46,6 +47,7 @@ const composed = composer.compose([universalProfile], emptyDetection);
 const dirs = [
   path.join(PLUGIN_DIR, '.claude-plugin'),
   path.join(PLUGIN_DIR, 'agents'),
+  path.join(PLUGIN_DIR, 'commands'),
   path.join(PLUGIN_DIR, 'hooks', 'scripts'),
   path.join(PLUGIN_DIR, 'mcp'),
 ];
@@ -63,12 +65,23 @@ for (const agent of composed.agents) {
 }
 console.log(`  agents: ${composed.agents.length} files`);
 
-// --- Write skills ---
+// --- Write skills (model-invoked) and commands (user-invocable) ---
+let commandCount = 0;
+let skillCount = 0;
 for (const skill of composed.skills) {
+  // User-invocable skills go to commands/ as {name}.md
+  if (skill.userInvocable) {
+    const content = formatCommandFile(skill);
+    writeFileSync(path.join(PLUGIN_DIR, 'commands', `${skill.name}.md`), content);
+    commandCount++;
+  }
+  // All skills also go to skills/ for model invocation and .claude/skills/ generation
   const content = formatSkillFile(skill);
   writeFileSync(path.join(PLUGIN_DIR, 'skills', skill.name, 'SKILL.md'), content);
+  skillCount++;
 }
-console.log(`  skills: ${composed.skills.length} directories`);
+console.log(`  commands: ${commandCount} files (user-invocable)`);
+console.log(`  skills: ${skillCount} directories (model-invoked)`);
 
 // --- Write hook scripts ---
 for (const script of composed.hookScripts) {
@@ -1262,11 +1275,41 @@ fs.writeFileSync(log, JSON.stringify(entries, null, 2));
 `,
   },
   {
-    filename: 'issue-triage-checker.sh',
+    filename: 'issue-triage-on-prompt.sh',
     content: `#!/bin/bash
-# SessionStart hook: Check for untriaged GitHub issues
-# Outputs a message that Claude sees as context at session start
-# Uses Node.js instead of jq for cross-platform compatibility (Windows)
+# UserPromptSubmit hook: Check for untriaged GitHub issues (once per session)
+#
+# WORKAROUND: SessionStart hooks are broken on Windows (multiple known bugs):
+#   - https://github.com/anthropics/claude-code/issues/9542  (infinite hang)
+#   - https://github.com/anthropics/claude-code/issues/10373 (output not injected)
+#   - https://github.com/anthropics/claude-code/issues/23038 (hang in trusted dirs)
+#
+# This hook runs on UserPromptSubmit instead, using a session-based lock file
+# to ensure it only executes once per session. When SessionStart is fixed on
+# Windows, migrate this back to SessionStart and delete the lock file logic.
+#
+# Uses Node.js instead of jq for cross-platform compatibility (Windows).
+
+# Extract session_id from stdin JSON to create a per-session lock
+INPUT=\$(cat)
+SESSION_ID=\$(node -e "try{console.log(JSON.parse(process.argv[1]).session_id||'')}catch{console.log('')}" -- "\$INPUT")
+
+if [ -z "\$SESSION_ID" ]; then
+  exit 0
+fi
+
+# One-shot lock: skip if already ran for this session
+LOCK_DIR="/tmp/claude-triage-locks"
+mkdir -p "\$LOCK_DIR" 2>/dev/null
+LOCK_FILE="\$LOCK_DIR/\$SESSION_ID.lock"
+
+if [ -f "\$LOCK_FILE" ]; then
+  exit 0
+fi
+touch "\$LOCK_FILE"
+
+# Clean up stale lock files older than 24h
+find "\$LOCK_DIR" -name "*.lock" -mmin +1440 -delete 2>/dev/null
 
 # Check if gh CLI is available and authenticated
 if ! command -v gh &>/dev/null; then
@@ -1283,10 +1326,10 @@ if ! gh repo view --json name &>/dev/null 2>&1; then
 fi
 
 # Get open issues without 'planned' or 'already-implemented' labels
-ISSUES=$(gh issue list --state open --json number,title,labels --limit 20 2>/dev/null || echo "[]")
+ISSUES=\$(gh issue list --state open --json number,title,labels --limit 20 2>/dev/null || echo "[]")
 
 # Filter untriaged issues using Node.js
-UNTRIAGED=$(node -e "
+UNTRIAGED=\$(node -e "
 const issues = JSON.parse(process.argv[1] || '[]');
 const triaged = new Set(['planned', 'already-implemented']);
 const pending = issues.filter(i => {
@@ -1396,14 +1439,14 @@ if (!hasErrorTrackerEdit) {
   });
 }
 
-// Add issue-triage-checker to SessionStart
-if (!intelligenceHooks['SessionStart']) intelligenceHooks['SessionStart'] = [];
-const sessionStart = intelligenceHooks['SessionStart'] as HooksJsonEntry[];
-const hasTriageChecker = sessionStart.some((h) => h.command.includes('issue-triage-checker'));
+// Add issue-triage-on-prompt to UserPromptSubmit (workaround for SessionStart Windows bugs)
+if (!intelligenceHooks['UserPromptSubmit']) intelligenceHooks['UserPromptSubmit'] = [];
+const userPromptSubmit = intelligenceHooks['UserPromptSubmit'] as HooksJsonEntry[];
+const hasTriageChecker = userPromptSubmit.some((h) => h.command.includes('issue-triage-on-prompt'));
 if (!hasTriageChecker) {
-  sessionStart.push({
+  userPromptSubmit.push({
     type: 'command',
-    command: 'bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/issue-triage-checker.sh',
+    command: 'bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/issue-triage-on-prompt.sh',
     timeout: 15,
     statusMessage: 'Checking for untriaged issues...',
   });

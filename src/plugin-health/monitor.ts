@@ -119,34 +119,38 @@ async function checkAgentsIntegrity(pluginDir: string): Promise<IntegrityCheckRe
 }
 
 /**
- * Check that all skill directories have SKILL.md.
+ * Check that all skill directories have SKILL.md and all commands exist.
  */
 async function checkSkillsIntegrity(pluginDir: string): Promise<IntegrityCheckResult> {
   const skillsDir = path.join(pluginDir, 'skills');
-  const dirs = await fg('*', { cwd: skillsDir, onlyDirectories: true }).catch(() => []);
+  const commandsDir = path.join(pluginDir, 'commands');
 
-  if (dirs.length === 0) {
+  const skillDirs = await fg('*', { cwd: skillsDir, onlyDirectories: true }).catch(() => []);
+  const commandFiles = await fg('*.md', { cwd: commandsDir }).catch(() => []);
+
+  if (skillDirs.length === 0 && commandFiles.length === 0) {
     return {
       check: 'skills-integrity',
       status: 'degraded',
-      message: 'No se encontraron skills en plugin/skills/',
+      message: 'No se encontraron skills en plugin/skills/ ni commands en plugin/commands/',
       autoFixable: true,
     };
   }
 
-  const missing: string[] = [];
-  for (const dir of dirs) {
+  const issues: string[] = [];
+
+  for (const dir of skillDirs) {
     const skillMdPath = path.join(skillsDir, dir, 'SKILL.md');
     if (!(await fileExists(skillMdPath))) {
-      missing.push(dir);
+      issues.push(`SKILL.md faltante en skills/${dir}`);
     }
   }
 
-  if (missing.length > 0) {
+  if (issues.length > 0) {
     return {
       check: 'skills-integrity',
       status: 'unhealthy',
-      message: `SKILL.md faltante en: ${missing.join(', ')}`,
+      message: issues.join(', '),
       autoFixable: true,
     };
   }
@@ -154,7 +158,7 @@ async function checkSkillsIntegrity(pluginDir: string): Promise<IntegrityCheckRe
   return {
     check: 'skills-integrity',
     status: 'healthy',
-    message: `${dirs.length} skills con SKILL.md válido`,
+    message: `${commandFiles.length} commands + ${skillDirs.length} skills válidos`,
     autoFixable: false,
   };
 }

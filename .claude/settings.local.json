@@ -46,7 +46,16 @@
       "WebFetch(domain:www.eesel.ai)",
       "WebFetch(domain:ts.sdk.modelcontextprotocol.io)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:www.npmjs.com)"
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(gh release:*)",
+      "Bash(gh repo:*)",
+      "Bash(xargs:*)",
+      "WebFetch(domain:zod.dev)",
+      "WebFetch(domain:eslint.org)",
+      "Bash(bash:*)",
+      "Skill(ralph-loop:ralph-loop)",
+      "Bash(do mkdir:*)",
+      "Bash(ln:*)"
     ]
   }
 }

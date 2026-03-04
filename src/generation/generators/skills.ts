@@ -42,6 +42,29 @@ export function formatSkillFile(skill: SkillDefinition): string {
   return parts.join('\n');
 }
 
+/**
+ * Format a command file for plugin commands/ directory.
+ * Commands use a simpler frontmatter (description only) and are {name}.md files.
+ */
+export function formatCommandFile(skill: SkillDefinition): string {
+  const parts: string[] = [];
+  parts.push('---');
+  parts.push(`description: ${yamlEscape(skill.description)}`);
+  if (skill.argumentHint) {
+    parts.push(`argument-hint: ${yamlEscape(skill.argumentHint)}`);
+  }
+  if (skill.allowedTools && skill.allowedTools.length > 0) {
+    parts.push('allowed-tools:');
+    for (const tool of skill.allowedTools) {
+      parts.push(`  - ${tool}`);
+    }
+  }
+  parts.push('---');
+  parts.push('');
+  parts.push(skill.content);
+  return parts.join('\n');
+}
+
 /** Generate all .claude/skills/{name}/SKILL.md files from composed config */
 export function generateSkills(
   config: ComposedConfig,

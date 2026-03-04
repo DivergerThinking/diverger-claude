@@ -1,8 +1,5 @@
 ---
-name: diverger-develop
 description: "Evaluate and implement triaged contribution plans from partners, with honest feasibility assessment"
-disable-model-invocation: true
-user-invocable: true
 ---
 
 # Develop Triaged Contributions

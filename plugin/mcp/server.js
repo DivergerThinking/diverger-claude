@@ -88762,7 +88762,7 @@ var ThreeWayMerge = class {
 
 // src/governance/history.ts
 import path23 from "path";
-var PACKAGE_VERSION = "3.5.0";
+var PACKAGE_VERSION = "3.5.1";
 async function loadMeta(projectRoot) {
   const content = await readFileOrNull(path23.join(projectRoot, META_FILE));
   if (content === null) return null;
@@ -95634,34 +95634,36 @@ async function checkAgentsIntegrity(pluginDir) {
 }
 async function checkSkillsIntegrity(pluginDir) {
   const skillsDir2 = path36.join(pluginDir, "skills");
-  const dirs = await (0, import_fast_glob5.default)("*", { cwd: skillsDir2, onlyDirectories: true }).catch(() => []);
-  if (dirs.length === 0) {
+  const commandsDir = path36.join(pluginDir, "commands");
+  const skillDirs = await (0, import_fast_glob5.default)("*", { cwd: skillsDir2, onlyDirectories: true }).catch(() => []);
+  const commandFiles = await (0, import_fast_glob5.default)("*.md", { cwd: commandsDir }).catch(() => []);
+  if (skillDirs.length === 0 && commandFiles.length === 0) {
     return {
       check: "skills-integrity",
       status: "degraded",
-      message: "No se encontraron skills en plugin/skills/",
+      message: "No se encontraron skills en plugin/skills/ ni commands en plugin/commands/",
       autoFixable: true
     };
   }
-  const missing = [];
-  for (const dir of dirs) {
+  const issues = [];
+  for (const dir of skillDirs) {
     const skillMdPath = path36.join(skillsDir2, dir, "SKILL.md");
     if (!await fileExists(skillMdPath)) {
-      missing.push(dir);
+      issues.push(`SKILL.md faltante en skills/${dir}`);
     }
   }
-  if (missing.length > 0) {
+  if (issues.length > 0) {
     return {
       check: "skills-integrity",
       status: "unhealthy",
-      message: `SKILL.md faltante en: ${missing.join(", ")}`,
+      message: issues.join(", "),
       autoFixable: true
     };
   }
   return {
     check: "skills-integrity",
     status: "healthy",
-    message: `${dirs.length} skills con SKILL.md v\xE1lido`,
+    message: `${commandFiles.length} commands + ${skillDirs.length} skills v\xE1lidos`,
     autoFixable: false
   };
 }
@@ -96466,7 +96468,7 @@ function registerIngestCIErrorsTool(server2) {
 }
 
 // src/mcp/server.ts
-var version2 = "3.5.0";
+var version2 = "3.5.1";
 var server = new McpServer({ name: "diverger-claude", version: version2 });
 registerDetectStackTool(server);
 registerGenerateConfigTool(server);

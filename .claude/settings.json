@@ -1,20 +1,166 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
-      "Bash(npm:*)",
-      "Bash(npx:*)",
-      "Bash(node:*)",
+      "Bash(act:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh release:*)",
+      "Bash(gh run:*)",
+      "Bash(gh workflow:*)",
+      "Bash(gh:*)",
       "Bash(git:*)",
-      "Read(*)",
-      "Write(src/**)",
-      "Write(tests/**)",
-      "Edit(src/**)",
-      "Edit(tests/**)"
+      "Bash(node:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm test:*)",
+      "Bash(npm:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx:*)",
+      "Bash(pnpm run test:*)",
+      "Bash(pnpm test:*)",
+      "Bash(vitest:*)",
+      "Bash(yarn test:*)",
+      "Bash(yarn vitest:*)"
     ],
     "deny": [
-      "Read(.env*)",
+      "Edit(**/*.key)",
+      "Edit(**/*.p12)",
+      "Edit(**/*.pem)",
+      "Edit(**/*.pfx)",
+      "Edit(**/.aws/**)",
+      "Edit(**/.ssh/**)",
+      "Edit(**/credentials*)",
+      "Edit(**/secrets/**)",
+      "Edit(.env*)",
+      "Read(**/*.key)",
+      "Read(**/*.p12)",
       "Read(**/*.pem)",
-      "Read(**/secrets/**)"
+      "Read(**/*.pfx)",
+      "Read(**/.aws/**)",
+      "Read(**/.ssh/**)",
+      "Read(**/credentials*)",
+      "Read(**/secrets/**)",
+      "Read(.env*)",
+      "Write(**/*.key)",
+      "Write(**/*.p12)",
+      "Write(**/*.pem)",
+      "Write(**/*.pfx)",
+      "Write(**/.aws/**)",
+      "Write(**/.ssh/**)",
+      "Write(**/credentials*)",
+      "Write(**/secrets/**)",
+      "Write(.env*)"
+    ]
+  },
+  "sandbox": {
+    "filesystem": {
+      "denyRead": [
+        "~/.aws/credentials",
+        "~/.ssh/**",
+        "~/.gnupg/**",
+        "~/.config/gh/hosts.yml"
+      ]
+    }
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/ts-any-check.sh",
+            "timeout": 10,
+            "statusMessage": "Checking for any types..."
+          }
+        ],
+        "matcher": "Write"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/ts-ignore-check.sh",
+            "timeout": 5,
+            "statusMessage": "Checking for @ts-ignore..."
+          }
+        ],
+        "matcher": "Write"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/ts-catch-unknown.sh",
+            "timeout": 5,
+            "statusMessage": "Checking catch block types..."
+          }
+        ],
+        "matcher": "Write"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/ts-enum-check.sh",
+            "timeout": 5,
+            "statusMessage": "Checking for enum declarations..."
+          }
+        ],
+        "matcher": "Write"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE_PATH=$(node -e \"try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}\"); [ -n \"$FILE_PATH\" ] && node -e \"const f=process.argv[1]||'';if(!/\\.(test|spec)\\.(ts|tsx|js|jsx)$/.test(f))process.exit(0);const c=require('fs').readFileSync(f,'utf8');if(/\\.(only|skip)\\s*\\(/.test(c)&&!/\\/\\/.*\\.(only|skip)/.test(c))console.log('WARNING: .only or .skip detected in test file — remove before committing to avoid skipping tests in CI')\" -- \"$FILE_PATH\"",
+            "timeout": 5
+          }
+        ],
+        "matcher": "Write"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE_PATH=$(node -e \"try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}\"); [ -n \"$FILE_PATH\" ] && node -e \"const f=process.argv[1]||'';if(!/\\.(test|spec)\\.(ts|tsx|js|jsx)$/.test(f))process.exit(0);const c=require('fs').readFileSync(f,'utf8');if(/vi\\.mock\\s*\\(/.test(c)&&!/vi\\.restoreAllMocks|vi\\.clearAllMocks|vi\\.resetAllMocks/.test(c))console.log('WARNING: vi.mock() used without vi.restoreAllMocks()/vi.clearAllMocks() in afterEach — mocks may leak between tests')\" -- \"$FILE_PATH\"",
+            "timeout": 5
+          }
+        ],
+        "matcher": "Write"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE_PATH=$(node -e \"try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}\") && [ -n \"$FILE_PATH\" ] && echo \"$FILE_PATH\" | grep -qE \"\\.github/workflows/.*\\.ya?ml$\" && grep -nE \"\\$\\{\\{\\s*github\\.event\\.(issue|pull_request|comment|review|discussion)\\.(title|body)\\s*\\}\\}\" \"$FILE_PATH\" | head -1 | grep -q \".\" && { echo \"Potential script injection — untrusted input interpolated directly in workflow file — use env variable instead\" >&2; exit 2; } || exit 0",
+            "timeout": 10,
+            "statusMessage": "Checking for script injection in GitHub Actions workflows"
+          }
+        ],
+        "matcher": "Write"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE_PATH=$(node -e \"try{console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tool_input?.file_path||'')}catch{console.log('')}\") && [ -n \"$FILE_PATH\" ] && echo \"$FILE_PATH\" | grep -qE \"\\.github/workflows/.*\\.ya?ml$\" && grep -nE \"uses:\\s+[^@]+@v[0-9]\" \"$FILE_PATH\" | head -1 | grep -q \".\" && { echo \"Warning: action pinned to mutable tag — pin to full commit SHA for supply chain security\" >&2; exit 2; } || exit 0",
+            "timeout": 10,
+            "statusMessage": "Checking for mutable action tags in GitHub Actions workflows"
+          }
+        ],
+        "matcher": "Write"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash plugin/hooks/scripts/issue-triage-on-prompt.sh",
+            "timeout": 15,
+            "statusMessage": "Checking for untriaged issues..."
+          }
+        ]
+      }
     ]
   }
 }

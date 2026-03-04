@@ -61,10 +61,10 @@
       }
     ]
   },
-  "SessionStart": [
+  "UserPromptSubmit": [
     {
       "type": "command",
-      "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/issue-triage-checker.sh",
+      "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/issue-triage-on-prompt.sh",
       "timeout": 15,
       "statusMessage": "Checking for untriaged issues..."
     }
