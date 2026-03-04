@@ -82,7 +82,7 @@ export const UNIVERSAL_AGENT_NAMES: ReadonlySet<string> = new Set([
 
 export const UNIVERSAL_SKILL_NAMES: ReadonlySet<string> = new Set([
   'architecture-style-guide', 'security-guide', 'git-workflow-guide',
-  'diverger-doctor', 'diverger-quickstart', 'diverger-welcome',
+  'diverger-doctor', 'diverger-quickstart', 'diverger-welcome', 'diverger-triage',
 ]);
 
 export const UNIVERSAL_HOOK_SCRIPT_FILENAMES: ReadonlySet<string> = new Set([

@@ -17,7 +17,7 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - **evolution-advisor**: Analiza cambios del proyecto y recomienda actualizaciones de configuración
 - **audit-reviewer**: Revisión exhaustiva de calidad y conformidad
 
-### 21 Skills universales
+### 22 Skills universales
 
 #### Configuración y gestión
 - `/diverger-init` — Detecta stack y genera configuración .claude/
@@ -44,8 +44,9 @@ El plugin diverger-claude extiende Claude Code con agentes, skills, hooks y un s
 - `/diverger-doctor` — Score de salud del proyecto 0-100 con recomendaciones
 - `/diverger-quickstart` — Guía post-init de 5 minutos para sacar partido a la configuración
 
-#### Bienvenida
+#### Bienvenida y gestión
 - `/diverger-welcome` — Briefing de proyecto: identidad, git status, comandos, directorios clave, salud
+- `/diverger-triage` — Triage de issues de GitHub: clasifica, evalúa y genera planes de implementación
 
 #### Referencia universal
 - `/architecture-style-guide` — Guía de estilo de arquitectura

@@ -56,6 +56,8 @@ Referencia completa de todos los flujos del sistema, como activarlos y que hacen
 | 45 | /diverger-welcome | Manual (skill) | Skill | Briefing de proyecto (<40 lineas) |
 | 46 | Interpolacion de templates | Automatico (durante composicion) | Generacion | Resuelve {{lang.*}}, {{ci.*}}, {{docker.*}} segun lenguaje detectado |
 | 47 | Validacion de hooks | Automatico (durante generacion) | Generacion | Detecta scripts huerfanos y referencias a scripts faltantes |
+| 48 | /diverger-triage | Manual (skill) | Skill | Triage de issues: clasifica, evalua y genera planes |
+| 49 | Auto-label de issues | Automatico (GH Action) | CI | Etiqueta y da bienvenida a issues nuevas |
 
 ---
 
@@ -823,7 +825,7 @@ Los agentes se activan **automaticamente** cuando Claude Code delega tareas espe
 | Componente | Cantidad | Activacion |
 |-----------|----------|------------|
 | Profiles | 59 | Automatico (basado en deteccion) |
-| Skills | 21 | Manual (`/nombre`) |
+| Skills | 22 | Manual (`/nombre`) |
 | Agents | 8 | Automatico (delegacion por Claude) |
 | Hooks | 7 | Automatico (eventos de Claude Code) |
 | MCP Tools | 14 | Programatico (via MCP server) |

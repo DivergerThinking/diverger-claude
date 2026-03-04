@@ -1,0 +1,86 @@
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  issues: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-label and welcome
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const title = (issue.title || '').toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+            const text = `${title} ${body}`;
+
+            // Classify by keywords
+            const rules = [
+              { keywords: ['bug', 'error', 'broken', 'crash', 'fix', 'wrong', 'fail'], label: 'bug' },
+              { keywords: ['feature', 'add', 'support', 'new', 'request', 'suggest', 'would be nice'], label: 'feature-request' },
+              { keywords: ['profile', 'ci/cd', 'framework', 'language', 'technology'], label: 'profile-request' },
+              { keywords: ['question', 'how', 'help', 'docs', 'documentation', 'guide'], label: 'question' },
+            ];
+
+            let label = 'needs-triage';
+            for (const rule of rules) {
+              if (rule.keywords.some(kw => text.includes(kw))) {
+                label = rule.label;
+                break;
+              }
+            }
+
+            // Ensure label exists, then apply
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: label,
+              });
+            } catch {
+              const colors = {
+                'bug': 'd73a4a',
+                'feature-request': 'a2eeef',
+                'profile-request': '7057ff',
+                'question': 'd876e3',
+                'needs-triage': 'fbca04',
+              };
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: label,
+                color: colors[label] || 'ededed',
+              });
+            }
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              labels: [label],
+            });
+
+            // Welcome comment
+            const author = issue.user.login;
+            const comment = [
+              `Thanks for opening this issue, @${author}! 👋`,
+              '',
+              `It has been auto-labeled as **${label}**. A maintainer will review it shortly.`,
+              '',
+              'If this is a feature request for a new technology/framework, check our',
+              '[supported technologies](https://github.com/DivergerThinking/diverger-claude#tecnolog%C3%ADas-soportadas-59-profiles)',
+              'to see what\'s already available.',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: comment,
+            });
