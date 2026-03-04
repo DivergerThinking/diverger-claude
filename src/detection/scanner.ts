@@ -92,14 +92,20 @@ export class FileScanner {
       onlyFiles: true,
     });
 
-    for (const relativePath of found) {
-      const absolutePath = path.join(projectRoot, relativePath);
-      try {
-        const content = await fs.readFile(absolutePath, 'utf-8');
-        files.set(relativePath, content);
-      } catch {
-        // Skip unreadable files
-      }
+    const readResults = await Promise.all(
+      found.map(async (relativePath) => {
+        const absolutePath = path.join(projectRoot, relativePath);
+        try {
+          const content = await fs.readFile(absolutePath, 'utf-8');
+          return { relativePath, content } as const;
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    for (const result of readResults) {
+      if (result) files.set(result.relativePath, result.content);
     }
 
     return files;
@@ -125,14 +131,20 @@ export class FileScanner {
       deep: 4,
     });
 
-    for (const relativePath of found) {
-      const absolutePath = path.join(projectRoot, relativePath);
-      try {
-        const content = await fs.readFile(absolutePath, 'utf-8');
-        files.set(relativePath, content);
-      } catch {
-        // Skip unreadable files
-      }
+    const readResults = await Promise.all(
+      found.map(async (relativePath) => {
+        const absolutePath = path.join(projectRoot, relativePath);
+        try {
+          const content = await fs.readFile(absolutePath, 'utf-8');
+          return { relativePath, content } as const;
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    for (const result of readResults) {
+      if (result) files.set(result.relativePath, result.content);
     }
 
     return files;
