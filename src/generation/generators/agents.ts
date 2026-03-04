@@ -1,13 +1,14 @@
 import type { AgentDefinition, ComposedConfig, GeneratedFile, ProjectMetadata } from '../../core/types.js';
 import { CLAUDE_DIR, AGENTS_DIR } from '../../core/constants.js';
 import { assertPathWithin } from '../../utils/fs.js';
+import { ValidationError } from '../../core/errors.js';
 import { yamlEscape } from './yaml-utils.js';
 import path from 'path';
 
 /** Validate an agent name is safe for use as a filename */
 function validateAgentName(name: string): void {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    throw new Error(`Nombre de agente inválido "${name}": solo se permiten alfanuméricos, guiones y guiones bajos`);
+    throw new ValidationError(`Nombre de agente inválido "${name}": solo se permiten alfanuméricos, guiones y guiones bajos`);
   }
 }
 

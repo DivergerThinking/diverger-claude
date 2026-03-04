@@ -1,12 +1,13 @@
 import type { ComposedConfig, GeneratedFile } from '../../core/types.js';
 import { CLAUDE_DIR, HOOKS_DIR } from '../../core/constants.js';
 import { assertPathWithin } from '../../utils/fs.js';
+import { ValidationError } from '../../core/errors.js';
 import path from 'path';
 
 /** Validate a hook script filename is safe */
 function validateFilename(filename: string): void {
   if (!/^[a-zA-Z0-9_-]+\.sh$/.test(filename)) {
-    throw new Error(
+    throw new ValidationError(
       `Nombre de hook script inválido "${filename}": solo se permiten alfanuméricos, guiones, guiones bajos, y debe terminar en .sh`,
     );
   }

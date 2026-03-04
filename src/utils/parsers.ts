@@ -2,6 +2,7 @@ import yaml from 'js-yaml';
 import { parse as parseToml } from 'smol-toml';
 import { XMLParser } from 'fast-xml-parser';
 import { stripBom } from './fs.js';
+import { ParseError } from '../core/errors.js';
 
 /** Parse JSON with better error messages */
 export function parseJson<T = unknown>(content: string, source?: string): T {
@@ -9,7 +10,7 @@ export function parseJson<T = unknown>(content: string, source?: string): T {
     return JSON.parse(stripBom(content)) as T;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
-    throw new Error(`Error parsing JSON${source ? ` from ${source}` : ''}: ${msg}`);
+    throw new ParseError(`Error parsing JSON${source ? ` from ${source}` : ''}: ${msg}`, 'json', source);
   }
 }
 
@@ -23,7 +24,7 @@ export function parseYaml<T = unknown>(content: string, source?: string): T {
     return result as T;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
-    throw new Error(`Error parsing YAML${source ? ` from ${source}` : ''}: ${msg}`);
+    throw new ParseError(`Error parsing YAML${source ? ` from ${source}` : ''}: ${msg}`, 'yaml', source);
   }
 }
 
@@ -33,7 +34,7 @@ export function parseTOML<T = Record<string, unknown>>(content: string, source?:
     return parseToml(stripBom(content)) as T;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
-    throw new Error(`Error parsing TOML${source ? ` from ${source}` : ''}: ${msg}`);
+    throw new ParseError(`Error parsing TOML${source ? ` from ${source}` : ''}: ${msg}`, 'toml', source);
   }
 }
 
@@ -47,6 +48,6 @@ export function parseXml<T = Record<string, unknown>>(content: string, source?: 
     return parser.parse(stripBom(content)) as T;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
-    throw new Error(`Error parsing XML${source ? ` from ${source}` : ''}: ${msg}`);
+    throw new ParseError(`Error parsing XML${source ? ` from ${source}` : ''}: ${msg}`, 'xml', source);
   }
 }

@@ -112,6 +112,34 @@ export class ProfileConflictError extends CompositionError {
   }
 }
 
+/** Error when parsing JSON, YAML, TOML, or XML content */
+export class ParseError extends DivergerError {
+  constructor(
+    message: string,
+    public readonly format: 'json' | 'yaml' | 'toml' | 'xml',
+    public readonly source?: string,
+  ) {
+    super(message, 'PARSE_ERROR');
+    this.name = 'ParseError';
+  }
+}
+
+/** Error when a value fails validation (paths, filenames, schemas) */
+export class ValidationError extends DivergerError {
+  constructor(message: string) {
+    super(message, 'VALIDATION_ERROR');
+    this.name = 'ValidationError';
+  }
+}
+
+/** Error during plugin operations (install, update, download) */
+export class PluginError extends DivergerError {
+  constructor(message: string) {
+    super(message, 'PLUGIN_ERROR');
+    this.name = 'PluginError';
+  }
+}
+
 /** Extract a human-readable message from an unknown catch value */
 export function extractErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;

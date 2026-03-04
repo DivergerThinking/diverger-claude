@@ -1,13 +1,14 @@
 import type { ComposedConfig, GeneratedFile, SkillDefinition } from '../../core/types.js';
 import { CLAUDE_DIR, SKILLS_DIR } from '../../core/constants.js';
 import { assertPathWithin } from '../../utils/fs.js';
+import { ValidationError } from '../../core/errors.js';
 import { yamlEscape } from './yaml-utils.js';
 import path from 'path';
 
 /** Validate a skill name is safe for use as a directory name */
 function validateSkillName(name: string): void {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    throw new Error(`Nombre de skill inválido "${name}": solo se permiten alfanuméricos, guiones y guiones bajos`);
+    throw new ValidationError(`Nombre de skill inválido "${name}": solo se permiten alfanuméricos, guiones y guiones bajos`);
   }
 }
 

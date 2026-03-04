@@ -1,5 +1,6 @@
 import path from 'path';
 import { assertPathWithin } from './fs.js';
+import { ValidationError } from '../core/errors.js';
 
 /**
  * Convert an absolute file path to a relative meta key (forward slashes).
@@ -10,7 +11,7 @@ export function toRelativeMetaKey(filePath: string, projectRoot: string): string
   const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(projectRoot, filePath);
   const rel = path.relative(projectRoot, resolved).replace(/\\/g, '/');
   if (rel.startsWith('..')) {
-    throw new Error(`Path escapes projectRoot: "${filePath}" is outside "${projectRoot}"`);
+    throw new ValidationError(`Path escapes projectRoot: "${filePath}" is outside "${projectRoot}"`);
   }
   return rel;
 }

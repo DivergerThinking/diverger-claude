@@ -5,7 +5,7 @@ import { execSync } from 'child_process';
 import path from 'path';
 import os from 'os';
 import { confirmAction } from '../ui/prompts.js';
-import { DivergerError, extractErrorMessage } from '../../core/errors.js';
+import { DivergerError, PluginError, extractErrorMessage } from '../../core/errors.js';
 import { detectPluginInstalled } from '../plugin-detect.js';
 import { getVersion } from '../version.js';
 import * as log from '../ui/logger.js';
@@ -159,7 +159,7 @@ async function downloadFile(url: string, dest: string): Promise<void> {
 
   const res = await fetch(url, { headers, redirect: 'follow' });
   if (!res.ok) {
-    throw new Error(`Descarga fallida: HTTP ${res.status} — ${url}`);
+    throw new PluginError(`Descarga fallida: HTTP ${res.status} — ${url}`);
   }
   const buffer = Buffer.from(await res.arrayBuffer());
   await fs.writeFile(dest, buffer);

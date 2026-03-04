@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { ValidationError } from '../core/errors.js';
 
 /** Type guard for Node.js filesystem errors */
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
@@ -84,7 +85,7 @@ export function assertPathWithin(resolvedPath: string, baseDir: string): void {
   const normalizedResolved = path.resolve(resolvedPath);
   const normalizedBase = path.resolve(baseDir);
   if (!normalizedResolved.startsWith(normalizedBase + path.sep) && normalizedResolved !== normalizedBase) {
-    throw new Error(`Path traversal detectado: "${resolvedPath}" escapa de "${baseDir}"`);
+    throw new ValidationError(`Path traversal detectado: "${resolvedPath}" escapa de "${baseDir}"`);
   }
 }
 
