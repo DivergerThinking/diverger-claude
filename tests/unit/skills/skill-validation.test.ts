@@ -11,7 +11,9 @@ const AGENTS_DIR = path.join(PLUGIN_DIR, 'agents');
  * Returns an object with the extracted fields.
  */
 function parseFrontmatter(content: string): Record<string, string> {
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  // Normalize CRLF → LF for cross-platform compatibility (Windows CI)
+  const normalized = content.replace(/\r\n/g, '\n');
+  const match = normalized.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return {};
   const fields: Record<string, string> = {};
   for (const line of match[1]!.split('\n')) {
