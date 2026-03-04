@@ -139,7 +139,7 @@ export class ClaudeApiClient {
       }
 
       if (err instanceof Anthropic.RateLimitError) {
-        const retryAfter = err.headers?.['retry-after'];
+        const retryAfter = err.headers?.get?.('retry-after');
         const waitSecs = retryAfter ? parseInt(retryAfter, 10) : 60;
         throw new KnowledgeError(
           `Rate limit alcanzado. Reintentar después de ${waitSecs} segundos.`,

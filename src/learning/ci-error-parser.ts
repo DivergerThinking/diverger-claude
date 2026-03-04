@@ -57,7 +57,7 @@ export function parseGitHubActionsLog(logOutput: string): CILogParseResult {
       errors.push({
         source: 'github-actions',
         jobName,
-        step: step || undefined,
+        step: step ?? undefined,
         message: cleanErrorMessage(stripped),
       });
     }

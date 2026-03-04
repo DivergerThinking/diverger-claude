@@ -36,9 +36,7 @@ export class MemoryEngine {
 
   /** Load memory from disk (or return cached) */
   async load(): Promise<MemoryStore> {
-    if (!this.store) {
-      this.store = await loadProjectMemory(this.projectRoot);
-    }
+    this.store ??= await loadProjectMemory(this.projectRoot);
     return this.store;
   }
 

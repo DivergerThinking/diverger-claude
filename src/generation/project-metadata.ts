@@ -59,9 +59,7 @@ export function extractProjectMetadata(
   }
 
   // 9. Package manager detection
-  if (!metadata.packageManager) {
-    metadata.packageManager = detectPackageManager(projectRoot);
-  }
+  metadata.packageManager ??= detectPackageManager(projectRoot);
 
   // 10. Makefile targets
   extractMakeTargets(projectRoot, metadata);

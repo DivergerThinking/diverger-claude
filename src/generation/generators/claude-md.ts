@@ -167,7 +167,7 @@ export function generateClaudeMd(
   }
 
   // Only add placeholder if no project context was extracted
-  const hasContext = metadata && (metadata.name || metadata.description || metadata.readmeSummary || metadata.keyDirectories.length > 0);
+  const hasContext = metadata && (metadata.name ?? metadata.description ?? metadata.readmeSummary ?? metadata.keyDirectories.length > 0);
   if (!hasContext) {
     parts.push('## Project-Specific Notes');
     parts.push('');

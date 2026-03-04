@@ -4,10 +4,12 @@ import type {
   DetectedTechnology,
   DetectionResult,
   DiffEntry,
+  GeneratedFile,
   GenerationResult,
   KnowledgeResult,
   MergeAllResult,
 } from './types.js';
+import type { ValidationResult } from '../governance/validator.js';
 import { DetectionEngine } from '../detection/index.js';
 import { ProfileEngine } from '../profiles/index.js';
 import { GenerationEngine } from '../generation/index.js';
@@ -117,7 +119,7 @@ export class DivergerEngine {
 
   /** Write generated files to disk */
   async writeFiles(
-    files: import('./types.js').GeneratedFile[],
+    files: GeneratedFile[],
     projectRoot: string,
     options: { force?: boolean; dryRun?: boolean } = {},
   ) {
@@ -125,7 +127,7 @@ export class DivergerEngine {
   }
 
   /** Check: validate existing config (A8: returns ValidationResult directly) */
-  async check(_ctx: EngineContext): Promise<import('../governance/validator.js').ValidationResult> {
+  async check(_ctx: EngineContext): Promise<ValidationResult> {
     return this.governance.validate(_ctx.projectRoot);
   }
 

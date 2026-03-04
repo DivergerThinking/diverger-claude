@@ -1,4 +1,4 @@
-import { BaseAnalyzer } from './base.js';
+import type { BaseAnalyzer } from './base.js';
 import { NodeAnalyzer } from './node.js';
 import { PythonAnalyzer } from './python.js';
 import { JavaAnalyzer } from './java.js';

@@ -20,9 +20,7 @@ export function generateHooks(
 
   for (const hook of config.hooks) {
     const event = hook.event;
-    if (!hooksMap[event]) {
-      hooksMap[event] = [];
-    }
+    hooksMap[event] ??= [];
 
     const entry: HookEntry = {
       hooks: hook.hooks.map((h) => ({

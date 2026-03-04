@@ -188,6 +188,6 @@ export function addBestPractice(
 export function incrementSessions(store: MemoryStore): void {
   store.stats.totalSessions += 1;
   const now = new Date().toISOString();
-  if (!store.stats.firstSession) store.stats.firstSession = now;
+  store.stats.firstSession ??= now;
   store.stats.lastSession = now;
 }

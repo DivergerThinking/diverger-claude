@@ -23,7 +23,7 @@ export async function checkVersionConsistency(
   const pluginJsonPath = path.join(pluginDir, '.claude-plugin', 'plugin.json');
   const pluginJson = await readJsonOrNull<PluginJson>(pluginJsonPath);
 
-  if (!pluginJson || !pluginJson.version) {
+  if (!pluginJson?.version) {
     return {
       check: 'version-consistency',
       status: 'degraded',

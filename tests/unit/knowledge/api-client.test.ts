@@ -16,11 +16,11 @@ const { mockCreate, MockAuthenticationError, MockRateLimitError, MockAPIConnecti
     }
 
     class MockRateLimitError extends Error {
-      headers: Record<string, string>;
+      headers: { get: (key: string) => string | null };
       constructor(headers: Record<string, string> = {}) {
         super('Rate limit exceeded');
         this.name = 'RateLimitError';
-        this.headers = headers;
+        this.headers = { get: (key: string) => headers[key] ?? null };
       }
     }
 

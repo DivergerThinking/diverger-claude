@@ -190,6 +190,6 @@ export async function showBanner(): Promise<void> {
     teal('\u256F');
 
   blank();
-  console.log([topLine, ...contentLines, botLine].join('\n')); // eslint-disable-line no-console -- Banner renders directly to stdout
+  console.log([topLine, ...contentLines, botLine].join('\n'));  
   blank();
 }

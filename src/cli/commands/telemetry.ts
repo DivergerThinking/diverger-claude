@@ -54,7 +54,7 @@ export function registerTelemetryCommand(program: Command): void {
           log.jsonOutput(store);
           // If global mode is not json but --json flag was passed, output directly
           if (opts.json && log.getOutputMode() !== 'json') {
-            console.log(JSON.stringify(store, null, 2)); // eslint-disable-line no-console -- CLI JSON output
+            console.log(JSON.stringify(store, null, 2));  
           }
           return;
         }
@@ -72,7 +72,7 @@ export function registerTelemetryCommand(program: Command): void {
         // Show events in reverse chronological order (newest first)
         const displayed = store.events.slice().reverse().slice(0, TABLE_DISPLAY_LIMIT);
 
-        /* eslint-disable no-console -- CLI table output requires direct console for alignment */
+         
         // Table header
         console.log(
           chalk.bold(
@@ -104,7 +104,7 @@ export function registerTelemetryCommand(program: Command): void {
           );
         }
 
-        /* eslint-enable no-console */
+         
 
         if (store.events.length > TABLE_DISPLAY_LIMIT) {
           log.blank();

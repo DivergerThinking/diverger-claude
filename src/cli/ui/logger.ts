@@ -1,4 +1,4 @@
-/* eslint-disable no-console -- This IS the logger module; console usage is intentional */
+ 
 import chalk from 'chalk';
 import type { OutputMode } from '../../core/types.js';
 

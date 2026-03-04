@@ -23,12 +23,14 @@ export function createRepairAction(
       return repairDeletedMandatoryRule(diagnosis, projectRoot, meta);
     case 'D4':
       return repairModifiedMandatoryRule(diagnosis, projectRoot, meta);
+    case 'D5':
+    case 'D6':
+    case 'D7':
+      return null;
     case 'D8':
       return repairObsoleteSettingsKeys(diagnosis, projectRoot);
     case 'D9':
       return repairInvalidRulePaths(diagnosis, projectRoot);
-    default:
-      return null;
   }
 }
 

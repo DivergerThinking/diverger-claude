@@ -121,7 +121,7 @@ export async function diagnose(
     const ruleFiles = await fg.default('**/*.md', { cwd: rulesDir, onlyFiles: true });
     for (const ruleFile of ruleFiles) {
       const ruleContent = await readFileOrNull(path.join(rulesDir, ruleFile));
-      if (ruleContent && ruleContent.startsWith('---')) {
+      if (ruleContent?.startsWith('---')) {
         const endIdx = ruleContent.indexOf('---', 3);
         if (endIdx !== -1) {
           const frontmatter = ruleContent.slice(3, endIdx);
