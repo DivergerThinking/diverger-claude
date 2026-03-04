@@ -88559,7 +88559,7 @@ var ThreeWayMerge = class {
 
 // src/governance/history.ts
 import path23 from "path";
-var PACKAGE_VERSION = "3.3.0";
+var PACKAGE_VERSION = "3.4.0";
 async function loadMeta(projectRoot) {
   const content = await readFileOrNull(path23.join(projectRoot, META_FILE));
   if (content === null) return null;
@@ -96263,7 +96263,7 @@ function registerIngestCIErrorsTool(server2) {
 }
 
 // src/mcp/server.ts
-var version2 = "3.3.0";
+var version2 = "3.4.0";
 var server = new McpServer({ name: "diverger-claude", version: version2 });
 registerDetectStackTool(server);
 registerGenerateConfigTool(server);
