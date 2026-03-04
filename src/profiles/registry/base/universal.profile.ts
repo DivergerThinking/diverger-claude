@@ -133,6 +133,9 @@ Clean Code, SOLID, and security-first development. Conventional Commits for all 
     ],
     settings: {
       permissions: {
+        allow: [
+          'Bash(git:*)',
+        ],
         deny: SENSITIVE_PATTERNS.map((p) => `Read(${p})`),
       },
     },
@@ -208,14 +211,12 @@ Clean Code, SOLID, and security-first development. Conventional Commits for all 
         path: 'development-process.md',
         governance: 'recommended',
         description: 'Development process rules for build, commit, and CI awareness',
+        isDynamic: true,
         content: `# Development Process Rules
 
 ## Pre-commit Checklist
 Before committing, always verify:
-1. The project builds without errors (run the build command from package.json/Makefile)
-2. Type checking passes (if applicable)
-3. Tests pass
-4. Linting passes (if configured)
+{{BUILD_COMMANDS}}
 
 ## After Modifying Source Code
 - If the project has a build step: rebuild before committing
@@ -234,41 +235,14 @@ Before committing, always verify:
         description: 'Universal architecture, naming, and code style rules',
         content: `# Architecture & Code Style Rules
 
-## Project Structure
-- Organize code by feature/domain, not by technical layer when the project grows beyond trivial size
-- Keep entry points thin: they wire dependencies and delegate to domain logic
-- Separate I/O (filesystem, network, database) from pure business logic
-- Configuration should live at the top level, not be scattered through the code
+Clean Code, SOLID, and security-first development. Conventional Commits for all git messages.
 
-## Naming Conventions
-- Names must reveal intent: \`remainingRetries\` not \`r\` or \`cnt\`
-- Boolean variables: \`isActive\`, \`hasPermission\`, \`shouldRetry\`, \`canEdit\`
-- Functions describe WHAT they do: \`calculateTotalPrice()\` not \`process()\`
-- PascalCase for classes/interfaces/types/enums
-- Avoid generic names: \`Manager\`, \`Handler\`, \`Processor\`, \`Helper\`, \`Utils\` — be specific
-- UPPER_SNAKE_CASE for true constants; replace magic numbers with named constants
-- No single-letter variables except loop counters (\`i\`, \`j\`)
-
-## Function Design
-- **Single responsibility**: one function = one task
-- **Max 30 lines**: if longer, extract sub-functions
-- **Max 3 parameters**: use an options/config object for more
-- **No flag parameters**: prefer two separate functions over a boolean that changes behavior
-- **No side effects**: a function named \`getUser\` must not modify state
-- **Guard clauses**: validate inputs early and return, avoiding deep nesting
-
-## Comments
-- Code should be self-documenting — comments explain "why", never "what"
-- Use comments for: business rule context, non-obvious trade-offs, TODO with ticket reference
-- Delete commented-out code — version control is the history
-- Keep comments updated — stale comments are worse than no comments
-
-## Error Handling
-- Never use empty catch blocks — always log or rethrow with context
-- Always handle Promise rejections and async errors
-- Use specific error types over generic ones
-- Distinguish operational errors (expected) from programmer errors (bugs)
-- Do not use exceptions for control flow
+**Key principles:**
+- Small functions (<30 lines), meaningful names, guard clauses over nesting
+- Handle errors explicitly — no empty catch blocks, typed errors with context
+- Parameterized queries, input validation, no hardcoded secrets (OWASP Top 10)
+- Atomic commits in imperative mood, \`<type>[scope]: <description>\` format
+- Profile before optimizing — prefer O(n) over O(n²), paginate large datasets
 
 For detailed examples and reference, invoke: /architecture-style-guide
 `,
@@ -279,47 +253,17 @@ For detailed examples and reference, invoke: /architecture-style-guide
         description: 'Universal security rules aligned with OWASP Top 10 2025',
         content: `# Security Rules (OWASP Top 10 2025)
 
-## A01: Broken Access Control
-- Deny access by default; enforce authorization on every request, not just the UI
-- Validate resource ownership (prevent IDOR); centralize access control logic
+Security-first development. Parameterized queries, input validation, no hardcoded secrets.
 
-## A02: Security Misconfiguration
-- No default credentials in production; disable debug modes and verbose errors
-- Set security headers: CSP, X-Content-Type-Options, HSTS
-
-## A03: Software Supply Chain Failures
-- Pin dependency versions; audit regularly; verify lockfile integrity
-- Minimize dependencies — prefer standard library when feasible
-
-## A04: Cryptographic Failures
-- Use established libraries only (AES-256, bcrypt/Argon2, SHA-256+)
-- Never store passwords in plaintext; TLS 1.2+ for data in transit
-- Never hardcode encryption keys or salts in source code
-
-## A05: Injection
+**Key rules:**
+- Deny access by default; validate resource ownership (prevent IDOR)
 - ALWAYS use parameterized queries — never concatenate user input
-- Validate all external input; use allowlists over denylists
-
-## A06: Insecure Design
+- Pin dependency versions; audit regularly; verify lockfile integrity
+- Use established crypto libraries only; never store passwords in plaintext
 - Least privilege for all components; rate limiting on sensitive endpoints
-
-## A07: Authentication Failures
-- Strong passwords (min 12 chars), MFA for sensitive operations
-- Secure sessions (HttpOnly, Secure, SameSite); throttle failed logins
-
-## A08: Software or Data Integrity Failures
-- Verify signatures on updates/artifacts; never deserialize untrusted data
-
-## A09: Security Logging & Alerting Failures
-- Log auth events and access control failures; never log sensitive data
-
-## A10: Mishandling of Exceptional Conditions
-- Handle all error paths; fail securely; never expose internals to users
-
-## Sensitive Data Protection
 - NEVER read, log, or output API keys, passwords, tokens, or private keys
 - Use environment variables or secret managers — never hardcode credentials
-- Handle PII with care — minimize collection, encrypt at rest, restrict access
+- Handle all error paths; fail securely; never expose internals to users
 
 For detailed examples and reference, invoke: /security-guide
 `,
@@ -330,25 +274,16 @@ For detailed examples and reference, invoke: /security-guide
         description: 'Git workflow and Conventional Commits guidelines',
         content: `# Git Workflow & Conventional Commits
 
-## Conventional Commits Format (v1.0.0)
+Atomic commits in Conventional Commits format. Imperative mood, scoped changes, no secrets in diffs.
+
+**Key rules:**
 - Format: \`<type>[optional scope]: <description>\`
 - Types: feat (MINOR), fix (PATCH), docs, style, refactor, perf, test, chore, ci, build, revert
 - Breaking changes: footer \`BREAKING CHANGE: desc\` or \`feat(api)!: desc\` (triggers MAJOR)
-
-## Branch Discipline
 - Keep commits atomic — one logical change per commit
-- Write commit subjects in imperative mood: "add feature" not "added feature"
-- Subject line max 72 characters; body wraps at 80
-- Squash WIP commits before merging to main
-- Never commit generated files, build artifacts, or OS-specific files (.DS_Store, Thumbs.db)
+- Subject line max 72 characters; imperative mood ("add" not "added")
+- Never commit generated files, build artifacts, or secrets
 - Never force-push to shared branches (main, develop, release/*)
-
-## Pre-Commit Checklist
-- Code compiles without errors
-- All tests pass
-- No secrets or credentials in the diff
-- Commit message follows Conventional Commits format
-- Changes are scoped to one logical change
 
 For detailed examples and reference, invoke: /git-workflow-guide
 `,

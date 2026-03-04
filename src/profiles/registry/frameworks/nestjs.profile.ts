@@ -47,36 +47,20 @@ Module-based architecture with dependency injection. Decorators for metadata, pi
         description: 'NestJS modular architecture, DI, providers, and execution pipeline',
         content: `# NestJS Architecture
 
-## Module Organization
-- One module per domain/feature (UsersModule, AuthModule, OrdersModule)
-- Import only what the module needs — avoid circular dependencies
-- Use \`forRoot()\` / \`forRootAsync()\` for global config modules, \`forFeature()\` for feature registrations
-- Export only providers that other modules need — keep internals encapsulated
-- Use a SharedModule to re-export commonly used modules (ConfigModule, HttpModule)
-- Use dynamic modules for configurable, reusable library modules
+NestJS modular architecture, dependency injection, and provider patterns.
 
-## Controllers
-- Controllers handle HTTP concerns ONLY: parse request, call service, return response
-- Use \`@Param()\`, \`@Query()\`, \`@Body()\` decorators for type-safe request data extraction
-- Return DTOs — never return raw entity/ORM objects
-- Use \`@HttpCode()\` for non-default status codes (204 DELETE, 201 POST)
-- Apply guards, pipes, interceptors via decorators at route or controller level
+**Key rules:**
+- One module per domain/feature with explicit imports/exports — avoid circular dependencies
+- Use \`forRoot()\`/\`forRootAsync()\` for global config, \`forFeature()\` for feature registrations
+- Export only providers other modules need — keep internals encapsulated
+- Controllers handle HTTP concerns ONLY: parse request, call service, return DTO
+- Services contain ALL business logic — stateless, constructor-injected dependencies
+- Throw NestJS HTTP exceptions or custom domain exceptions caught by filters
+- Use \`useClass\` for swapping, \`useFactory\` for async setup, \`useValue\` for static config
+- Use Symbol injection tokens for interface-based injection with \`@Inject()\`
+- Scope: singleton (default), request-scoped or transient only when genuinely needed
 
-## Services
-- Services contain ALL business logic — stateless, no mutable request-scoped instance properties
-- Inject dependencies via constructor: \`constructor(private readonly repo: UsersRepository)\`
-- Throw NestJS HTTP exceptions (NotFoundException, ConflictException, ForbiddenException)
-- Use custom domain exceptions for business rules, caught by exception filters
-- Return DTOs or plain objects — never ORM entities with lazy-loaded relations
-
-## Dependency Injection — Custom Providers
-- \`useClass\` for swapping implementations (testing, strategy pattern)
-- \`useFactory\` for async setup or conditional logic (inject ConfigService)
-- \`useValue\` for static config or mock replacements
-- \`useExisting\` to alias providers
-- Use Symbol injection tokens for interface-based injection
-- Use \`@Optional()\` for optional dependencies
-- Scope: singleton (default), request-scoped, or transient as needed
+For detailed examples and reference, invoke: /nestjs-di-guide
 `,
       },
       {
@@ -155,36 +139,19 @@ Module-based architecture with dependency injection. Decorators for metadata, pi
         description: 'NestJS testing patterns with @nestjs/testing and dependency injection',
         content: `# NestJS Testing Patterns
 
-## Unit Testing with Test.createTestingModule()
-- Use \`@nestjs/testing\` to create an isolated DI container per test
-- Override real providers with mocks using \`.overrideProvider()\` or inline useValue
-- Get service/controller under test from the compiled module via \`module.get()\`
-- Mock all injected dependencies — test services and controllers independently
-- Use \`jest.Mocked<T>\` type for typed mock access
+NestJS testing with \`@nestjs/testing\`, dependency injection mocking, and e2e patterns.
 
-## Service Tests
-- Create TestingModule with the service + mock providers for each dependency
-- Test happy path: mock repo returns data, verify service returns correct DTO
-- Test error cases: mock repo returns null, verify NotFoundException thrown
-- Verify repository methods called with correct arguments
+**Key rules:**
+- Use \`Test.createTestingModule()\` for isolated DI containers; override providers with mocks
+- Get service/controller under test via \`module.get()\`; use \`jest.Mocked<T>\` for typed mocks
+- Service tests: mock repos, test happy path + error cases (NotFoundException, ConflictException)
+- Controller tests: mock service layer, verify delegation and return values
+- Guard tests: mock Reflector + ExecutionContext, test allow/deny with role combinations
+- Pipe tests: test valid/invalid input and transformation
+- E2E: import AppModule, override providers, apply global pipes as in production
+- Use \`request(app.getHttpServer())\` for HTTP assertions; always \`app.close()\` in afterAll
 
-## Controller Tests
-- Create TestingModule with the controller + mock service
-- Verify controller delegates to service with correct arguments
-- Verify return value matches service response
-
-## Guard Tests
-- Create TestingModule with the guard + Reflector
-- Mock \`reflector.getAllAndOverride()\` to return role metadata
-- Test allow (no roles required), allow (matching role), deny (missing role)
-- Use a mock ExecutionContext with user data on the request
-
-## E2E Testing with supertest
-- Import full AppModule, override providers for test doubles
-- Apply global pipes (ValidationPipe with whitelist) as in production
-- Use \`request(app.getHttpServer())\` for HTTP assertions
-- Test success paths, validation rejections, and auth failures
-- Always call \`app.close()\` in afterAll
+For detailed examples and reference, invoke: /nestjs-testing-guide
 `,
       },
       {
@@ -194,28 +161,19 @@ Module-based architecture with dependency injection. Decorators for metadata, pi
         description: 'NestJS authentication, authorization, and security patterns',
         content: `# NestJS Security
 
-## Authentication with Passport.js
-- Use \`@nestjs/passport\` with strategy pattern (LocalStrategy, JwtStrategy)
-- Use \`AuthGuard('jwt')\` for JWT-protected routes — register globally for secure-by-default
-- Use \`@Public()\` decorator to opt specific routes out of global auth
-- Store JWT secrets in ConfigService — never hardcode tokens or secrets
-- JwtStrategy: use \`ExtractJwt.fromAuthHeaderAsBearerToken()\`, set \`ignoreExpiration: false\`
-- Validate method returns the user payload attached to the request
+NestJS authentication with Passport.js, authorization patterns, and security hardening.
 
-## Authorization — Role-Based and Policy-Based
-- Use guards for authorization — never check roles inside service methods
-- Combine \`@Roles()\` decorator with RolesGuard for role-based access
-- For complex authorization (resource ownership), use CASL or a policy-based guard
-- Always verify resource ownership to prevent IDOR vulnerabilities
-- Ownership guards: load resource, compare userId, throw ForbiddenException if mismatch
-
-## Security Hardening
-- Enable CORS with specific origins — never wildcard (\`*\`) in production
-- Use \`helmet\` for security headers (CSP, HSTS, X-Frame-Options)
-- Apply rate limiting with \`@nestjs/throttler\` on login and sensitive endpoints
-- Global ValidationPipe with whitelist + forbidNonWhitelisted prevents mass assignment
+**Key rules:**
+- Use \`@nestjs/passport\` with strategy pattern; register \`AuthGuard('jwt')\` globally with \`@Public()\` opt-out
+- Store JWT secrets in ConfigService — never hardcode; set \`ignoreExpiration: false\`
+- Use guards for authorization — \`@Roles()\` + RolesGuard for role-based access
+- Verify resource ownership to prevent IDOR — ownership guards throw ForbiddenException
+- Enable CORS with specific origins — never wildcard in production
+- Use \`helmet\` for security headers; \`@nestjs/throttler\` for rate limiting
+- Global ValidationPipe with \`whitelist: true\` + \`forbidNonWhitelisted: true\` prevents mass assignment
 - Use \`@Exclude()\` from class-transformer on sensitive entity fields (password, tokens)
-- CSRF protection for cookie-based sessions (csurf or double-submit cookie pattern)
+
+For detailed examples and reference, invoke: /nestjs-auth-setup
 `,
       },
       {

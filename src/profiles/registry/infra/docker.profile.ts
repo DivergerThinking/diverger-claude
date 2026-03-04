@@ -49,31 +49,21 @@ Multi-stage builds, minimal images, security-first container design.
         description: 'Dockerfile construction, multi-stage builds, layer caching, and image optimization',
         content: `# Dockerfile Best Practices
 
-## Multi-Stage Builds
-- Every production Dockerfile MUST use multi-stage builds
-- Separate build-time dependencies from runtime image
-- Copy only artifacts needed at runtime with \`COPY --from=builder\`
-- Use \`--chown=app:app\` on COPY to set correct ownership
+Multi-stage builds, layer caching, and image optimization for production Dockerfiles.
 
-## Layer Caching
-- Order instructions from least-changing to most-changing
+**Key rules:**
+- Every production Dockerfile MUST use multi-stage builds — separate build from runtime
+- Order instructions from least-changing to most-changing for optimal layer caching
 - Copy dependency manifests (package.json, go.mod) BEFORE source code
-- Install dependencies in a separate layer from source code copy
-- Use BuildKit cache mounts for package manager caches: \`--mount=type=cache\`
+- Pin base images to specific tags (\`node:20.11-alpine3.19\`), never use \`:latest\`
+- Combine RUN commands with \`&&\` and clean caches in the same layer
+- Use COPY for all local files — ADD only for tar extraction
+- ENTRYPOINT for the executable, CMD for default args; always use exec form
+- Set non-root USER after installing packages, before COPY of app code
+- Always define HEALTHCHECK for production images with appropriate intervals
+- Create a \`.dockerignore\` to exclude .git, node_modules, .env, build artifacts
 
-## Instruction Best Practices
-- **FROM**: Pin to specific tag (\`node:20.11-alpine3.19\`), never use \`:latest\`
-- **RUN**: Combine related commands with \`&&\`, clean caches in the same layer
-- **COPY vs ADD**: Use COPY for all local files — ADD only for tar extraction
-- **CMD vs ENTRYPOINT**: ENTRYPOINT for executable, CMD for default args; prefer exec form
-- **USER**: Set non-root user after installing packages, before COPY of app code
-- **HEALTHCHECK**: Always define for production images with appropriate intervals
-
-## .dockerignore
-- Always create a \`.dockerignore\` to minimize build context
-- Exclude: \`.git\`, \`node_modules\`, \`__pycache__\`, \`.venv\`, \`.env\`, \`.env.*\`
-- Exclude: \`dist\`, \`build\`, IDE configs, test files, Docker files themselves
-- A large build context slows every build, even cached ones
+For detailed examples and reference, invoke: /dockerfile-best-practices
 `,
       },
       {
@@ -83,32 +73,21 @@ Multi-stage builds, minimal images, security-first container design.
         description: 'Docker container security hardening and secret management',
         content: `# Docker Security
 
-## Non-Root Execution (MANDATORY)
-- Every production container MUST run as a non-root user
-- Create a dedicated system user before COPY of app code
-- Alpine: \`addgroup -S app && adduser -S app -G app\`
-- Debian: \`groupadd -r app && useradd -r -g app -s /sbin/nologin app\`
-- Set \`USER app\` after system package installs
+Container security hardening, non-root execution, and secret management.
 
-## Secret Management
-- Use BuildKit secrets for build-time credentials: \`--mount=type=secret,id=...\`
-- Runtime: use Docker secrets, \`env_file\` in Compose, or volume-mounted secret files
-- NEVER use \`ENV\` or \`ARG\` for secrets — they persist in image layer metadata
-- NEVER COPY credential files into the image
-
-## Image Hardening
+**Key rules:**
+- Every production container MUST run as a non-root user (\`USER\` directive)
+- Use BuildKit secrets for build-time credentials — NEVER use ENV or ARG for secrets
+- NEVER COPY credential files into the image — they persist in layer metadata
 - Use minimal base images: Alpine, slim, distroless, or scratch
-- Drop all capabilities (\`cap_drop: ALL\`), add only needed ones
+- Drop all capabilities (\`cap_drop: ALL\`), add only needed ones back
 - Set \`no-new-privileges:true\` in security_opt
 - Use \`read_only: true\` with explicit \`tmpfs\` for writable directories
-- Run \`docker scout cves\` or \`trivy image\` in CI — fail on critical CVEs
-- Rebuild images regularly for base image security patches
+- Run vulnerability scanning (docker scout, Trivy) in CI — fail on critical CVEs
+- Never use \`privileged: true\` unless explicitly justified and documented
+- Use internal networks for backend services; set resource limits to prevent exhaustion
 
-## Compose Security
-- Never use \`privileged: true\` unless required with documented justification
-- Use internal networks for backend services not needing external access
-- Set resource limits (memory, CPU) to prevent exhaustion attacks
-- Use \`env_file\` for secrets, add \`.env\` to \`.gitignore\`
+For detailed examples and reference, invoke: /docker-security-guide
 `,
       },
       {

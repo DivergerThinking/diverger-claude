@@ -45,51 +45,20 @@ Composition API with \`<script setup>\`. Reactive state with \`ref()\` as primar
         description: 'Vue 3 reactivity system, Composition API patterns, and composable conventions',
         content: `# Vue.js Reactivity & Composition API
 
-## Reactivity Fundamentals
+Vue 3 reactivity system, Composition API patterns, and composable conventions.
 
-### ref() — Primary Reactive Primitive
-- Use \`ref()\` for ALL reactive state — works with primitives and objects
-- Access with \`.value\` in script, auto-unwrapped in template
-- Prefer \`ref()\` over \`reactive()\` to avoid reassignment and destructuring pitfalls
-
-### reactive() — Use Sparingly
-- Only for plain objects that will never be reassigned or destructured
-- Reassigning a reactive variable breaks all existing watchers
-- Destructuring loses reactivity — use \`toRefs()\` or \`toRef()\` if needed
-
-### computed() — All Derived State
-- Move non-trivial expressions out of templates into \`computed()\`
-- Split complex computations into simple, testable computed properties
-- Computed values are cached and only re-evaluate when dependencies change
-
-### watch() vs watchEffect()
-- \`watch()\`: explicit source, access old + new value, react to specific sources
-- \`watchEffect()\`: automatic dependency tracking, no old value access
-- Always clean up side effects in watchers (return cleanup function)
-
-### Preserving Reactivity
-- Use \`toRefs(state)\` when destructuring a reactive object
-- Use \`toRef(state, 'key')\` for a single property reference
-
-### Advanced Reactivity APIs
-- \`shallowRef()\`: only \`.value\` assignment is reactive — use for large immutable data
-- \`triggerRef()\`: force effects after mutating shallowRef inner state
-- \`customRef()\`: full control over tracking — use for debounced refs
-- \`markRaw()\`: prevent proxying — use for third-party class instances
-- \`toRaw()\`: get original object from proxy — use for serialization
-- \`effectScope()\`: group effects for bulk disposal in composables
-
----
-
-## Composables
-
-### Conventions
-- Prefix with \`use\` (e.g., \`useMouse\`, \`useFetch\`)
-- Return a plain object of refs — not a reactive object — for destructurable reactivity
-- Accept flexible inputs via \`MaybeRefOrGetter<T>\` + \`toValue()\`
+**Key rules:**
+- Use \`ref()\` for ALL reactive state; prefer over \`reactive()\` to avoid reassignment/destructuring pitfalls
+- Use \`computed()\` for all derived state — cached, only re-evaluates when dependencies change
+- \`watch()\` for explicit sources with old/new values; \`watchEffect()\` for auto-tracked side effects
+- Always clean up side effects in watchers (cleanup function or \`onScopeDispose\`)
+- Use \`toRefs()\`/\`toRef()\` to preserve reactivity when destructuring reactive objects
+- \`shallowRef()\` for large immutable data; \`markRaw()\` for third-party class instances
+- Composables: prefix with \`use\`, return plain object of refs, accept \`MaybeRefOrGetter<T>\`
 - Clean up event listeners and timers in \`onUnmounted()\` or \`onScopeDispose()\`
-- Use \`onScopeDispose()\` for cleanup that works in both component and effectScope contexts
 - Extract into composable when same ref + watch + cleanup pattern appears in 2+ components
+
+For detailed examples and reference, invoke: /vue-composition-guide
 `,
       },
       {

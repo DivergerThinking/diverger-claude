@@ -230,7 +230,7 @@ function showInitSummary(
   // Show detailed summary box (rich mode only)
   if (options.output === 'rich') {
     const summary = buildSummary(confirmed, composed, writeResults, knowledgeResults);
-    console.log(summary);
+    console.log(summary); // eslint-disable-line no-console -- Rich summary box output
     log.blank();
   }
 

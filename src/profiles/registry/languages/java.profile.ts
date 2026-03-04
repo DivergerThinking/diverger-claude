@@ -46,47 +46,20 @@ Modern Java (17+) with strong typing, records, sealed classes, and pattern match
         description: 'Java coding conventions aligned with Google Java Style Guide and Oracle conventions',
         content: `# Java Conventions
 
-## Naming (Google Java Style Guide)
+Modern Java (17+) with Google Java Style Guide. Strong typing, records, sealed classes, and pattern matching.
 
-- Classes/interfaces: PascalCase nouns — \`UserService\`, \`PaymentGateway\`
-- Methods: camelCase verbs — \`getUserById()\`, \`calculateDiscount()\`, \`isValid()\`
-- Variables/parameters: camelCase, descriptive — \`remainingRetries\`, not \`r\` or \`cnt\`
-- Constants: SCREAMING_SNAKE_CASE for deeply immutable \`static final\` — \`MAX_RETRY_COUNT\`
-- Packages: all lowercase, reverse domain, no underscores — \`com.example.auth.service\`
-- Type parameters: single uppercase or descriptive — \`T\`, \`K\`, \`V\`, \`RequestT\`
-
-## Source File Structure
-
-- One top-level class per file, name matches class name
-- Order: static fields -> instance fields -> constructors -> methods
-- No wildcard imports (\`import java.util.*\` forbidden) — use explicit imports
-- K&R braces (opening on same line), always required even for single-statement blocks
-
-## Type Safety
-
+- PascalCase classes, camelCase methods/variables, SCREAMING_SNAKE_CASE for \`static final\` constants
+- One top-level class per file, no wildcard imports, K&R braces always required
 - Use \`Optional<T>\` for nullable returns — never pass Optional as a parameter
-- Use records for value objects/DTOs — free equals, hashCode, toString
-- Use sealed classes/interfaces for closed type hierarchies with exhaustive switch
-- Prefer immutable collections: \`List.of()\`, \`Map.of()\`, \`Set.of()\`, \`List.copyOf()\`
+- Use records for value objects/DTOs, sealed classes for closed type hierarchies
+- Prefer immutable collections: \`List.of()\`, \`Map.of()\`, \`List.copyOf()\`
 - Never use raw types — always parameterize generics
-
-## Error Handling
-
 - Checked exceptions for recoverable conditions, unchecked for programming errors
-- Define custom exceptions with context fields for domain errors
 - Never catch \`Exception\`/\`Throwable\` without re-throwing — catch specific types
-- Always include root cause: \`new XException("msg", cause)\`
-- Use try-with-resources for all \`AutoCloseable\` — never manual finally cleanup
-- Never swallow exceptions with empty catch blocks
+- Use try-with-resources for all \`AutoCloseable\`, always include root cause in exceptions
+- Prefer \`java.util.concurrent\` over manual \`synchronized\`, virtual threads for I/O-bound work
 
-## Concurrency
-
-- Prefer \`java.util.concurrent\` utilities over manual \`synchronized\`
-- Use virtual threads (Java 21+) for I/O-bound workloads
-- Use \`ExecutorService\` and \`CompletableFuture\` for structured async
-- Use \`ConcurrentHashMap\` over \`Collections.synchronizedMap()\`
-- Avoid shared mutable state — prefer immutable objects between threads
-- Use \`AtomicReference\`/\`AtomicInteger\` for lock-free atomic operations
+For detailed examples and reference, invoke: /java-patterns-guide
 `,
       },
       {
@@ -96,30 +69,20 @@ Modern Java (17+) with strong typing, records, sealed classes, and pattern match
         description: 'Java Stream API patterns and collection best practices',
         content: `# Java Stream API & Collections
 
-## Stream API Best Practices
+Stream API patterns, collection factories (Java 9+), and project structure best practices.
 
-- Use Streams for collection transformations — express intent more clearly than loops
+- Use Streams for collection transformations — no side effects inside pipelines
 - Use \`Stream.toList()\` (Java 16+) or \`Collectors.toUnmodifiableList()\` for immutable results
-- No side effects inside Stream operations — streams are pure functional pipelines
 - Use \`flatMap\` for nested collections, \`map\` for one-to-one transformations
 - Prefer method references (\`User::getName\`) over lambdas when clearer
 - Use \`Optional\` return from \`findFirst()\`/\`findAny()\` — never assume non-empty
-- Avoid Streams for simple iterations — for-each is clearer for single operations
-
-## Collection Factories (Java 9+)
-
 - Use \`List.of()\`, \`Set.of()\`, \`Map.of()\` for small immutable collections
-- Use \`List.copyOf()\`, \`Set.copyOf()\`, \`Map.copyOf()\` for defensive copies
 - Return \`List.of()\` instead of null for empty collections
-- Use \`Map.ofEntries(Map.entry(k, v), ...)\` for maps with more than 10 entries
-
-## Project Structure
-
 - Follow Maven standard layout (\`src/main/java\`, \`src/test/java\`, \`src/main/resources\`)
-- One public class per file — name must match class name
 - Group classes by feature/domain, not by technical layer
-- Keep packages cohesive — minimize cross-package dependencies
 - Use module-info.java (JPMS) for library projects to control encapsulation
+
+For detailed examples and reference, invoke: /java-patterns-guide
 `,
       },
       {

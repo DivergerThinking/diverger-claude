@@ -42,42 +42,19 @@ Convention over configuration. Layered architecture with dependency injection.
         description: 'Spring Boot layered architecture, DI, JPA, and configuration patterns',
         content: `# Spring Boot Architecture
 
-## Project Structure
-- Place \`@SpringBootApplication\` class in the root package above all feature packages
-- Organize by feature, not by layer: each domain gets its own package (entity, DTO, controller, service, repository)
-- Cross-cutting \`@Configuration\` classes go in a \`config/\` package
+Spring Boot layered architecture, dependency injection, JPA, and configuration patterns.
 
-## Dependency Injection
-- Use constructor injection exclusively — never \`@Autowired\` field injection
-- Single constructor: Spring auto-wires without \`@Autowired\` annotation
-- Declare dependencies as \`private final\` fields for immutability
-- Program to interfaces for testability
+**Key rules:**
+- Place \`@SpringBootApplication\` in root package; organize by feature, not by layer
+- Constructor injection exclusively — never \`@Autowired\` field injection; \`private final\` for immutability
+- Controllers: \`@RestController\` with versioned mapping, \`@Valid @RequestBody\` on DTOs, delegate to services
+- JPA: \`FetchType.LAZY\` default, \`JOIN FETCH\`/\`@EntityGraph\` when eager needed — never \`EAGER\` on collections
+- \`@Transactional(readOnly = true)\` at service class level, override with \`@Transactional\` on mutations
+- Use \`@ConfigurationProperties\` records with \`@Validated\` — never scattered \`@Value\` annotations
+- Load secrets from environment variables; Spring profiles for environment-specific settings
+- Pageable with \`@ParameterObject\` for list endpoints; explicit \`@ResponseStatus\` for non-200 codes
 
-## REST Controllers
-- \`@RestController\` with versioned \`@RequestMapping("/api/v1/...")\`
-- \`@Validated\` on the controller class for constraint annotations on path/query params
-- \`@Valid @RequestBody\` on typed DTO parameters — never raw \`Map<String, Object>\`
-- Explicit \`@ResponseStatus\` for non-200 success codes (201 Created, 204 No Content)
-- Pageable with \`@ParameterObject\` for list endpoints
-- Controllers delegate to service layer — no business logic or repository access
-
-## JPA / Hibernate
-- Entities: \`@Table\` with explicit name, \`@Column\` with constraints, \`@Enumerated(EnumType.STRING)\`
-- Relationships default to \`FetchType.LAZY\` — use \`JOIN FETCH\` or \`@EntityGraph\` when eager loading is needed
-- Never use \`FetchType.EAGER\` on collections — causes N+1 query problems
-- \`CascadeType.ALL\` + \`orphanRemoval = true\` on \`@OneToMany\` owned collections
-- Audit fields via \`@CreationTimestamp\`, \`@LastModifiedTimestamp\`
-
-## Transaction Management
-- \`@Transactional(readOnly = true)\` at class level on services, override with \`@Transactional\` on mutations
-- Apply transactions at service layer — never on controllers or repositories
-- Use \`ApplicationEventPublisher\` for domain events within transactions
-
-## Configuration
-- Use \`@ConfigurationProperties\` records with \`@Validated\` for type-safe, validated config
-- Never use scattered \`@Value\` annotations — they lack validation, type safety, and testability
-- Load secrets from environment variables — never hardcode
-- Use Spring profiles (\`application-{profile}.yml\`) for environment-specific settings
+For detailed examples and reference, invoke: /spring-di-guide
 `,
       },
       {
@@ -110,42 +87,20 @@ Convention over configuration. Layered architecture with dependency injection.
         description: 'Spring Security configuration with SecurityFilterChain pattern',
         content: `# Spring Security Configuration
 
-## SecurityFilterChain Bean Pattern (Spring Security 6+)
+Spring Security 6+ SecurityFilterChain pattern, authentication, authorization, and input validation.
+
+**Key rules:**
 - Configure via \`SecurityFilterChain\` \`@Bean\` — \`WebSecurityConfigurerAdapter\` was removed in Spring Security 6
-- Enable \`@EnableMethodSecurity\` for \`@PreAuthorize\` support
-- Use \`BCryptPasswordEncoder\` or \`Argon2PasswordEncoder\` — never store plaintext passwords
+- \`@EnableMethodSecurity\` for \`@PreAuthorize\` support; BCrypt or Argon2 for password encoding
+- REST APIs: disable CSRF, STATELESS session, \`oauth2ResourceServer\` with JWT, deny-by-default
+- Web apps: CSRF enabled, form login, session invalidation on logout
+- \`@PreAuthorize\` on service methods with SpEL for role + ownership checks
+- CORS via \`CorsConfigurationSource\` bean with explicit origins — never wildcard in production
+- \`@Valid @RequestBody\` on all DTOs with Jakarta Bean Validation annotations
+- Named parameters in \`@Query\` — never string concatenation; parameterized JdbcTemplate queries
+- Sanitize log inputs; reject unexpected fields via Jackson deserialization config
 
-## REST API Security (Stateless)
-- Disable CSRF (no session, no CSRF needed for stateless APIs)
-- Set \`sessionCreationPolicy(STATELESS)\`
-- Configure \`oauth2ResourceServer\` with JWT decoder
-- Use deny-by-default: \`.anyRequest().authenticated()\` as the last rule
-- Permit public endpoints explicitly: health checks, auth endpoints
-
-## Web App Security (Session-Based)
-- Keep CSRF enabled (default) for session-based apps
-- Configure form login with custom login page and success URL
-- Configure logout with session invalidation and cookie cleanup
-- Permit static resources (CSS, JS, images) explicitly
-
-## Method-Level Security
-- \`@PreAuthorize\` on service methods for fine-grained access control
-- Use SpEL expressions for role checks and ownership verification
-- Combine role-based (\`hasRole\`) and attribute-based (\`#param == principal.id\`) authorization
-
-## CORS
-- Configure CORS at the security level via \`CorsConfigurationSource\` bean
-- Use explicit allowed origins — never wildcard \`"*"\` in production
-- Set explicit allowed methods, headers, and \`maxAge\` for preflight caching
-
-## Input Validation & SQL Injection Prevention
-- Use \`@Valid @RequestBody\` on all DTO parameters — never accept raw \`Map<String, Object>\`
-- Apply Jakarta Bean Validation annotations (\`@NotBlank\`, \`@Size\`, \`@Email\`, \`@Min\`) on DTO fields
-- Use \`@Validated\` at controller class level for constraint annotations on \`@PathVariable\` and \`@RequestParam\`
-- In custom \`@Query\` annotations, always use named parameters (\`:paramName\`) — never string concatenation
-- Use parameterized queries in JdbcTemplate: \`jdbcTemplate.query(sql, params)\` — never build SQL with \`+\`
-- Sanitize user input that goes into log statements to prevent log injection
-- Reject unexpected fields with \`spring.jackson.deserialization.fail-on-unknown-properties: true\` in sensitive APIs
+For detailed examples and reference, invoke: /spring-boot-security-setup
 `,
       },
       {
@@ -155,33 +110,19 @@ Convention over configuration. Layered architecture with dependency injection.
         description: 'Spring Boot testing patterns with test slices and TestContainers',
         content: `# Spring Boot Testing Patterns
 
-## Test Slices — Use the Narrowest Context
-- \`@WebMvcTest\`: Controller + filters + advice — REST endpoint behavior, validation, serialization
-- \`@DataJpaTest\`: JPA repos + Hibernate + embedded DB — repository queries, entity mappings
-- \`@RestClientTest\`: RestTemplate/WebClient + MockRestServiceServer — HTTP client behavior
-- \`@JsonTest\`: Jackson ObjectMapper — JSON serialization/deserialization
-- \`@SpringBootTest\`: Full context — integration tests, end-to-end flows only
+Spring Boot test slices, MockMvc, TestContainers, and security testing strategies.
 
-## Controller Tests (@WebMvcTest)
-- Inject \`MockMvc\` and mock service dependencies with \`@MockBean\`
-- Test success cases: correct status code, response body matches schema
-- Test validation errors: send invalid request body, verify 400 with field errors
+**Key rules:**
+- Use the narrowest test slice: \`@WebMvcTest\`, \`@DataJpaTest\`, \`@RestClientTest\`, \`@JsonTest\`
+- \`@SpringBootTest\` ONLY for full integration tests — never for single-layer unit testing
+- Controller tests: MockMvc + \`@MockBean\` for services; test success, validation (400), security
+- Repository tests: \`TestEntityManager\` + TestContainers with \`@AutoConfigureTestDatabase(replace = NONE)\`
+- Integration tests: \`@SpringBootTest(webEnvironment = RANDOM_PORT)\` + TestContainers \`@ServiceConnection\`
+- Security tests: \`@Import(SecurityConfig.class)\` + \`@WithMockUser\` for 401/403/200 scenarios
 - Use \`@DisplayName\` for readable test names describing HTTP method, path, and expected outcome
+- Test complete lifecycle flows and Flyway/Liquibase migrations against real DB
 
-## Repository Tests (@DataJpaTest)
-- Use \`TestEntityManager\` for test data setup
-- Use \`@AutoConfigureTestDatabase(replace = Replace.NONE)\` with TestContainers for real DB
-- Test custom query methods, entity mappings, and cascade behavior
-
-## Integration Tests
-- Use \`@SpringBootTest(webEnvironment = RANDOM_PORT)\` with TestContainers (\`@ServiceConnection\`)
-- Use \`TestRestClient\` for full HTTP request/response cycle testing
-- Test complete lifecycle flows (create -> get -> list -> update -> delete)
-
-## Security Tests
-- \`@WebMvcTest\` + \`@Import(SecurityConfig.class)\` for controller security tests
-- Test unauthenticated (401), unauthorized/forbidden (403), and authenticated access
-- Use \`@WithMockUser\` for simulating authenticated requests with specific roles
+For detailed examples and reference, invoke: /spring-testing-guide
 `,
       },
       {

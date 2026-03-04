@@ -53,31 +53,20 @@ Ownership-driven design. Let the compiler guide you — fix warnings, not suppre
         description: 'Rust ownership, borrowing, lifetimes, and error handling conventions',
         content: `# Rust Ownership, Borrowing & Error Handling
 
-## Ownership & Borrowing
+Ownership-driven design with explicit error handling. Let the compiler guide you.
 
 - Borrow with \`&T\` by default — clone only when you truly need an independent copy
 - Use \`&[T]\` and \`&str\` in function parameters instead of \`Vec<T>\` and \`String\`
 - Use \`Cow<'_, T>\` when a function sometimes borrows and sometimes allocates
-- Use \`Arc<T>\` + \`Mutex<T>\`/\`RwLock<T>\` for shared ownership across threads
-- Use \`Rc<T>\` for single-threaded shared ownership only — never in async/multi-threaded
-- Avoid unnecessary \`Box<T>\` — prefer stack allocation when size is known
-
-## Lifetimes
-
-- Let the compiler infer lifetimes via elision rules — annotate only when required
-- Name lifetimes descriptively: \`'input\`, \`'conn\`, \`'query\` — not just \`'a\`
-- Use \`'static\` sparingly — prefer bounded lifetimes for flexibility
-
-## Error Handling
-
+- Use \`Arc<T>\` + \`Mutex<T>\`/\`RwLock<T>\` for shared ownership across threads; \`Rc<T>\` for single-threaded only
+- Let the compiler infer lifetimes — annotate only when required; name descriptively (\`'input\`, not \`'a\`)
 - Every fallible operation must return \`Result<T, E>\` — never panic in library code
-- Use \`thiserror\` for library error types with \`#[derive(Debug, Error)]\`
-- Use \`anyhow\` for application code with \`.context("description")?\`
-- Propagate with \`?\` operator — never match Result/Option manually
-- Use \`#[from]\` on thiserror variants for automatic \`?\` conversion
-- Annotate \`#[must_use]\` on functions where ignoring the return is a bug
+- Use \`thiserror\` for libraries, \`anyhow\` for apps — propagate with \`?\` operator
 - Never use \`unwrap()\`/\`expect()\` in production code paths
-- Use \`map_err\` to add context when converting between error types
+- Annotate \`#[must_use]\` on functions where ignoring the return is a bug
+- Use \`map_err\` or \`.context()\` to add context when converting between error types
+
+For detailed examples and reference, invoke: /rust-ownership-guide
 `,
       },
       {
@@ -87,50 +76,16 @@ Ownership-driven design. Let the compiler guide you — fix warnings, not suppre
         description: 'Rust API design following official API Guidelines (naming, traits, conversions)',
         content: `# Rust API Design (API Guidelines)
 
-## Naming Conventions (C-CASE)
+Follow the official Rust API Guidelines for naming, traits, and conversions.
 
-| Item | Convention | Example |
-|------|-----------|---------|
-| Types, traits | UpperCamelCase | \`HttpClient\`, \`IntoIterator\` |
-| Functions, methods | snake_case | \`read_to_string\`, \`is_empty\` |
-| Constants, statics | SCREAMING_SNAKE_CASE | \`MAX_CONNECTIONS\`, \`DEFAULT_PORT\` |
-| Modules | snake_case | \`file_utils\`, \`error_handling\` |
-
-## Conversion Naming (C-CONV)
-
-- \`as_\` — free, borrows \`&self\`: \`as_bytes()\`, \`as_str()\`
-- \`to_\` — expensive (may allocate), borrows \`&self\`: \`to_string()\`, \`to_vec()\`
-- \`into_\` — variable cost, consumes \`self\`: \`into_inner()\`, \`into_vec()\`
-
-## Getter & Predicate Naming
-
-- Getters omit \`get_\` prefix: \`fn name(&self) -> &str\` not \`fn get_name()\`
-- Boolean predicates use \`is_\`, \`has_\`, \`can_\`, \`should_\` prefixes
-
-## Standard Trait Implementations
-
-- Always derive: \`Debug\` (all public types), \`Clone\`, \`PartialEq\`/\`Eq\`, \`Hash\`, \`Default\`
-- Implement manually: \`Display\`, \`From<T>\`/\`TryFrom<T>\`, \`AsRef<T>\`, \`Iterator\`
-- \`Deref\` only for smart pointer types — never for general "inheritance"
-- Use \`#[non_exhaustive]\` on public enums and structs that may grow
-
-## Design Patterns
-
-- Use builder pattern when a struct has more than 3 optional fields
-- Use newtype pattern to wrap primitives for type safety (\`UserId(u64)\`, \`OrderId(u64)\`)
-- Use \`From\`/\`TryFrom\` instead of custom conversion methods
-
-## Module Visibility
-
-- Expose clean public API from \`lib.rs\` — keep internals private
-- Use \`pub(crate)\` for crate-internal items shared across modules
-- Use \`pub(super)\` for parent-module-only visibility
-
-## Documentation (C-DOC)
-
-- Use \`///\` for public items, \`//!\` for module/crate-level docs
-- First line is a short summary sentence
-- Include \`# Examples\` with runnable doc tests, \`# Errors\`, \`# Panics\` sections
+- Types/traits in UpperCamelCase, functions in snake_case, constants in SCREAMING_SNAKE_CASE
+- Conversion naming: \`as_\` (free borrow), \`to_\` (expensive borrow), \`into_\` (consumes self)
+- Getters omit \`get_\` prefix; boolean predicates use \`is_\`/\`has_\`/\`can_\` prefixes
+- Always derive \`Debug\`, \`Clone\`, \`PartialEq\`/\`Eq\` on public types; \`#[non_exhaustive]\` on growable enums/structs
+- Use \`From\`/\`TryFrom\` instead of custom conversion methods; \`Deref\` only for smart pointers
+- Use builder pattern for structs with 3+ optional fields; newtype pattern for type safety
+- Expose clean public API from \`lib.rs\`; use \`pub(crate)\` and \`pub(super)\` for internal visibility
+- Document public items with \`///\`, include \`# Examples\` with runnable doc tests
 `,
       },
       {
@@ -140,47 +95,16 @@ Ownership-driven design. Let the compiler guide you — fix warnings, not suppre
         description: 'Rust patterns, iterators, async, unsafe, and project structure idioms',
         content: `# Rust Patterns & Idioms
 
-## Pattern Matching
+Idiomatic Rust patterns for matching, iterators, async, unsafe, and project layout.
 
-- Use exhaustive \`match\` over if-let chains for multiple variants
-- Use \`if let\` for single-variant matching only
-- Use \`matches!\` macro for boolean checks: \`matches!(status, Status::Ok | Status::Created)\`
-- Use \`@\` bindings to capture and match simultaneously
-
-## Iterators
-
-- Prefer iterator combinators (\`filter\`, \`map\`, \`collect\`) over manual loops
-- Use \`collect::<Result<Vec<_>, _>>()\` for fallible collection processing
-- \`.iter()\` borrows (\`&T\`), \`.iter_mut()\` borrows mutably, \`.into_iter()\` consumes
-- Prefer lazy iterators — only \`.collect()\` when needed
-
-## Async Rust
-
-- Use \`tokio::fs\` and \`tokio::io\` — never blocking \`std::fs\` in async context
-- Use \`tokio::task::spawn_blocking\` for CPU-heavy work in async context
-- Only use cancellation-safe operations inside \`tokio::select!\`
-- Ensure \`tokio::spawn\` tasks handle errors (not silently dropped)
-
-## Unsafe Code Rules
-
-- Minimize unsafe — exhaust safe alternatives first
-- Every \`unsafe\` block MUST have a \`// SAFETY:\` comment explaining invariants
-- Encapsulate unsafe behind safe abstractions
+- Use exhaustive \`match\` for multiple variants; \`if let\` for single-variant; \`matches!\` macro for boolean checks
+- Prefer iterator combinators (\`filter\`, \`map\`, \`collect\`) over manual loops; keep iterators lazy
+- Use \`tokio::fs\`/\`tokio::io\` in async — never blocking \`std::fs\`; \`spawn_blocking\` for CPU-heavy work
+- Only use cancellation-safe operations inside \`tokio::select!\`; handle \`tokio::spawn\` errors
+- Every \`unsafe\` block MUST have a \`// SAFETY:\` comment; encapsulate unsafe behind safe abstractions
 - Use \`#[deny(unsafe_code)]\` at crate level; opt in per-module with \`#[allow(unsafe_code)]\`
-
-## Project Structure
-
-- Binary crate: thin \`main.rs\`, \`lib.rs\` for public API, \`error.rs\` for error types
-- Library crate: \`lib.rs\` re-exports, \`internal/\` for \`pub(crate)\` implementation
-- Use \`[workspace]\` for multi-crate projects, share deps via \`[workspace.dependencies]\`
-- Keep shared types in a dedicated \`-core\` or \`-types\` crate
-
-## Cargo.toml Best Practices
-
-- Set \`edition = "2021"\` and \`rust-version\` (MSRV) for libraries
-- Use \`[lints.clippy]\` section for project-wide Clippy configuration
-- Use \`[features]\` for optional functionality — avoid feature creep
-- Group dependencies: workspace, external, dev-dependencies
+- Binary: thin \`main.rs\` + \`lib.rs\`; library: \`lib.rs\` re-exports; use \`[workspace]\` for multi-crate
+- Set \`edition = "2021"\` and \`rust-version\` (MSRV); use \`[lints.clippy]\` for project-wide config
 `,
       },
       {
@@ -190,45 +114,17 @@ Ownership-driven design. Let the compiler guide you — fix warnings, not suppre
         description: 'Rust security rules: memory safety, input validation, dependency auditing, crypto',
         content: `# Rust Security Rules
 
-## Memory Safety
+Memory safety, input validation, dependency auditing, and crypto rules for Rust projects.
 
-- Audit every \`unsafe\` block: verify the \`// SAFETY:\` comment is accurate and complete
-- Flag \`unsafe\` blocks that lack \`// SAFETY:\` comments — do not merge without them
-- Verify raw pointer arithmetic is bounds-checked before dereferencing
-- Flag \`std::mem::transmute\` usage — prefer \`bytemuck\`, \`zerocopy\`, or safe alternatives
-- Check FFI boundaries: verify foreign function signatures match C ABI exactly
-- Verify \`Send\` and \`Sync\` bounds are correct for types shared across threads
-- Flag manual \`Drop\` implementations that access freed memory or have use-after-free potential
-
-## Input Validation
-
-- Validate all external input (network, CLI args, file content, environment variables) before use
-- Use \`checked_add\`, \`checked_mul\`, \`saturating_*\` for arithmetic on untrusted input — no silent overflow
-- Verify string parsing handles malformed UTF-8 gracefully (\`from_utf8\` not \`from_utf8_unchecked\`)
-- Flag unbounded allocations from untrusted size values (e.g., \`Vec::with_capacity(user_input)\`)
-- Limit recursion depth for parsers processing untrusted input — prevent stack overflow
-- Validate deserialized data: \`serde\` can construct invalid states — add validation after deserialize
-
-## Dependency Security
-
-- Run \`cargo audit\` in CI to check for known vulnerabilities — fail the build on advisories
-- Commit \`Cargo.lock\` for binary crates — ensures reproducible builds
-- Flag \`[patch]\` or \`[replace]\` sections that override upstream crates — document why
-- Prefer \`rustls\` over \`openssl\` for TLS when possible — fewer C dependencies, memory-safe
+- Audit every \`unsafe\` block for accurate \`// SAFETY:\` comments; flag \`transmute\` — prefer \`bytemuck\`/\`zerocopy\`
+- Verify raw pointer bounds, FFI signatures match C ABI, and \`Send\`/\`Sync\` bounds are correct
+- Validate all external input before use; use \`checked_add\`/\`saturating_*\` for untrusted arithmetic
+- Use \`from_utf8\` not \`from_utf8_unchecked\`; flag unbounded allocations from untrusted sizes
+- Run \`cargo audit\` in CI; commit \`Cargo.lock\` for binaries; prefer \`rustls\` over \`openssl\`
 - Review \`build.rs\` scripts — they run at compile time with full system access
-- Pin exact versions for security-critical dependencies
-
-## Cryptography
-
-- Use \`ring\`, \`rustls\`, or \`rust-crypto\` crates — never hand-roll cryptographic primitives
-- Use constant-time comparison for secrets (\`ring::constant_time::verify_slices_are_equal\`)
-- Use \`rand::rngs::OsRng\` for cryptographic randomness — never \`rand::thread_rng\` for secrets
-- Never log, serialize, or display secret keys or tokens — implement custom Debug that redacts
-
-## Concurrency Safety
-
-- Verify \`Mutex\` and \`RwLock\` are not held across \`.await\` points — use \`tokio::sync\` variants
-- Check for data races in \`unsafe\` code that circumvents Rust's ownership model
+- Use \`ring\`/\`rustls\` for crypto — never hand-roll; constant-time comparison for secrets
+- Use \`OsRng\` for cryptographic randomness; never log or display secret keys
+- Verify \`Mutex\`/\`RwLock\` are not held across \`.await\` — use \`tokio::sync\` variants
 - Flag \`Rc<RefCell<T>>\` in async/multi-threaded contexts — use \`Arc<Mutex<T>>\` instead
 `,
       },

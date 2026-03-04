@@ -1,4 +1,4 @@
-import type { AgentDefinition, ComposedConfig, GeneratedFile } from '../../core/types.js';
+import type { AgentDefinition, ComposedConfig, GeneratedFile, ProjectMetadata } from '../../core/types.js';
 import { CLAUDE_DIR, AGENTS_DIR } from '../../core/constants.js';
 import { assertPathWithin } from '../../utils/fs.js';
 import { yamlEscape } from './yaml-utils.js';
@@ -11,19 +11,42 @@ function validateAgentName(name: string): void {
   }
 }
 
+/** Inject project context into agent prompt if metadata is available */
+export function injectProjectContext(agent: AgentDefinition, metadata: ProjectMetadata): AgentDefinition {
+  if (!metadata.name && !metadata.description) return agent;
+
+  const ctx: string[] = ['## Project Context'];
+  ctx.push(`You are working on **${metadata.name ?? 'this project'}**${metadata.description ? ` — ${metadata.description}` : ''}.`);
+
+  if (metadata.keyDirectories.length > 0) {
+    ctx.push(`Key directories: ${metadata.keyDirectories.map(d => '`' + d + '/`').join(', ')}`);
+  }
+  if (metadata.architecture) {
+    ctx.push(`Architecture: ${metadata.architecture}`);
+  }
+  ctx.push('');
+
+  return { ...agent, prompt: ctx.join('\n') + '\n' + agent.prompt };
+}
+
 /** Generate all .claude/agents/*.md files from composed config */
 export function generateAgents(
   config: ComposedConfig,
   projectRoot: string,
+  metadata?: ProjectMetadata,
 ): GeneratedFile[] {
   const agentsBase = path.join(projectRoot, CLAUDE_DIR, AGENTS_DIR);
   return config.agents.map((agent) => {
     validateAgentName(agent.name);
     const fullPath = path.join(agentsBase, `${agent.name}.md`);
     assertPathWithin(fullPath, agentsBase);
+
+    // Inject project context into agent prompt
+    const enrichedAgent = metadata ? injectProjectContext(agent, metadata) : agent;
+
     return {
       path: fullPath,
-      content: formatAgentFile(agent),
+      content: formatAgentFile(enrichedAgent),
     };
   });
 }

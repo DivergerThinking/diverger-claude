@@ -27,14 +27,8 @@ Middleware-based architecture. Route → validate → handle → respond pattern
     settings: {
       permissions: {
         allow: [
-          'Bash(node:*)',
+          // npm, npx, node already inherited from TypeScript profile
           'Bash(npx nodemon:*)',
-          'Bash(npx tsx:*)',
-          'Bash(npm run dev:*)',
-          'Bash(npm run start:*)',
-          'Bash(npm run build:*)',
-          'Bash(npm test:*)',
-          'Bash(npm audit:*)',
         ],
       },
     },
@@ -46,32 +40,20 @@ Middleware-based architecture. Route → validate → handle → respond pattern
         description: 'Express middleware chain, error handling, and async patterns',
         content: `# Express Middleware & Error Handling
 
-## Middleware Chain Order
-Register global middleware in this order:
-1. CORS — \`cors()\` with explicit allowed origins (never \`*\` in production)
-2. Security headers — \`helmet()\`
-3. Compression — \`compression()\`
-4. Body parsing — \`express.json({ limit: '100kb' })\`, \`express.urlencoded({ extended: false })\`
-5. Request logging — pino-http, morgan, or custom
-6. Authentication — JWT verification, session hydration
-7. Routes — resource routers
-8. 404 handler — catch-all for unmatched routes
-9. Error handler — centralized \`(err, req, res, next)\` middleware (MUST be last)
+Middleware chain ordering, centralized error handling, and async error patterns for Express applications.
 
-## Error Handling Middleware
-- MUST have exactly 4 parameters: \`(err, req, res, next)\` — Express uses arity to identify it
-- Check \`res.headersSent\` before sending a response
+- Register middleware in strict order: CORS → helmet → compression → body parsing → logging → auth → routes → 404 → error handler
+- Error-handling middleware MUST have exactly 4 parameters: \`(err, req, res, next)\`
+- Check \`res.headersSent\` before sending a response in error handlers
 - Log full error server-side; send safe message to client (no stack traces in production)
 - Distinguish operational errors (safe to expose) from programmer errors (generic 500)
-
-## Async Error Handling
 - Express 5: async errors auto-forwarded to error handler (no wrapper needed)
 - Express 4: use \`express-async-errors\` package or manual async wrapper with \`.catch(next)\`
-
-## Custom Error Classes
 - Base \`AppError\` extends \`Error\` with \`statusCode\`, \`code\`, \`isOperational\`
 - Subclasses: \`NotFoundError\` (404), \`ValidationError\` (422), \`UnauthorizedError\` (401), \`ForbiddenError\` (403)
 - Services throw typed errors; error handler maps them to HTTP responses
+
+For detailed examples and reference, invoke: /express-middleware-guide
 `,
       },
       {
@@ -81,41 +63,18 @@ Register global middleware in this order:
         description: 'Express security patterns from official best practices',
         content: `# Express Security
 
-## Helmet — Security Headers
-- Always use \`helmet()\` as first middleware after CORS
-- Sets CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy
+Security headers, rate limiting, session hardening, CORS, and input validation for Express applications.
 
-## Rate Limiting
-- Protect auth endpoints: \`express-rate-limit\` with strict limits (10 attempts / 15 min)
-- Protect API: general limiter (100 req / min)
-- Use \`standardHeaders: true\`, \`legacyHeaders: false\`
-
-## Cookie & Session Security
-- Rename default session cookie (not \`connect.sid\`)
-- Cookie flags: \`secure: true\`, \`httpOnly: true\`, \`sameSite: 'strict'\`
-- Reasonable expiration — no permanent sessions
-- Production session store (Redis, PostgreSQL) — never in-memory MemoryStore
-
-## CORS Configuration
-- Never wildcard \`*\` in production — explicit origin allowlist
-- Set \`credentials: true\` only with specific origins
-- Configure \`methods\`, \`allowedHeaders\`, \`maxAge\`
-
-## Input Validation
+- Always use \`helmet()\` as first middleware after CORS — sets CSP, HSTS, X-Content-Type-Options, X-Frame-Options
+- Protect auth endpoints with \`express-rate-limit\` (10 attempts / 15 min); general API limiter (100 req / min)
+- Rename default session cookie, set \`secure\`, \`httpOnly\`, \`sameSite: 'strict'\`; use production session store (Redis)
+- Never wildcard \`*\` CORS origin in production — explicit origin allowlist with scoped \`credentials: true\`
 - Validate all input (params, query, body) with schema library (Zod, Joi) before processing
-- Validation middleware replaces body with parsed + coerced data
-- Apply on all POST/PUT/PATCH routes
+- Configure \`trust proxy\` when behind reverse proxy for correct \`req.ip\` and \`req.protocol\`
+- Never redirect to unvalidated user-supplied URLs — validate hostname before \`res.redirect()\`
+- Regular \`npm audit\` and \`npx snyk test\` for dependency auditing
 
-## Trust Proxy
-- Configure \`app.set('trust proxy', 1)\` when behind reverse proxy (Nginx, ALB)
-- Ensures correct \`req.ip\`, \`req.protocol\`, \`req.hostname\`
-
-## Open Redirect Prevention
-- Never redirect to unvalidated user-supplied URLs
-- Validate hostname before \`res.redirect()\`
-
-## Dependency Auditing
-- Regular \`npm audit\` and \`npx snyk test\`
+For detailed examples and reference, invoke: /express-security-guide
 `,
       },
       {
@@ -125,33 +84,18 @@ Register global middleware in this order:
         description: 'Express route organization, project structure, and architecture',
         content: `# Express Route Organization & Architecture
 
-## Project Structure
-- \`app.ts\` — Express setup (middleware, routes, error handling)
-- \`server.ts\` — HTTP server, graceful shutdown, cluster
-- \`routes/\` — Router files per resource, validation middleware on mutating routes
-- \`controllers/\` — Request extraction + response formatting, no business logic
-- \`services/\` — Business logic, framework-agnostic (no req/res imports)
-- \`middleware/\` — auth, validation, error handler, request-id
-- \`errors/\` — AppError base class + typed subclasses
-- \`types/express.d.ts\` — module augmentation for Request (user, id, log)
+Project structure, separation of concerns, and architecture patterns for Express applications.
 
-## Separation of Concerns
-- Routes: thin, delegate to controllers, apply validation middleware
-- Controllers: extract from request, call service, format response. No business logic.
-- Services: all business logic, throw typed errors. Never import Express types.
-- Correct HTTP status codes: 201 (create), 204 (delete), 422 (validation), 404 (not found)
+- Structure: \`app.ts\` (setup), \`server.ts\` (HTTP/shutdown), \`routes/\`, \`controllers/\`, \`services/\`, \`middleware/\`, \`errors/\`
+- Routes: thin, delegate to controllers, apply validation middleware on mutating routes
+- Controllers: extract from request, call service, format response — no business logic
+- Services: all business logic, throw typed errors — never import Express types
+- Use correct HTTP status codes: 201 (create), 204 (delete), 422 (validation), 404 (not found)
+- Handle SIGTERM/SIGINT for graceful shutdown — close server, drain connections, close DB pool
+- Express 5: async errors auto-caught, wildcard routes must be named (\`/*splat\`), \`req.query\` is read-only
+- Use module augmentation (\`types/express.d.ts\`) for Request extensions (user, id, log)
 
-## Graceful Shutdown
-- Handle SIGTERM/SIGINT — close server, drain connections, close DB pool
-- Force exit after timeout (30s) as safety net
-
-## Express 5 Migration
-- Async errors auto-caught — remove \`express-async-errors\`
-- \`req.param()\` removed — use \`req.params\`, \`req.body\`, \`req.query\`
-- Wildcard routes must be named: \`/*splat\` (not \`/*\`)
-- Optional params: \`/:file{.:ext}\` (not \`/:file.:ext?\`)
-- \`req.query\` is read-only; \`req.body\` is \`undefined\` without body parser
-- \`app.listen\` callback receives error argument
+For detailed examples and reference, invoke: /express-middleware-guide
 `,
       },
       {
@@ -161,34 +105,19 @@ Register global middleware in this order:
         description: 'Express security enforcement: helmet, validation, parameterized queries, auth middleware, error hiding',
         content: `# Express Security — Enforcement
 
-## Helmet
-- ALWAYS use \`helmet()\` — it sets 11+ security headers (CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy)
-- Load it early in the middleware chain (right after CORS)
-- Never disable critical headers without explicit justification in code comments
+Mandatory security enforcement rules for helmet, validation, queries, auth, and error handling.
 
-## Input Validation
+- ALWAYS use \`helmet()\` early in middleware chain — sets 11+ security headers; never disable without justification
 - ALL POST/PUT/PATCH endpoints MUST have validation middleware (Zod, Joi, or express-validator)
-- Validate params and query strings on GET endpoints that accept user input
-- Replace \`req.body\` with the parsed result — never trust the raw payload
 - Set \`express.json({ limit: '100kb' })\` to prevent large-payload attacks
+- NEVER concatenate user input into SQL or NoSQL queries — use parameterized statements
+- With ORMs: use query builder, never \`$queryRaw\` with interpolation; validate MongoDB query types
+- JWT verification MUST pin the algorithm — never accept the \`none\` algorithm
+- Auth middleware must return 401 with generic message — never reveal whether the user exists
+- Production error handler MUST NOT expose stack traces, file paths, or query details
+- Operational errors (4xx): return typed error message; programmer errors (5xx): return generic message
 
-## Parameterized Queries
-- NEVER concatenate user input into SQL or NoSQL queries
-- Use parameterized statements: \`db.query('SELECT * FROM users WHERE id = $1', [id])\`
-- With ORMs (Prisma, TypeORM, Sequelize): use the query builder, never \`$queryRaw\` with interpolation
-- MongoDB: validate and cast types before querying (prevent \`{ "$gt": "" }\` injection)
-
-## Authentication Middleware
-- JWT verification MUST pin the algorithm: \`jwt.verify(token, secret, { algorithms: ['HS256'] })\`
-- Never accept the \`none\` algorithm
-- Auth middleware must return 401 with a generic message — never reveal whether the user exists
-- Protect all non-public routes with authentication middleware at the router level
-
-## Error Handling — Hide Internals
-- Production error handler MUST NOT expose: stack traces, file paths, database query text, internal error messages
-- Operational errors (4xx): return the typed error message
-- Programmer errors (5xx): return a generic "Something went wrong" message
-- Always log the full error server-side for debugging
+For detailed examples and reference, invoke: /express-security-guide
 `,
       },
       {
@@ -198,19 +127,19 @@ Register global middleware in this order:
         description: 'Express performance patterns from official best practices',
         content: `# Express Performance
 
-## Code-Level
+Code-level and infrastructure-level performance patterns for Express applications.
+
 - Never use synchronous Node.js APIs in handlers (\`readFileSync\`, \`execSync\`) — blocks event loop
 - Use \`--trace-sync-io\` during development to detect sync calls
-- Use \`pino\` or \`winston\` for logging — never \`console.log\` in production (synchronous on terminals)
-- Use \`compression()\` middleware or offload to reverse proxy (Nginx) for high traffic
+- Use \`pino\` or \`winston\` for logging — never \`console.log\` in production
+- Use \`compression()\` middleware or offload to reverse proxy for high traffic
 - Never leave rejected promises unhandled — crashes in Node.js 16+
-- Use \`process.on('unhandledRejection', ...)\` only for logging, then exit
-
-## Infrastructure-Level
 - Set \`NODE_ENV=production\` — up to 3x performance improvement
 - Run in cluster: one worker per CPU core, Redis for shared state
 - Reverse proxy (Nginx, ALB) for TLS, static files, compression, caching, load balancing
 - \`Cache-Control\` headers for static resources; Redis/Varnish for application-level caching
+
+For detailed examples and reference, invoke: /express-middleware-guide
 `,
       },
     ],

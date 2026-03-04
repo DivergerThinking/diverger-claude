@@ -44,43 +44,20 @@ Workflow automation. Least-privilege permissions, pinned action versions, matrix
         description: 'GitHub Actions workflow structure, triggers, caching, matrix, reusable workflows, and artifacts — mandatory conventions',
         content: `# GitHub Actions Conventions
 
-## Workflow Structure
-- Name workflows descriptively: \`ci.yml\`, \`deploy-production.yml\`, \`release.yml\`
-- Separate CI (lint/test/build) from CD (deploy) — single responsibility per workflow
-- Use \`name:\` at workflow, job, and step levels for clear UI visibility
-- Use \`workflow_dispatch\` with typed \`inputs\` for manual triggers
+Workflow structure, triggers, caching, matrix builds, and reusable workflow patterns.
 
-## Triggers
-- Use path filters to run only when relevant files change
-- Prefer \`pull_request\` over \`pull_request_target\` (security risk with base branch write permissions)
-- Use \`push\` for main/release branches, \`pull_request\` for PRs
-- Use \`on.schedule\` for periodic maintenance; \`workflow_run\` for chaining
-
-## Caching
-- Cache dependencies using lock file hashes: \`hashFiles('**/package-lock.json')\`
-- Leverage built-in caching in setup actions with \`cache:\` input
-- Set appropriate \`retention-days\` on artifacts (default 90 is excessive for CI)
-
-## Concurrency
+**Key rules:**
+- Name workflows descriptively and separate CI from CD — single responsibility per workflow
+- Use path filters on triggers to run only when relevant files change
+- Cache dependencies using lock file hashes; set appropriate \`retention-days\` on artifacts
 - Use \`concurrency\` groups with \`cancel-in-progress: true\` for CI workflows
-- Disable \`cancel-in-progress\` for deployment workflows
+- Use \`strategy.matrix\` with \`fail-fast: false\` for multi-version/multi-OS testing
+- Define reusable workflows with \`workflow_call\`; use composite actions for step sequences
+- Use \`$GITHUB_OUTPUT\`, \`$GITHUB_ENV\` — never deprecated \`set-output\` or \`set-env\` commands
+- Store secrets in GitHub Secrets — never hardcode in workflow files
+- Prefer \`GITHUB_TOKEN\` over Personal Access Tokens; never echo or log secret values
 
-## Matrix Builds
-- Use \`strategy.matrix\` for multi-version/multi-OS testing
-- Set \`fail-fast: false\` in test matrices to see all failures
-
-## Reusable Workflows
-- Define with \`workflow_call\` trigger; parameterize with \`inputs\` and \`secrets\`
-- Use composite actions for reusable step sequences
-
-## Job Outputs
-- Use \`$GITHUB_OUTPUT\`, \`$GITHUB_ENV\`, \`$GITHUB_STEP_SUMMARY\` (not deprecated commands)
-- Use job-level \`outputs:\` to pass data between jobs via \`needs.<job>.outputs.<key>\`
-
-## Secrets
-- Store in GitHub Secrets — never hardcode in workflow files
-- Prefer \`GITHUB_TOKEN\` over Personal Access Tokens
-- Never echo or log secret values
+For detailed examples and reference, invoke: /github-actions-guide
 `,
       },
       {
@@ -90,42 +67,21 @@ Workflow automation. Least-privilege permissions, pinned action versions, matrix
         description: 'GitHub Actions security hardening — supply chain, permissions, script injection, environment protection, OIDC',
         content: `# GitHub Actions Security Hardening
 
-## Supply Chain Security
-- Pin ALL third-party actions to full 40-character commit SHA — never use mutable tags (\`@v4\`, \`@main\`)
-- Review action source code before using — compromised actions can exfiltrate secrets
-- Use Dependabot or Renovate to keep pinned SHAs updated
-- Prefer official GitHub actions (\`actions/*\`) and Marketplace-verified creators
-- Audit workflow files periodically for modified action references
+Supply chain security, least-privilege permissions, script injection prevention, and OIDC authentication.
 
-## Permissions (Least Privilege)
-- Set \`permissions: {}\` at workflow level (deny all) — grant per job
-- CI (lint/test): \`contents: read\`
-- PR automation: \`contents: read, pull-requests: write\`
-- Package publish: \`contents: read, packages: write\`
-- Release: \`contents: write\`
-- OIDC deploy: \`contents: read, id-token: write\`
-- Never use \`permissions: write-all\`
-
-## Script Injection Prevention
+**Key rules:**
+- Pin ALL third-party actions to full 40-character commit SHA — never use mutable tags
+- Set \`permissions: {}\` at workflow level (deny all) — grant minimum required per job
 - NEVER use \`\${{ }}\` interpolation of untrusted input directly in \`run:\` blocks
-- Untrusted contexts: \`github.event.issue.title\`, \`.body\`, \`pull_request.title\`, \`.body\`, \`comment.body\`, \`github.head_ref\`
 - Always route untrusted input through environment variables first
-
-## Environment Protection
-- Require manual approval for production deployments
-- Restrict deployment branches to \`main\` and \`release/*\`
-- Use environment-specific secrets (staging vs production)
-- Set deployment concurrency to prevent parallel deploys
-
-## OIDC Authentication
-- Use OpenID Connect instead of static cloud credentials
-- Configure trust policies for specific repos and branches
-- Use official OIDC actions: \`aws-actions/configure-aws-credentials\`, \`azure/login\`, \`google-github-actions/auth\`
-
-## Self-Hosted Runners
+- Require manual approval for production deployments with environment protection rules
+- Use OIDC (OpenID Connect) instead of static cloud credentials for AWS, Azure, GCP
+- Never use \`permissions: write-all\` — scope to specific permissions per job
+- Use Dependabot or Renovate to keep pinned action SHAs updated
 - Never use self-hosted runners for public repositories
-- Run as non-root, use ephemeral runners, isolate with containers or VMs
-- Restrict access to specific repositories via runner groups
+- Use environment-specific secrets to isolate staging from production credentials
+
+For detailed examples and reference, invoke: /github-actions-guide
 `,
       },
       {
@@ -135,39 +91,20 @@ Workflow automation. Least-privilege permissions, pinned action versions, matrix
         description: 'GitHub Actions recommended workflow patterns and templates for common CI/CD scenarios',
         content: `# GitHub Actions Workflow Patterns
 
-## CI Workflow
-- Trigger on \`push\` to main and \`pull_request\` to main, with path filters
-- Set \`permissions: {}\` at workflow level, \`contents: read\` per job
-- Add \`concurrency\` group with \`cancel-in-progress: true\`
-- Separate lint and test into distinct jobs
-- Use matrix strategy with \`fail-fast: false\` for multi-version testing
-- Pin all actions to full commit SHA
+Recommended workflow templates for CI, release, deployment, and reusable workflow scenarios.
 
-## Release Workflow
-- Trigger on tag push (\`tags: ['v*']\`)
-- Build job: checkout, build, upload artifact with \`retention-days\`
-- Publish job: \`needs: build\`, download artifact, publish
-- Use \`environment: production\` with protection rules
-- Grant \`contents: write, packages: write\` only on publish job
+**Key rules:**
+- CI: trigger on push/PR to main with path filters, \`permissions: {}\`, concurrency groups
+- Separate lint and test into distinct jobs; use matrix strategy with \`fail-fast: false\`
+- Release: trigger on tag push, build + upload artifact, publish with environment protection
+- Reusable workflows: define with \`workflow_call\`, typed inputs, minimal permissions
+- OIDC deployment: \`id-token: write\` permission, no static cloud credentials
+- Use \`needs:\` for job dependency chains; \`if: always()\` on cleanup jobs
+- Pin all actions to full commit SHA with version comment
+- Grant \`contents: write, packages: write\` only on publish/release jobs
+- Use conditional execution (\`if:\`) for branch- and event-specific logic
 
-## Reusable Workflow
-- Define with \`workflow_call\` trigger
-- Declare typed \`inputs\` with defaults and \`secrets\` (required or optional)
-- Keep permissions minimal (\`contents: read\`)
-- Call from other workflows: \`uses: ./.github/workflows/reusable-test.yml\`
-
-## Deployment with OIDC
-- Grant \`id-token: write\` permission for OIDC
-- Use \`aws-actions/configure-aws-credentials\` (or equivalent) with \`role-to-assume\`
-- Use \`environment: production\` with required reviewers
-- No static cloud credentials stored as secrets
-
-## Conditional Job Execution
-- \`if: github.event_name == 'push'\` — only on push, not PRs
-- \`if: contains(github.event.pull_request.labels.*.name, 'deploy')\` — label-based
-- \`if: github.ref == 'refs/heads/main'\` — main branch only
-- Use \`needs:\` for job dependencies
-- Use \`if: always()\` on cleanup jobs to ensure they run regardless of failures
+For detailed examples and reference, invoke: /github-actions-guide
 `,
       },
     ],

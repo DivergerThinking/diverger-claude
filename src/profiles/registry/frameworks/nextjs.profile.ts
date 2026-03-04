@@ -46,37 +46,20 @@ App Router architecture. Server Components by default — add \`'use client'\` o
         description: 'Next.js App Router architecture, routing, and rendering patterns',
         content: `# Next.js App Router Architecture
 
-## Route Segment File Conventions
-Every route segment supports these special files, rendered in this hierarchy:
-1. \`layout.tsx\` — persistent shared UI (wraps everything below)
-2. \`template.tsx\` — like layout but re-mounts on navigation
-3. \`error.tsx\` — React error boundary
-4. \`loading.tsx\` — Suspense boundary (shows skeleton while page loads)
-5. \`not-found.tsx\` — not-found error boundary
-6. \`page.tsx\` — the route's unique UI
+App Router architecture, route segment conventions, and Server/Client Component patterns.
 
-## Server Components vs Client Components
-- Default is Server Component — no directive needed
-- Add \`'use client'\` ONLY on leaf-level components that need interactivity
-- Server: data fetching, secrets, heavy computation, static rendering
-- Client: \`useState\`/\`useEffect\`, event handlers, browser APIs, custom hooks with state
-- Never put \`'use client'\` at page or layout level — keeps entire subtree client-side
-
-## Interleaving Pattern
-- Pass Server Components as \`children\` or props to Client Components to keep them server-rendered
-- Client Components cannot \`import\` Server Components, but can receive them as \`children\`
-
-## Route Organization
-- Route groups \`(groupName)/\` scope layouts without affecting the URL
-- Dynamic routes: \`[slug]\`, catch-all: \`[...path]\`, optional: \`[[...path]]\`
+**Key rules:**
+- Route segment hierarchy: layout -> template -> error -> loading -> not-found -> page
+- Default is Server Component — add \`'use client'\` ONLY on leaf-level interactive components
+- Pass Server Components as \`children\` to Client Components (interleaving pattern)
+- Route groups \`(groupName)/\` scope layouts without affecting URL
 - Use \`generateStaticParams()\` for dynamic routes that can be statically generated
+- Always create \`loading.tsx\` for segments with async data, \`error.tsx\` with retry mechanism
+- Export \`metadata\` or \`generateMetadata\` from all pages for SEO
+- Props from Server to Client Components must be serializable (no functions, Dates, class instances)
 - Call \`notFound()\` for missing resources instead of returning null
 
-## Key Rules
-- Always create \`loading.tsx\` for segments with async data fetching
-- Always create \`error.tsx\` with a retry mechanism and user-friendly message
-- Export \`metadata\` or \`generateMetadata\` from all pages for SEO
-- Props passed from Server to Client Components must be serializable (no functions, Dates, class instances)
+For detailed examples and reference, invoke: /nextjs-route-generator
 `,
       },
       {
@@ -86,28 +69,20 @@ Every route segment supports these special files, rendered in this hierarchy:
         description: 'Server Actions security, validation, and mutation patterns',
         content: `# Server Actions & Mutations
 
-## Core Rules
-1. **Server Actions are public endpoints** — treat them like API routes; attackers can call them directly
-2. **Validate ALL inputs** with a schema library (Zod, Valibot) on every Server Action
-3. **Authorize the caller** — check session/permissions inside the action; never trust client auth state alone
-4. **Revalidate after mutations** — call \`revalidatePath()\` or \`revalidateTag()\` before \`redirect()\`
-5. **Return typed responses** — \`{ success, data?, error? }\` instead of throwing raw errors
+Server Actions are public HTTP endpoints — validate inputs, authenticate, and authorize in every action.
 
-## Server Action Checklist
-- Files with Server Actions must have \`'use server'\` at the top
-- Authenticate: verify session/JWT inside the action
-- Authorize: check user roles/permissions
-- Validate: parse input with Zod/Valibot schema
-- Mutate: perform DB operation with error handling
-- Revalidate: call \`revalidatePath()\` or \`revalidateTag()\`
-- Redirect: call \`redirect()\` AFTER revalidation, never before
-- Never return raw database errors to the client
+**Key rules:**
+- Server Actions are public endpoints — attackers can call them directly via POST
+- Validate ALL inputs with Zod/Valibot on every Server Action
+- Authenticate (verify session/JWT) and authorize (check roles/permissions) inside the action
+- Follow strict order: validate -> authenticate -> authorize -> mutate -> revalidate -> redirect
+- Call \`revalidatePath()\`/\`revalidateTag()\` BEFORE \`redirect()\` — redirect throws, code after never runs
+- Return typed responses \`{ success, data?, error? }\` — never throw raw errors
+- Files with Server Actions must have \`'use server'\` at top
+- Use \`useActionState()\` hook for form state management with \`isPending\` feedback
+- Progressive enhancement: \`<form action={action}>\` works without JS
 
-## Client Component Integration
-- Use \`useActionState()\` hook for form state management with Server Actions
-- Disable submit button during pending state (\`isPending\`)
-- Display action errors from returned state
-- Use progressive enhancement: forms work without JS when using \`<form action={action}>\`
+For detailed examples and reference, invoke: /nextjs-server-actions-guide
 `,
       },
       {
@@ -117,36 +92,20 @@ Every route segment supports these special files, rendered in this hierarchy:
         description: 'Next.js caching layers, revalidation, and performance optimization',
         content: `# Next.js Caching Strategy
 
-## Four Caching Layers
-| Layer | Where | Duration | Opt-out |
-|-------|-------|----------|---------|
-| **Request Memoization** | Server (per request) | Single request | \`AbortController.signal\` |
-| **Data Cache** | Server (persistent) | Until revalidated | \`{ cache: 'no-store' }\` |
-| **Full Route Cache** | Server (persistent) | Until revalidated/redeployed | \`force-dynamic\` |
-| **Router Cache** | Client (in-memory) | Session / 5 min | \`router.refresh()\` |
+Next.js 4 caching layers, revalidation strategies, and performance optimization patterns.
 
-## Revalidation Patterns
-- **Time-based (ISR)**: \`fetch(url, { next: { revalidate: 60 } })\` — stale-while-revalidate
-- **On-demand tag-based**: tag fetches with \`next: { tags: ['product-1'] }\`, then \`revalidateTag('product-1')\` after mutation
-- **On-demand path-based**: \`revalidatePath('/blog')\` or \`revalidatePath('/blog', 'layout')\` for nested segments
+**Key rules:**
+- Understand 4 layers: Request Memoization, Data Cache, Full Route Cache, Router Cache
+- Time-based (ISR): \`fetch(url, { next: { revalidate: 60 } })\` for stale-while-revalidate
+- On-demand: \`revalidateTag()\` for fine-grained invalidation, \`revalidatePath()\` for path-based
+- Routes become dynamic when accessing \`cookies()\`, \`headers()\`, \`searchParams\`, or \`no-store\` fetch
+- Avoid \`force-dynamic\` — prefer time-based revalidation when data changes periodically
+- Use \`React.cache()\` for non-fetch data sources to deduplicate DB calls per request
+- Choose the least aggressive caching strategy that meets freshness requirements
+- Call \`revalidatePath()\`/\`revalidateTag()\` BEFORE \`redirect()\` in Server Actions
+- Avoid \`cache: 'no-store'\` everywhere — only opt out when data must be truly real-time
 
-## Dynamic Rendering
-A route becomes dynamic automatically when it accesses:
-- \`cookies()\`, \`headers()\`, \`connection()\`
-- \`searchParams\` prop in Page components
-- \`fetch\` with \`{ cache: 'no-store' }\`
-
-Avoid \`dynamic = 'force-dynamic'\` — prefer time-based revalidation when data changes periodically.
-
-## Request Memoization
-- For non-fetch data sources, use \`React.cache()\` to deduplicate DB calls within a single request
-- Call the cached function in multiple Server Components — only one query executes per request
-- \`fetch\` calls are automatically memoized within a request (no wrapper needed)
-
-## Key Rules
-- Always choose the least aggressive caching strategy that meets your freshness requirements
-- Use \`revalidateTag()\` for fine-grained invalidation of related data
-- Call \`revalidatePath()\` or \`revalidateTag()\` BEFORE \`redirect()\` in Server Actions
+For detailed examples and reference, invoke: /nextjs-caching-guide
 `,
       },
       {

@@ -46,42 +46,21 @@ Declarative resource management. Security contexts, resource limits, health chec
         description: 'Kubernetes resource definition standards and pod design conventions',
         content: `# Kubernetes Resource Standards
 
-## Resource Requests and Limits
-- Every container MUST define \`resources.requests\` and \`resources.limits\` for memory
-- CPU requests are mandatory; CPU limits are recommended but may be omitted to avoid throttling
-- Set values appropriate to the workload — not placeholder minimums
+Resource definitions, health checks, pod security, and high availability conventions.
 
-## Health Checks
+**Key rules:**
+- Every container MUST define \`resources.requests\` and \`resources.limits\` for memory and CPU
 - Every long-running container MUST have liveness and readiness probes
-- Use startup probes for applications with init times exceeding 10 seconds
-- Liveness probes: lightweight, check only the process itself — NOT external dependencies
-- Readiness probes: comprehensive, verify the app can serve traffic (DB connected, cache warm)
-- Use dedicated endpoints: \`/healthz\` (liveness), \`/readyz\` (readiness)
-
-## Pod Security
-- \`runAsNonRoot: true\` and numeric \`runAsUser\` on every pod
-- \`readOnlyRootFilesystem: true\` — mount emptyDir for writable temp paths
-- \`allowPrivilegeEscalation: false\` on every container
-- Drop ALL capabilities (\`drop: ["ALL"]\`) and add back only specific ones needed
-- \`seccompProfile.type: RuntimeDefault\` on every pod
-- Never use \`privileged: true\` without explicit documented justification
-
-## Workload Types
-- Stateless API/web: Deployment + HPA (replicas, PDB, anti-affinity)
-- Stateful (database, cache): StatefulSet (volumeClaimTemplates, headless Service)
-- Node-level agent: DaemonSet (tolerations, hostNetwork if needed)
-- One-off task: Job (backoffLimit, activeDeadlineSeconds)
-- Scheduled task: CronJob (schedule, concurrencyPolicy, startingDeadlineSeconds)
-
-## Labels and Organization
-- Apply Kubernetes recommended labels on every resource: \`app.kubernetes.io/name\`, \`version\`, \`component\`, \`part-of\`, \`managed-by\`
+- Liveness probes: lightweight, process-only — NEVER call external dependencies
+- Readiness probes: comprehensive, verify the app can serve traffic
+- \`runAsNonRoot: true\`, \`readOnlyRootFilesystem: true\`, \`allowPrivilegeEscalation: false\` on every pod
+- Drop ALL capabilities and add back only specific ones needed
+- Apply Kubernetes recommended labels on every resource (\`app.kubernetes.io/*\`)
 - Use namespaces consistently — never deploy to the default namespace
+- Define PodDisruptionBudget for every production Deployment
+- Use multiple replicas (minimum 2) with anti-affinity for production workloads
 
-## High Availability
-- Define \`PodDisruptionBudget\` for every production Deployment (\`minAvailable\` or \`maxUnavailable\`)
-- Use \`topologySpreadConstraints\` to distribute pods across zones and nodes
-- Set \`podAntiAffinity\` to prevent replicas from co-locating on the same node
-- Use multiple replicas (minimum 2) for all production workloads
+For detailed examples and reference, invoke: /k8s-manifest-audit
 `,
       },
       {
@@ -91,41 +70,21 @@ Declarative resource management. Security contexts, resource limits, health chec
         description: 'Kubernetes security standards: PSS, RBAC, secrets, network policies',
         content: `# Kubernetes Security Standards
 
-## Pod Security Admission (PSA)
-- Every production namespace MUST enforce at least \`baseline\` Pod Security Standard
-- Critical namespaces SHOULD enforce \`restricted\`
-- Set labels: \`pod-security.kubernetes.io/enforce\`, \`audit\`, \`warn\`
-- Levels: Privileged (kube-system), Baseline (dev/staging), Restricted (production)
+PSA enforcement, RBAC least-privilege, secrets management, network policies, and image security.
 
-## RBAC Rules
-- Use namespace-scoped Roles instead of ClusterRoles when possible
-- Never grant wildcard verbs (\`*\`) or wildcard resources (\`*\`) in production
-- Never add service accounts to \`system:masters\` — it bypasses all RBAC
+**Key rules:**
+- Every production namespace MUST enforce at least \`baseline\` Pod Security Standard via PSA labels
+- Use namespace-scoped Roles instead of ClusterRoles — never grant wildcard verbs or resources
 - Set \`automountServiceAccountToken: false\` on pods that do not need API access
-- Create dedicated service accounts per workload — never use the \`default\` SA
-- Review and prune RBAC bindings quarterly
-
-## Secrets
-- NEVER store secrets in ConfigMaps or plain-text manifests
-- Enable encryption at rest for Secrets in etcd
-- Use external secret managers (Vault, AWS Secrets Manager) via CSI driver or External Secrets Operator
-- Mount secrets as files, not environment variables — env vars leak into process listings and crash dumps
-- Rotate secrets regularly; use short-lived tokens when possible
-- Never commit secret values to version control — use sealed-secrets or external refs
-
-## Network Policies
-- Apply default-deny (Ingress + Egress) in every namespace, then allowlist required traffic
-- Allow ingress from Ingress controller to frontend pods
-- Allow frontend-to-backend and backend-to-database communication
-- Allow egress to external APIs on specific ports only
-- Deny all other traffic by default
-
-## Image Security
+- NEVER store secrets in ConfigMaps or plain-text manifests — use external secret managers
+- Mount secrets as files, not environment variables — env vars leak in logs and crash dumps
+- Apply default-deny NetworkPolicies (Ingress + Egress) in every namespace
 - Use specific image tags or SHA256 digests — never \`:latest\` in production
-- Pull images only from trusted registries — \`imagePullPolicy: IfNotPresent\` with pinned tags
-- Scan images for vulnerabilities in CI (Trivy, Grype, Snyk)
-- Use minimal base images (distroless, alpine, scratch)
+- Scan images for vulnerabilities in CI (Trivy, Grype, Snyk) — block critical CVEs
 - Sign images and verify with admission controllers (cosign, Kyverno, OPA Gatekeeper)
+- Create dedicated service accounts per workload — never use the \`default\` SA
+
+For detailed examples and reference, invoke: /k8s-security-guide
 `,
       },
     ],

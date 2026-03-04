@@ -45,60 +45,20 @@ Angular CLI structure. Standalone components preferred, RxJS for reactive patter
         description: 'Angular component architecture, signals, DI, and routing patterns',
         content: `# Angular Architecture
 
-## Standalone Components (Default)
-- Every component, directive, and pipe must be standalone (default since v19)
-- Import only what each component needs in its \`imports\` array
-- NgModules only for wrapping third-party libraries that have not migrated
+Angular standalone components, signals, dependency injection, routing, and modern control flow.
 
-## Smart vs Presentational Components
-- Smart (container): fetch data, call services, coordinate children, hold page-level state
-- Presentational (dumb): signal inputs, emit outputs, zero side effects, \`OnPush\` mandatory
-- Smart in feature folders; presentational in \`shared/\` or feature \`ui/\`
-
-## Signals — Reactive State Management
-- \`signal()\` for mutable local state
-- \`computed()\` for derived read-only state — auto-tracked dependencies
-- \`linkedSignal()\` when a signal must reset when a source changes
-- \`effect()\` ONLY for side effects (logging, analytics, localStorage) — never to derive state
-- \`resource()\` to bind async data fetching to signal-based request parameters
-- \`input()\` / \`input.required()\` for signal inputs; \`output()\` for events; \`model()\` for two-way binding
-- Never call \`signal.set()\` inside \`computed()\` — causes infinite loops
-
-## Signals vs RxJS
-- Component state / derived state / async data: signals (\`signal\`, \`computed\`, \`resource\`)
-- HTTP request-response: \`HttpClient\` Observable -> bridge with \`toSignal()\`
-- WebSocket / SSE / real-time: RxJS Observable
-- Complex async (debounce, race, retry): RxJS operators
-- Form state: Reactive Forms (Observable-based)
-
-## Dependency Injection
-- Use \`inject()\` function (not constructor params) inside injection context
-- \`providedIn: 'root'\` for app-wide singletons
-- \`InjectionToken<T>\` for non-class deps; \`provideX()\` in \`app.config.ts\`
-
-## Template Syntax — New Control Flow
-- \`@if\` / \`@else\` (not \`*ngIf\`), \`@for\` with \`track\` (not \`*ngFor\`), \`@switch\` (not \`[ngSwitch]\`)
-- \`@defer\` / \`@loading\` / \`@placeholder\` / \`@error\` for lazy template sections
-- \`@empty\` inside \`@for\` for empty-collection rendering
+**Key rules:**
+- All components standalone (default since v19); smart vs presentational separation
+- Signals: \`signal()\` for state, \`computed()\` for derived, \`effect()\` ONLY for side effects
+- Signal inputs: \`input()\`/\`input.required()\`, outputs: \`output()\`, two-way: \`model()\`
+- Use \`inject()\` function for DI; \`providedIn: 'root'\` for singletons
+- New control flow: \`@if\`, \`@for\` (with \`track\`), \`@switch\`, \`@defer\` — not legacy directives
 - Never call methods in templates — use \`computed()\` or pipes
+- Lazy-load routes with \`loadComponent\`/\`loadChildren\`; functional guards
+- Reactive forms with \`NonNullableFormBuilder\` for strict typing
+- Bridge HTTP to signals with \`toSignal()\` or \`resource()\`; functional interceptors only
 
-## Routing
-- Routes in \`app.routes.ts\`, \`provideRouter(routes)\` in \`app.config.ts\`
-- Lazy-load: \`loadComponent\` (single) or \`loadChildren\` (route group)
-- Functional guards: \`canActivate\`, \`canDeactivate\`, \`canMatch\`, \`resolve\`
-- Query params for filterable state; path params for resource identity
-
-## Forms
-- Reactive forms (\`FormGroup\`, \`FormControl\`) for any form with validation
-- \`NonNullableFormBuilder\` for strict typing
-- Show errors only after \`touched\` or \`dirty\`
-- Template-driven forms (\`ngModel\`) only for trivial one-input cases
-
-## HttpClient
-- \`provideHttpClient(withInterceptors([...]))\` in \`app.config.ts\`
-- Functional interceptors (\`HttpInterceptorFn\`), not class-based
-- Bridge to signals with \`toSignal()\` or \`resource()\`
-- Global HTTP interceptor for centralized error handling
+For detailed examples and reference, invoke: /angular-signals-guide
 `,
       },
       {

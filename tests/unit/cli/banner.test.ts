@@ -1,4 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Mock loadMeta so banner always sees "no meta" regardless of cwd
+vi.mock('../../../src/governance/history.js', () => ({
+  loadMeta: vi.fn().mockResolvedValue(null),
+}));
+
 import { getGreeting, showBanner } from '../../../src/cli/ui/banner.js';
 import * as logger from '../../../src/cli/ui/logger.js';
 

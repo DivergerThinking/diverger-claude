@@ -1,109 +1,38 @@
-import type { ComposedConfig, DetectionResult, GeneratedFile } from '../../core/types.js';
+import type { ComposedConfig, DetectionResult, GeneratedFile, ProjectMetadata } from '../../core/types.js';
 import { CLAUDE_MD } from '../../core/constants.js';
 import path from 'path';
-import { existsSync, readFileSync } from 'node:fs';
 
-/** Extract project context from package.json, README, and directory structure */
-function extractProjectContext(projectRoot: string, detection?: DetectionResult): string | null {
-  const lines: string[] = [];
-
-  // 1. Read package.json for name + description
-  const pkgPath = path.join(projectRoot, 'package.json');
-  let pkgName: string | undefined;
-  let pkgDescription: string | undefined;
-  if (existsSync(pkgPath)) {
-    try {
-      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-      pkgName = pkg.name;
-      pkgDescription = pkg.description;
-    } catch {
-      // ignore malformed package.json
-    }
-  }
-
-  // 2. Try other manifest files for description if no package.json
-  if (!pkgDescription) {
-    const pyprojectPath = path.join(projectRoot, 'pyproject.toml');
-    if (existsSync(pyprojectPath)) {
-      try {
-        const content = readFileSync(pyprojectPath, 'utf-8');
-        const descMatch = content.match(/description\s*=\s*"([^"]+)"/);
-        if (descMatch) pkgDescription = descMatch[1];
-        if (!pkgName) {
-          const nameMatch = content.match(/name\s*=\s*"([^"]+)"/);
-          if (nameMatch) pkgName = nameMatch[1];
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
-
-  if (!pkgDescription) {
-    const cargoPath = path.join(projectRoot, 'Cargo.toml');
-    if (existsSync(cargoPath)) {
-      try {
-        const content = readFileSync(cargoPath, 'utf-8');
-        const descMatch = content.match(/description\s*=\s*"([^"]+)"/);
-        if (descMatch) pkgDescription = descMatch[1];
-        if (!pkgName) {
-          const nameMatch = content.match(/name\s*=\s*"([^"]+)"/);
-          if (nameMatch) pkgName = nameMatch[1];
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
-
-  // 3. Read README first paragraph for project summary
-  let readmeSummary: string | undefined;
-  const readmeNames = ['README.md', 'readme.md', 'Readme.md', 'README.rst', 'README.txt', 'README'];
-  for (const name of readmeNames) {
-    const readmePath = path.join(projectRoot, name);
-    if (existsSync(readmePath)) {
-      try {
-        const content = readFileSync(readmePath, 'utf-8');
-        readmeSummary = extractReadmeSummary(content);
-      } catch {
-        // ignore
-      }
-      break;
-    }
-  }
-
-  // 4. Detect key directories
-  const keyDirs = detectKeyDirectories(projectRoot);
-
-  // Build the section only if we have something useful
-  if (!pkgName && !pkgDescription && !readmeSummary && keyDirs.length === 0) {
+/** Build the "About This Project" section from metadata */
+function buildProjectContext(metadata: ProjectMetadata): string | null {
+  if (!metadata.name && !metadata.description && !metadata.readmeSummary && metadata.keyDirectories.length === 0) {
     return null;
   }
 
+  const lines: string[] = [];
   lines.push('## About This Project');
   lines.push('');
 
-  if (pkgName) {
-    lines.push(`**${pkgName}**${pkgDescription ? ` — ${pkgDescription}` : ''}`);
+  if (metadata.name) {
+    lines.push(`**${metadata.name}**${metadata.description ? ` — ${metadata.description}` : ''}`);
     lines.push('');
-  } else if (pkgDescription) {
-    lines.push(pkgDescription);
-    lines.push('');
-  }
-
-  if (readmeSummary && readmeSummary !== pkgDescription) {
-    lines.push(readmeSummary);
+  } else if (metadata.description) {
+    lines.push(metadata.description);
     lines.push('');
   }
 
-  if (detection?.architecture) {
-    lines.push(`**Architecture:** ${detection.architecture}`);
+  if (metadata.readmeSummary && metadata.readmeSummary !== metadata.description) {
+    lines.push(metadata.readmeSummary);
     lines.push('');
   }
 
-  if (keyDirs.length > 0) {
+  if (metadata.architecture) {
+    lines.push(`**Architecture:** ${metadata.architecture}`);
+    lines.push('');
+  }
+
+  if (metadata.keyDirectories.length > 0) {
     lines.push('**Key directories:**');
-    for (const dir of keyDirs) {
+    for (const dir of metadata.keyDirectories) {
       lines.push(`- \`${dir}/\``);
     }
     lines.push('');
@@ -114,69 +43,63 @@ function extractProjectContext(projectRoot: string, detection?: DetectionResult)
   return lines.join('\n');
 }
 
-/** Extract the first meaningful paragraph from a README */
-function extractReadmeSummary(content: string): string | undefined {
-  const lines = content.split('\n');
-  let foundHeading = false;
-  const paragraphLines: string[] = [];
+/** Build the "Available Commands" section from scripts metadata */
+function buildCommandsSection(metadata: ProjectMetadata): string | null {
+  const lines: string[] = [];
 
-  for (const line of lines) {
-    const trimmed = line.trim();
+  const hasNpmScripts = metadata.scripts && Object.keys(metadata.scripts).length > 0;
+  const hasPythonScripts = metadata.pythonScripts && Object.keys(metadata.pythonScripts).length > 0;
+  const hasMakeTargets = metadata.makeTargets && metadata.makeTargets.length > 0;
 
-    // Skip badges, images, and empty lines at the start
-    if (!foundHeading && (trimmed === '' || /^[!\[<]/.test(trimmed))) continue;
+  if (!hasNpmScripts && !hasPythonScripts && !hasMakeTargets) return null;
 
-    // Skip headings but note we've passed one
-    if (/^#{1,3}\s/.test(trimmed)) {
-      if (foundHeading && paragraphLines.length > 0) break; // hit next heading, stop
-      foundHeading = true;
-      continue;
-    }
+  lines.push('## Available Commands');
+  lines.push('');
 
-    // Collect paragraph text after first heading
-    if (foundHeading) {
-      if (trimmed === '') {
-        if (paragraphLines.length > 0) break; // end of first paragraph
-        continue;
-      }
-      paragraphLines.push(trimmed);
+  const pm = metadata.packageManager ?? 'npm';
+
+  if (hasNpmScripts) {
+    for (const [key, value] of Object.entries(metadata.scripts!)) {
+      lines.push(`- \`${pm} run ${key}\` — ${value}`);
     }
   }
 
-  if (paragraphLines.length === 0) return undefined;
-
-  const summary = paragraphLines.join(' ');
-  // Cap at ~300 chars to keep CLAUDE.md concise
-  if (summary.length > 300) {
-    return summary.slice(0, 297) + '...';
+  if (hasPythonScripts) {
+    for (const [key, value] of Object.entries(metadata.pythonScripts!)) {
+      lines.push(`- \`${key}\` — ${value}`);
+    }
   }
-  return summary;
+
+  if (hasMakeTargets) {
+    for (const target of metadata.makeTargets!) {
+      lines.push(`- \`make ${target}\``);
+    }
+  }
+
+  return lines.join('\n');
 }
 
-/** Detect common project directories that exist */
-function detectKeyDirectories(projectRoot: string): string[] {
-  const candidates = [
-    'src', 'lib', 'app', 'apps', 'packages',
-    'components', 'pages', 'routes', 'api',
-    'server', 'client', 'shared', 'common', 'core',
-    'tests', 'test', '__tests__', 'spec',
-    'scripts', 'tools', 'config',
-    'docs', 'public', 'static', 'assets',
-    'migrations', 'prisma', 'db',
-    'cmd', 'pkg', 'internal',
-  ];
+/** Build the "Entry Points" section from metadata */
+function buildEntryPointsSection(metadata: ProjectMetadata): string | null {
+  if (!metadata.entryPoints || Object.keys(metadata.entryPoints).length === 0) return null;
 
-  return candidates.filter((dir) => {
-    const fullPath = path.join(projectRoot, dir);
-    return existsSync(fullPath);
-  });
+  const lines: string[] = [];
+  lines.push('## Entry Points');
+  lines.push('');
+
+  for (const [name, entryPath] of Object.entries(metadata.entryPoints)) {
+    lines.push(`- **${name}**: \`${entryPath}\``);
+  }
+
+  return lines.join('\n');
 }
 
 /** Generate the CLAUDE.md file at the project root */
 export function generateClaudeMd(
   config: ComposedConfig,
   projectRoot: string,
-  detection?: DetectionResult,
+  _detection?: DetectionResult,
+  metadata?: ProjectMetadata,
 ): GeneratedFile {
   const sections = [...config.claudeMdSections].sort((a, b) => a.order - b.order);
 
@@ -188,21 +111,37 @@ export function generateClaudeMd(
     '',
   ];
 
-  // Project context section (from README, package.json, directory structure)
-  const projectContext = extractProjectContext(projectRoot, detection);
-  if (projectContext) {
-    parts.push(projectContext);
-    parts.push('');
+  // Project context section (from metadata)
+  if (metadata) {
+    const projectContext = buildProjectContext(metadata);
+    if (projectContext) {
+      parts.push(projectContext);
+      parts.push('');
+    }
+
+    // Available Commands section
+    const commandsSection = buildCommandsSection(metadata);
+    if (commandsSection) {
+      parts.push(commandsSection);
+      parts.push('');
+    }
+
+    // Entry Points section
+    const entryPointsSection = buildEntryPointsSection(metadata);
+    if (entryPointsSection) {
+      parts.push(entryPointsSection);
+      parts.push('');
+    }
   }
 
   for (const section of sections) {
-    // Section content already includes its own ## heading, so don't duplicate it
     parts.push(section.content);
     parts.push('');
   }
 
-  // Only add placeholder if we couldn't extract project context
-  if (!projectContext) {
+  // Only add placeholder if no project context was extracted
+  const hasContext = metadata && (metadata.name || metadata.description || metadata.readmeSummary || metadata.keyDirectories.length > 0);
+  if (!hasContext) {
     parts.push('## Project-Specific Notes');
     parts.push('');
     parts.push('<!-- Add project-specific context here: architecture decisions, key directories, dev workflow, etc. -->');

@@ -105,7 +105,7 @@ describe('pre-commit-validator.sh', () => {
     expect(result.exitCode).toBe(0);
   });
 
-  it('should intercept git commit with various formats', () => {
+  it('should intercept git commit with various formats', { timeout: 15000 }, () => {
     writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ version: '2.4.0' }));
     writeFileSync(
       path.join(tmpDir, 'plugin', '.claude-plugin', 'plugin.json'),

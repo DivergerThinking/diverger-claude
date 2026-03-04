@@ -111,47 +111,20 @@ PEP 8 style, type hints mandatory (PEP 484/604). Prefer pathlib, f-strings, data
         description: 'Advanced Python type hints, protocols, and modern patterns',
         content: `# Python Type Hints & Modern Patterns
 
-## Type Checking Configuration
+Strict type checking with mypy/pyright catches bugs at development time and serves as executable documentation.
+These patterns follow PEP 484, PEP 604, PEP 612, PEP 692, and modern Python 3.10+ conventions.
 
-- Enable strict mode in mypy (\`strict = true\`) or pyright (\`typeCheckingMode = "strict"\`)
-- Use \`disallow_untyped_defs\`, \`warn_return_any\`, \`warn_unreachable\` in mypy
-- Add \`[[tool.mypy.overrides]]\` for third-party libs missing type stubs
+- Enable strict mode in mypy or pyright — use \`disallow_untyped_defs\`, \`warn_return_any\`
+- Use \`Protocol\` for structural subtyping (duck typing with safety), prefer over ABC when only interface matters
+- Use \`TypeVar\` for generic functions, \`@overload\` for multiple call signatures
+- Use \`TypedDict\` for typed dictionaries with known keys (replaces \`Dict[str, Any]\`)
+- Use \`Literal\` for constrained values, \`Final\` for immutable bindings
+- Use \`@dataclass(frozen=True, slots=True)\` for internal immutable data, Pydantic \`BaseModel\` for external validation
+- Use \`with\` / \`async with\` for all resource management — custom context managers via \`@contextmanager\`
+- Use \`Protocol\`-typed abstractions for dependency injection, not concrete implementations
+- Use generators for large data, \`functools.lru_cache\` for memoization, \`collections.abc\` types for signatures
 
-## Advanced Type Patterns
-
-- **Protocol**: Use for structural subtyping (duck typing with safety). Prefer over ABC when only interface matters
-- **TypeVar**: Use for generic functions: \`T = TypeVar("T")\`
-- **Overload**: Use \`@overload\` to express multiple call signatures for the same function
-- **TypedDict**: Use for typed dictionaries with known keys (replaces \`Dict[str, Any]\`)
-- **Literal**: Use for constrained string/int values: \`Literal["DEBUG", "INFO"]\`
-- **Final**: Use for immutable bindings: \`MAX_CONNECTIONS: Final = 100\`
-- **Unpack + TypedDict**: Use for typed \`**kwargs\` (PEP 692, Python 3.12+)
-
-## Dataclasses vs Pydantic
-
-- Use \`@dataclass(frozen=True, slots=True)\` for internal immutable data
-- Use \`@dataclass(slots=True)\` with \`field(default_factory=...)\` for mutable containers
-- Use Pydantic \`BaseModel\` for external data that needs validation (API input, config files)
-- Use \`field_validator\` for custom validation logic on Pydantic models
-
-## Context Managers
-
-- Use \`with\` / \`async with\` for all resource management (files, connections, locks)
-- Use \`@contextmanager\` / \`@asynccontextmanager\` for custom context managers
-- Any object needing deterministic cleanup should be a context manager
-
-## Dependency Injection
-
-- Use \`Protocol\` to define service interfaces for dependency injection
-- Accept dependencies as constructor parameters — not global state
-- Inject \`Protocol\`-typed abstractions, not concrete implementations
-
-## Performance Patterns
-
-- Use generators (\`yield\`) for large data — process one item at a time, constant memory
-- Use \`@dataclass(slots=True)\` or manual \`__slots__\` for memory-efficient classes
-- Use \`functools.lru_cache\` / \`functools.cache\` for memoization of pure functions
-- Use \`collections.abc\` types for function signatures (\`Sequence\`, \`Mapping\`, \`Iterable\`)
+For detailed examples and reference, invoke: /python-typing-guide
 `,
       },
       {
@@ -161,36 +134,19 @@ PEP 8 style, type hints mandatory (PEP 484/604). Prefer pathlib, f-strings, data
         description: 'Python async/await patterns and structured concurrency',
         content: `# Python Async Patterns
 
-## Structured Concurrency (Python 3.11+)
+Async Python unlocks massive I/O concurrency, but incorrect usage causes event loop blocking, resource leaks, and subtle bugs.
+These patterns follow asyncio documentation, PEP 654, and Python 3.11+ best practices.
 
-- Use \`asyncio.TaskGroup\` for concurrent tasks — all complete or all cancel on first exception
-- Prefer \`TaskGroup\` over \`asyncio.gather\` for safer error propagation
-- Never use bare \`create_task()\` without tracking the task reference
-
-## Async Context Managers
-
-- Use \`@asynccontextmanager\` for async resource management (connections, sessions)
-- Always \`await conn.close()\` in \`finally\` blocks
-- Use \`async with\` for all async resources
-
-## Blocking Code in Async Context
-
-- NEVER call blocking I/O (file reads, \`time.sleep\`, sync HTTP) inside async functions
-- Offload blocking I/O to thread pool: \`await asyncio.to_thread(blocking_func)\`
-- Use \`run_in_executor\` for more control over the thread pool
-
-## Timeout and Cancellation
-
+- Use \`asyncio.TaskGroup\` for concurrent tasks — safer error propagation than \`asyncio.gather\`
+- Never use bare \`create_task()\` without storing the task reference (prevents GC collection)
+- Use \`@asynccontextmanager\` for async resource management, always close in \`finally\`
+- NEVER call blocking I/O inside async functions — offload via \`await asyncio.to_thread()\`
 - Use \`async with asyncio.timeout(seconds):\` for clean timeout handling (Python 3.11+)
-- Handle \`TimeoutError\` explicitly at the caller
-- Respect cancellation — check \`asyncio.current_task().cancelled()\` in long loops
-
-## Anti-Patterns
-
-- Never block the event loop with synchronous I/O
-- Never use \`asyncio.gather\` without understanding \`return_exceptions\` behavior
+- Handle \`TimeoutError\` and \`CancelledError\` explicitly — always re-raise \`CancelledError\`
 - Never mix completion callbacks and async/await in the same API layer
-- Never ignore the return value of \`create_task()\` — store it to prevent GC
+- Use \`asyncio.Semaphore\` for concurrency limiting, \`asyncio.Queue\` for producer/consumer
+
+For detailed examples and reference, invoke: /python-async-guide
 `,
       },
     ],

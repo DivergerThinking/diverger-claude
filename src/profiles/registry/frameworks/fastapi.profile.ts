@@ -85,28 +85,19 @@ Async-first Python API framework. Pydantic models for validation, dependency inj
         description: 'FastAPI dependency injection, settings, and configuration patterns',
         content: `# FastAPI Dependencies & Settings
 
-## Settings with Pydantic BaseSettings
-- Use \`pydantic_settings.BaseSettings\` with \`SettingsConfigDict\` for env var loading
-- Cache settings with \`@lru_cache\` on the getter function
-- Create \`Annotated\` type alias: \`SettingsDep = Annotated[Settings, Depends(get_settings)]\`
-- Never hardcode secrets or use insecure defaults — load from environment
+FastAPI dependency injection patterns, Pydantic BaseSettings configuration, and reusable dependency conventions.
 
-## Database Session Dependency
-- Use async generator (\`yield\`) for session lifecycle: create, yield, commit/rollback, close
-- Create type alias: \`DbSession = Annotated[AsyncSession, Depends(get_db_session)]\`
-- Always handle rollback on exceptions in the generator
+**Key rules:**
+- Use \`pydantic_settings.BaseSettings\` with \`SettingsConfigDict\` and \`@lru_cache\` getter
+- Use \`Annotated[type, Depends(fn)]\` pattern for all dependencies with named type aliases
+- Async generator (\`yield\`) dependencies for session lifecycle with proper rollback on exceptions
+- Chain auth dependencies: oauth2_scheme -> get_current_user -> get_current_active_user
+- Raise HTTPException 401 with \`WWW-Authenticate: Bearer\` header on auth failure
+- Yield dependencies for resource cleanup (HTTP clients, file handles, DB sessions)
+- Use \`app.dependency_overrides\` in tests; always clear overrides in teardown
+- Never hardcode secrets — load from environment via BaseSettings
 
-## Authentication Dependencies
-- Chain dependencies: oauth2_scheme -> get_current_user -> get_current_active_user
-- Create type aliases: CurrentUser, ActiveUser for reuse across endpoints
-- Raise HTTPException 401 with WWW-Authenticate header on invalid credentials
-- Never mix auth logic into endpoint functions — use dependency injection
-
-## Reusable Dependency Patterns
-- Use \`Annotated[type, Depends(fn)]\` for all dependencies — create named type aliases
-- Yield dependencies for resource cleanup (HTTP clients, file handles)
-- Use \`app.dependency_overrides\` in tests to swap real deps with test doubles
-- Always clear overrides in test teardown
+For detailed examples and reference, invoke: /fastapi-di-guide
 `,
       },
       {
@@ -147,30 +138,20 @@ Async-first Python API framework. Pydantic models for validation, dependency inj
         description: 'FastAPI testing strategies and deployment patterns',
         content: `# FastAPI Testing & Deployment
 
-## Testing with TestClient
-- Use TestClient (sync) for most endpoint tests, httpx.AsyncClient for async tests
-- Create fixtures that override dependencies via \`app.dependency_overrides\`
-- Always clear overrides in fixture teardown (\`app.dependency_overrides.clear()\`)
+FastAPI testing strategies with TestClient, httpx.AsyncClient, and production deployment patterns.
 
-## Test Coverage Checklist (per endpoint)
-1. Success case: correct status code, response body matches schema
-2. Validation errors (422): missing fields, invalid types, constraint violations
-3. Authentication errors (401): missing, expired, or invalid token
-4. Authorization errors (403): valid user but insufficient permissions
-5. Not found (404): resource does not exist
-6. Conflict (409): duplicate creation, stale update
-7. Background tasks: mock and assert enqueued
-8. Pydantic models: test validators and computed fields independently
-
-## Deployment
-- Production: Gunicorn with UvicornWorker class (\`-k uvicorn.workers.UvicornWorker\`)
-- Simple: Uvicorn with \`--workers 4\` — never use \`fastapi dev\` in production
+**Key rules:**
+- Use TestClient (sync) for most tests, httpx.AsyncClient with ASGITransport for async tests
+- Override dependencies via \`app.dependency_overrides\`; always clear in fixture teardown
+- Test per endpoint: success, validation (422), auth (401), forbidden (403), not found (404), conflict (409)
+- Test background tasks by mocking; test Pydantic validators independently
+- Production: Gunicorn with UvicornWorker — never \`fastapi dev\` in production
 - Docker: non-root user, slim base image, \`--no-cache-dir\` for pip
 - TLS termination via reverse proxy (Traefik, Caddy, Nginx) — not in the app
-- Health check endpoint (\`/health\`) that verifies DB connectivity
-- Structured JSON logging for observability
-- Run Alembic \`upgrade head\` before app startup
-- Environment-based settings — no hardcoded secrets
+- Health check endpoint (\`/health\`) verifying DB connectivity; structured JSON logging
+- Run Alembic \`upgrade head\` before app startup; environment-based settings only
+
+For detailed examples and reference, invoke: /fastapi-testing-guide
 `,
       },
       {

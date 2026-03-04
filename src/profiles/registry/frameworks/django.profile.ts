@@ -47,38 +47,21 @@ Django's "batteries included" philosophy. Convention-driven, ORM-centric, MTV ar
         description: 'Django model design, ORM patterns, and query optimization',
         content: `# Django Models & ORM
 
-## Model Design — Class Member Order (official Django style)
-1. Database fields
-2. Custom manager attributes
-3. \`class Meta\` (ordering, constraints, indexes, verbose_name)
-4. \`__str__\` and magic methods
-5. \`save()\` / \`delete()\` overrides
-6. \`get_absolute_url()\`
-7. Custom methods and properties
+Django model design, ORM patterns, and query optimization following official Django style.
 
-## Model Field Rules
-- Always specify \`on_delete\` on ForeignKey (CASCADE, PROTECT, SET_NULL)
-- Use \`related_name\` on all FK/M2M fields for explicit reverse access
-- Use TextChoices/IntegerChoices for status fields — no magic strings
-- Add \`db_index=True\` on fields used in WHERE/ORDER BY clauses
-- Use \`auto_now_add\` / \`auto_now\` for timestamp fields
-- Define constraints (UniqueConstraint) and indexes in Meta
-
-## Custom Managers and QuerySets
-- Create custom QuerySet subclass with chainable filter methods (published, by_author, recent)
-- Create custom Manager that returns the QuerySet subclass via \`get_queryset()\`
-- Use \`Article.published.all()\` for pre-filtered access — chainable and expressive
-
-## ORM Query Optimization
-- Use \`select_related()\` for ForeignKey/OneToOne (SQL JOIN) to prevent N+1
-- Use \`prefetch_related()\` for reverse FK/ManyToMany (separate query + Python join)
-- Use \`F()\` for database-level field operations (atomic increment, comparisons)
-- Use \`Q()\` for complex AND/OR/NOT logic
-- Use \`annotate()\` / \`aggregate()\` for Count, Avg, Sum at DB level
-- Use \`bulk_create()\` / \`bulk_update()\` with batch_size for batch operations
-- Use \`exists()\` instead of \`len(queryset)\` — avoid loading all rows
-- Use \`values()\` / \`values_list()\` when you only need specific fields
+**Key rules:**
+- Follow official class member order: fields, managers, Meta, __str__, save/delete, get_absolute_url, custom methods
+- Always specify \`on_delete\` on ForeignKey, use \`related_name\` on all FK/M2M fields
+- Use TextChoices/IntegerChoices for status fields, \`db_index=True\` on filtered/ordered fields
+- Create custom QuerySet with chainable filter methods and custom Manager via \`get_queryset()\`
+- Use \`select_related()\` for FK/OneToOne, \`prefetch_related()\` for reverse FK/M2M to prevent N+1
+- Use \`F()\` for atomic DB-level operations, \`Q()\` for complex AND/OR/NOT logic
+- Use \`annotate()\`/\`aggregate()\` for DB-level aggregation (Count, Avg, Sum)
+- Use \`bulk_create()\`/\`bulk_update()\` with batch_size for batch operations
+- Use \`exists()\` instead of \`len(queryset)\`, \`values()\`/\`values_list()\` for partial fields
 - Filter at the database level — never load all objects and filter in Python
+
+For detailed examples and reference, invoke: /django-orm-guide
 `,
       },
       {
@@ -124,38 +107,20 @@ Django's "batteries included" philosophy. Convention-driven, ORM-centric, MTV ar
         description: 'Django security configuration, CSRF, XSS, and settings management',
         content: `# Django Security & Settings
 
-## Built-in Protections — Keep Them Active
-- CsrfViewMiddleware — NEVER remove; use \`csrf_exempt\` sparingly
-- SecurityMiddleware — HSTS, SSL redirect, security headers
-- XFrameOptionsMiddleware — prevents clickjacking
-- Template auto-escaping — NEVER disable unless content is sanitized
+Django security configuration, CSRF protection, XSS prevention, and production settings hardening.
 
-## Production Settings
-- \`DEBUG = False\`, \`SECRET_KEY\` from env (never hardcoded), \`ALLOWED_HOSTS\` explicit list
-- HTTPS: \`SECURE_SSL_REDIRECT = True\`, \`SESSION_COOKIE_SECURE = True\`, \`CSRF_COOKIE_SECURE = True\`
-- HSTS: \`SECURE_HSTS_SECONDS = 31536000\`, include subdomains, preload
-- Cookies: \`SESSION_COOKIE_HTTPONLY = True\`, \`CSRF_COOKIE_HTTPONLY = True\`
-- Content: \`SECURE_CONTENT_TYPE_NOSNIFF = True\`, \`SECURE_REFERRER_POLICY = "same-origin"\`
-- Database: \`CONN_MAX_AGE = 600\` for persistent connections
+**Key rules:**
+- Keep CsrfViewMiddleware, SecurityMiddleware, XFrameOptionsMiddleware, and template auto-escaping active
+- Production: \`DEBUG=False\`, \`SECRET_KEY\` from env, explicit \`ALLOWED_HOSTS\`, all cookies Secure+HttpOnly
+- Enable HSTS, SSL redirect, content type nosniff, and referrer policy headers
+- Split settings into base/local/production/test; use django-environ for env var loading
+- Always include \`{% csrf_token %}\` in POST forms; AJAX sends X-CSRFToken header
+- Raw SQL must use parameterized queries (\`%s\` placeholders) — never f-strings or string formatting
+- Serve user-uploaded content from separate domain; whitelist extensions and enforce max upload size
+- Never access settings at module level — use lazy patterns
+- Run \`manage.py check --deploy\` before every production deployment
 
-## Settings Organization
-- Split into base.py (shared), local.py (dev), production.py (hardened), test.py (fast)
-- Use django-environ for env var loading with type coercion
-- SECRET_KEY and DATABASE_URL always from environment — never in source code
-- Never access settings at module level in other modules — use lazy patterns
-
-## CSRF Protection
-- Always include \`{% csrf_token %}\` in POST forms
-- For AJAX: read token from hidden input or cookie, send as X-CSRFToken header
-- DRF SessionAuthentication enforces CSRF; token-based APIs do not need CSRF
-
-## Raw SQL — Always Parameterized
-- Use \`cursor.execute("... WHERE status = %s", [status])\` — never f-strings in SQL
-
-## User-Uploaded Content Security
-- Serve from separate domain to prevent same-origin XSS
-- Whitelist file extensions/MIME types, enforce max upload size at web server level
-- Use FileExtensionValidator on FileField/ImageField
+For detailed examples and reference, invoke: /django-security-guide
 `,
       },
       {

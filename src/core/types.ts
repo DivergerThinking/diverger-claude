@@ -185,6 +185,8 @@ export interface RuleDefinition {
   description: string;
   /** Glob patterns to scope when this rule loads (YAML frontmatter paths:) */
   paths?: string[];
+  /** If true, content contains {{PLACEHOLDER}} tokens to interpolate with ProjectMetadata */
+  isDynamic?: boolean;
 }
 
 // --- Agent Types ---
@@ -355,6 +357,31 @@ export interface ComposedConfig {
   appliedProfiles: string[];
   /** Knowledge results fetched from Claude API (C4) */
   knowledge?: KnowledgeResult[];
+}
+
+// --- Project Metadata Types ---
+
+export interface ProjectMetadata {
+  /** Project name from manifest (package.json, pyproject.toml, Cargo.toml) */
+  name?: string;
+  /** Project description from manifest */
+  description?: string;
+  /** First-paragraph summary extracted from README */
+  readmeSummary?: string;
+  /** Detected architecture pattern */
+  architecture?: ArchitecturePattern;
+  /** Key directories that exist in the project */
+  keyDirectories: string[];
+  /** npm/yarn/pnpm scripts from package.json (filtered to useful ones) */
+  scripts?: Record<string, string>;
+  /** Entry points from package.json main/bin */
+  entryPoints?: Record<string, string>;
+  /** Detected package manager */
+  packageManager?: 'npm' | 'yarn' | 'pnpm' | 'bun';
+  /** Python scripts from pyproject.toml [project.scripts] */
+  pythonScripts?: Record<string, string>;
+  /** Makefile targets */
+  makeTargets?: string[];
 }
 
 // --- Generation Types ---

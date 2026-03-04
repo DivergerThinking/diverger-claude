@@ -11,7 +11,6 @@ const tDim    = chalk.hex('#167a6e'); // back (visible through mesh)
 /** Shorthand for accent color in UI elements */
 const teal = tMedium;
 
-// eslint-disable-next-line no-control-regex
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
 
 function stripAnsi(s: string): string {
@@ -191,6 +190,6 @@ export async function showBanner(): Promise<void> {
     teal('\u256F');
 
   blank();
-  console.log([topLine, ...contentLines, botLine].join('\n'));
+  console.log([topLine, ...contentLines, botLine].join('\n')); // eslint-disable-line no-console -- Banner renders directly to stdout
   blank();
 }

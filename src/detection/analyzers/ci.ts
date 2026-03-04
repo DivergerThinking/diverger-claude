@@ -14,7 +14,7 @@ export class CIAnalyzer extends BaseAnalyzer {
   ];
 
   /** CI configs are always at the project root — never expand to subdirectories */
-  readonly rootOnlyPatterns = [
+  override readonly rootOnlyPatterns = [
     '.gitlab-ci.yml',
     'Jenkinsfile',
     'azure-pipelines.yml',

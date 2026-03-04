@@ -13,6 +13,7 @@ import { generateExpoTemplate } from './templates/expo-template.js';
 import { generateFlutterTemplate } from './templates/flutter-template.js';
 import { generateSwiftUITemplate } from './templates/swiftui-template.js';
 import { filterUniversalComponents } from './plugin-filter.js';
+import { extractProjectMetadata } from './project-metadata.js';
 import { FileWriter } from './file-writer.js';
 import { DiffEngine } from './diff-engine.js';
 import { existsSync } from 'node:fs';
@@ -58,26 +59,29 @@ export class GenerationEngine {
     const effectiveConfig = pluginMode ? filterUniversalComponents(config) : config;
     const files: GeneratedFile[] = [];
 
+    // 0. Extract project metadata once, share with all generators
+    const metadata = extractProjectMetadata(projectRoot, detection);
+
     // 1. Security (generate first, merge overlay into settings for downstream generators)
     onProgress?.('Generando reglas de seguridad...');
     const { mergedConfig, securityFiles } = this.mergeSecurityOverlay(effectiveConfig, projectRoot);
     files.push(...securityFiles);
 
-    // 2. CLAUDE.md
+    // 2. CLAUDE.md (with project metadata)
     onProgress?.('Generando CLAUDE.md...');
-    files.push(generateClaudeMd(mergedConfig, projectRoot, detection));
+    files.push(generateClaudeMd(mergedConfig, projectRoot, detection, metadata));
 
     // 3. settings.json (now includes hooks and security overlay)
     onProgress?.('Generando settings.json...');
     files.push(generateSettings(mergedConfig, projectRoot));
 
-    // 4. Rules
+    // 4. Rules (with project metadata for dynamic interpolation)
     onProgress?.('Generando reglas del stack...');
-    files.push(...generateRules(mergedConfig, projectRoot));
+    files.push(...generateRules(mergedConfig, projectRoot, metadata));
 
-    // 5. Agents
+    // 5. Agents (with project metadata for context injection)
     onProgress?.('Generando agentes...');
-    files.push(...generateAgents(mergedConfig, projectRoot));
+    files.push(...generateAgents(mergedConfig, projectRoot, metadata));
 
     // 6. Skills
     onProgress?.('Generando skills...');
