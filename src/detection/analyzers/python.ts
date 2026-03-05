@@ -69,7 +69,7 @@ const PY_DEP_PATTERNS: DepPattern[] = [
     techName: 'Pydantic',
     category: 'tooling',
     weight: 80,
-    profileIds: [],
+    profileIds: ['frameworks/pydantic'],
   },
   {
     packages: ['sqlalchemy'],

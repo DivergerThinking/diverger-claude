@@ -19,6 +19,7 @@ import { nextjsProfile } from './registry/frameworks/nextjs.profile.js';
 import { expressProfile } from './registry/frameworks/express.profile.js';
 import { nestjsProfile } from './registry/frameworks/nestjs.profile.js';
 import { fastapiProfile } from './registry/frameworks/fastapi.profile.js';
+import { pydanticProfile } from './registry/frameworks/pydantic.profile.js';
 import { langchainProfile } from './registry/frameworks/langchain.profile.js';
 import { springBootProfile } from './registry/frameworks/spring-boot.profile.js';
 import { djangoProfile } from './registry/frameworks/django.profile.js';
@@ -78,6 +79,7 @@ const ALL_PROFILES: Profile[] = [
   expressProfile,
   nestjsProfile,
   fastapiProfile,
+  pydanticProfile,
   langchainProfile,
   springBootProfile,
   djangoProfile,
