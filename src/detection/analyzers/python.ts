@@ -23,7 +23,7 @@ interface DepPattern {
   packages: string[];
   techId: string;
   techName: string;
-  category: 'framework' | 'testing' | 'tooling';
+  category: 'framework' | 'testing' | 'tooling' | 'infra';
   weight: number;
   profileIds: string[];
   parentId?: string;
@@ -69,7 +69,7 @@ const PY_DEP_PATTERNS: DepPattern[] = [
     techName: 'Pydantic',
     category: 'tooling',
     weight: 80,
-    profileIds: [],
+    profileIds: ['frameworks/pydantic'],
   },
   {
     packages: ['sqlalchemy'],
@@ -78,6 +78,22 @@ const PY_DEP_PATTERNS: DepPattern[] = [
     category: 'tooling',
     weight: 80,
     profileIds: [],
+  },
+  {
+    packages: ['langchain', 'langchain-core', 'langchain-community', 'langchain-openai', 'langchain-google-genai', 'langchain-anthropic'],
+    techId: 'langchain',
+    techName: 'LangChain',
+    category: 'framework',
+    weight: 90,
+    profileIds: ['frameworks/langchain'],
+  },
+  {
+    packages: ['google-cloud-storage', 'google-cloud-aiplatform', 'google-cloud-bigquery', 'google-cloud-firestore', 'google-cloud-pubsub', 'google-cloud-run', 'google-cloud-secret-manager', 'google-api-core', 'google-auth'],
+    techId: 'google-cloud',
+    techName: 'Google Cloud',
+    category: 'infra',
+    weight: 85,
+    profileIds: ['infra/google-cloud'],
   },
 ];
 
