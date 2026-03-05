@@ -77,7 +77,7 @@ class User(BaseModel):
 ## Field Validators
 
 - Use \`@field_validator\` (v2) — not \`@validator\` (v1, deprecated)
-- Specify \`mode='before'` for pre-coercion transforms, \`mode='after'\` (default) for post-coercion checks
+- Specify \`mode='before'\` for pre-coercion transforms, \`mode='after'\` (default) for post-coercion checks
 - Return the (possibly transformed) value — never mutate in place
 
 \`\`\`python
@@ -201,7 +201,7 @@ result = adapter.validate_python(["1", "2", "3"])  # [1, 2, 3]
 
 ## Discriminated Unions
 
-- Use \`Annotated[Union[A, B], Field(discriminator='type')]` for polymorphic models
+- Use \`Annotated[Union[A, B], Field(discriminator='type')]\` for polymorphic models
 
 \`\`\`python
 from typing import Annotated, Union, Literal
