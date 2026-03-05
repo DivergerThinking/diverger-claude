@@ -142,6 +142,7 @@ export async function showBanner(): Promise<void> {
     `${teal('check')}   ${chalk.dim('Validar configuración')}`,
     `${teal('diff')}    ${chalk.dim('Ver cambios pendientes')}`,
     `${teal('eject')}   ${chalk.dim('Desconectar diverger')}`,
+    `${teal('plugin')}  ${chalk.dim('Gestionar el plugin')}`,
     chalk.dim('\u2500'.repeat(22)),
   ];
 

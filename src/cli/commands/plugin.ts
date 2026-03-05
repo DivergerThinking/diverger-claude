@@ -392,6 +392,93 @@ export function registerPluginCommand(program: Command): void {
       }
     });
 
+  // --- plugin link ---
+  pluginCmd
+    .command('link')
+    .description('Registrar este repositorio como marketplace local y habilitar el plugin (desarrollo)')
+    .option('--path <path>', 'Ruta al repositorio diverger-claude (por defecto: directorio actual)')
+    .option('--marketplace <name>', 'Nombre del marketplace en settings.json (por defecto: divergerthinking-tools)')
+    .action(async (opts) => {
+      try {
+        log.header('diverger-claude plugin link');
+        log.blank();
+
+        const repoPath = opts.path ? path.resolve(opts.path as string) : process.cwd();
+        const marketplaceName = (opts.marketplace as string | undefined) ?? 'divergerthinking-tools';
+        const pluginKey = `${PLUGIN_NAME}@${marketplaceName}`;
+
+        // Verify PLUGINS.json exists in the target repo
+        const pluginsJsonPath = path.join(repoPath, 'PLUGINS.json');
+        if (!existsSync(pluginsJsonPath)) {
+          log.error(`No se encontró PLUGINS.json en: ${repoPath}`);
+          log.dim('  Asegúrate de ejecutar este comando desde el repositorio diverger-claude.');
+          process.exit(1);
+        }
+
+        // Verify plugin directory exists
+        const pluginSrcPath = path.join(repoPath, 'plugin');
+        if (!existsSync(pluginSrcPath)) {
+          log.error(`No se encontró el directorio plugin/ en: ${repoPath}`);
+          process.exit(1);
+        }
+
+        // Read settings.json
+        let settings: Record<string, unknown> = {};
+        try {
+          const raw = await fs.readFile(CLAUDE_SETTINGS_PATH, 'utf-8');
+          settings = JSON.parse(raw) as Record<string, unknown>;
+        } catch {
+          // File doesn't exist or invalid — start fresh
+        }
+
+        // Register marketplace in extraKnownMarketplaces
+        if (typeof settings.extraKnownMarketplaces !== 'object' || settings.extraKnownMarketplaces === null) {
+          settings.extraKnownMarketplaces = {};
+        }
+        (settings.extraKnownMarketplaces as Record<string, unknown>)[marketplaceName] = {
+          source: { source: 'directory', path: repoPath },
+        };
+
+        // Enable plugin in enabledPlugins
+        if (typeof settings.enabledPlugins !== 'object' || settings.enabledPlugins === null) {
+          settings.enabledPlugins = {};
+        }
+        (settings.enabledPlugins as Record<string, boolean>)[pluginKey] = true;
+
+        await fs.mkdir(path.dirname(CLAUDE_SETTINGS_PATH), { recursive: true });
+        await fs.writeFile(CLAUDE_SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
+
+        // Copy plugin to cache so Claude Code picks it up immediately
+        const cacheDest = path.join(os.homedir(), '.claude', 'plugins', 'cache', marketplaceName, PLUGIN_NAME);
+        log.info(`Copiando plugin a cache...`);
+        log.dim(`  ${cacheDest}`);
+        if (existsSync(cacheDest)) {
+          await fs.rm(cacheDest, { recursive: true });
+        }
+        await fs.mkdir(path.dirname(cacheDest), { recursive: true });
+        await fs.cp(pluginSrcPath, cacheDest, { recursive: true });
+
+        log.blank();
+        log.success(`Marketplace '${marketplaceName}' registrado en settings.json.`);
+        log.success(`Plugin '${pluginKey}' habilitado.`);
+        log.keyValue('Repositorio', repoPath);
+        log.keyValue('Cache', cacheDest);
+        log.blank();
+        log.info('El plugin estará disponible al iniciar una nueva sesión de Claude Code.');
+
+        if (log.getOutputMode() === 'json') {
+          log.jsonOutput({ linked: true, marketplace: marketplaceName, pluginKey, repoPath, cacheDest });
+        }
+      } catch (err: unknown) {
+        if (err instanceof DivergerError) {
+          log.error(`[${err.code}] ${err.message}`);
+        } else {
+          log.error(extractErrorMessage(err));
+        }
+        process.exit(1);
+      }
+    });
+
   // --- plugin status ---
   pluginCmd
     .command('status')
