@@ -1,0 +1,17 @@
+{
+  "marketplace": {
+    "name": "diverger-claude",
+    "description": "Universal development agents, skills, and hooks by DivergerThinking",
+    "version": "3.5.1",
+    "plugins": [
+      {
+        "id": "diverger-claude",
+        "name": "diverger-claude",
+        "description": "Universal development agents, skills, and hooks by DivergerThinking",
+        "version": "3.5.1",
+        "author": "DivergerThinking",
+        "directory": "./plugin"
+      }
+    ]
+  }
+}
